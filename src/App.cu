@@ -9,6 +9,9 @@
 #include "Window.h"
 #include "ShaderGL.h"
 #include "TextureGL.h"
+#include "BufferCu.cuh"
+#include "CudaUtil.h"
+#include "PathTrace.cu"
 
 namespace gpupt
 {
@@ -35,8 +38,14 @@ void application::InitImGui()
 
 void application::InitGpuObjects()
 {
+#if API==API_GL
     PathTracingShader = std::make_shared<shaderGL>("resources/shaders/PathTrace.glsl");
     RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
+#elif API==API_CU
+    RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
+    RenderBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * 4 * sizeof(float));
+    RenderTextureMapping = CreateMapping(RenderTexture);    
+#endif
 }
     
 void application::Init()
@@ -73,10 +82,17 @@ void application::Run()
         Window->PollEvents();
         StartFrame();
 
+#if API==API_GL
         PathTracingShader->Use();
         PathTracingShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
         PathTracingShader->Dispatch(Window->Width / 16 + 1, Window->Height / 16 +1, 1);
-
+#elif API==API_CU
+        dim3 blockSize(16, 16);
+        dim3 gridSize((Window->Width / blockSize.x)+1, (Window->Height / blockSize.y) + 1);
+        TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, Window->Width, Window->Height);
+        cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer->Data, Window->Width * Window->Height * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+#endif
+        
         ImGui::SetNextWindowPos(ImVec2(0,0), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(Window->Width, Window->Height), ImGuiCond_Always);
         ImGui::Begin("RenderWindow", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);

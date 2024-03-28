@@ -1,13 +1,15 @@
 #version 460
+#include Inputs.glsl
+#include Macros.glsl
 
-layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+#define INIT()
 
-layout (binding = 0, rgba32f) uniform image2D RenderImage;
+#define MAIN()  void main()
 
+#define GLOBAL_ID() \
+    gl_GlobalInvocationID.xy
 
-void main()
-{
-    ivec2 ImageSize = imageSize(RenderImage);
-    vec2 UV = vec2(gl_GlobalInvocationID.xy) / vec2(ImageSize);
-    imageStore(RenderImage, ivec2(gl_GlobalInvocationID.xy), vec4(UV, 0, 1));    
-}
+#define IMAGE_SIZE(Img) \
+    imageSize(Img)
+
+#include ../PathTraceCode.cpp

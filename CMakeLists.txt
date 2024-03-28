@@ -49,9 +49,10 @@ link_directories("C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.8\\
 set (sourceFiles
         src/Main.cpp
         src/Window.cpp
-        src/App.cpp
+        src/App.cu
         src/ShaderGL.cpp
         src/TextureGL.cpp
+        src/BufferCu.cu
         ${IMGUI_SOURCE}
 )
 
