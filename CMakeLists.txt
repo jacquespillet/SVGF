@@ -50,6 +50,8 @@ set (sourceFiles
         src/Main.cpp
         src/Window.cpp
         src/App.cpp
+        src/ShaderGL.cpp
+        src/TextureGL.cpp
         ${IMGUI_SOURCE}
 )
 

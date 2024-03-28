@@ -1,11 +1,14 @@
 #include "App.h"
 #include <GL/glew.h>
 
-#include "Window.h"
-
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+
+
+#include "Window.h"
+#include "ShaderGL.h"
+#include "TextureGL.h"
 
 namespace gpupt
 {
@@ -19,18 +22,30 @@ application *application::Get()
 
     return Singleton.get();
 }
-    
-void application::Init()
-{
-    Window = std::make_shared<window>(800, 600);
 
+void application::InitImGui()
+{
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(Window->Handle, true);
-    ImGui_ImplOpenGL3_Init("#version 460");    
+    ImGui_ImplOpenGL3_Init("#version 460");
+}
 
+void application::InitGpuObjects()
+{
+    PathTracingShader = std::make_shared<shaderGL>("resources/shaders/PathTrace.glsl");
+    RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
+}
+    
+void application::Init()
+{
+    Window = std::make_shared<window>(800, 600);
+
+    InitImGui();
+
+    InitGpuObjects();
 }
 
 void application::StartFrame()
@@ -58,7 +73,15 @@ void application::Run()
         Window->PollEvents();
         StartFrame();
 
-        ImGui::ShowDemoWindow();
+        PathTracingShader->Use();
+        PathTracingShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
+        PathTracingShader->Dispatch(Window->Width / 16 + 1, Window->Height / 16 +1, 1);
+
+        ImGui::SetNextWindowPos(ImVec2(0,0), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(Window->Width, Window->Height), ImGuiCond_Always);
+        ImGui::Begin("RenderWindow", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
+        ImGui::Image((ImTextureID)RenderTexture->TextureID, ImVec2(Window->Width, Window->Height));
+        ImGui::End();
 
         EndFrame();
     }
@@ -66,7 +89,7 @@ void application::Run()
 
 void application::Cleanup()
 {
-    
+       
 }
 
 }
