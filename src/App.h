@@ -16,6 +16,9 @@ public:
 private:
     static std::shared_ptr<application> Singleton;
     std::shared_ptr<window> Window;
+
+    void StartFrame();
+    void EndFrame();
 };
 
 }

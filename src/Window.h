@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <functional>
 
-class GLFWwindow;
+struct GLFWwindow;
 
 namespace gpupt
 {
