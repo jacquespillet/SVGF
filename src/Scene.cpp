@@ -39,6 +39,7 @@ std::shared_ptr<scene> CreateCornellBox()
     Floor.Positions = { {-1, 0, 1}, {1, 0, 1}, {1, 0, -1}, {-1, 0, -1} };
     Floor.Triangles = { {0, 1, 2}, {2, 3, 0} };
     Floor.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Floor.Colours = {{0.5,0.5,0.5,1},{0.5,0.5,0.5,1},{0.5,0.5,0.5,1},{0.5,0.5,0.5,1}};
     Scene->Instances.emplace_back();
     instance &FloorInstance = Scene->Instances.back();
     FloorInstance.Shape = (int)Scene->Shapes.size()-1;
@@ -50,6 +51,7 @@ std::shared_ptr<scene> CreateCornellBox()
     CeilingShape.Positions   = {{-1, 2, 1}, {-1, 2, -1}, {1, 2, -1}, {1, 2, 1}};
     CeilingShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
     CeilingShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    CeilingShape.Colours = {{0.6,0.6,0.6,1},{0.6,0.6,0.6,1},{0.6,0.6,0.6,1},{0.6,0.6,0.6,1}};
     Scene->Instances.emplace_back();
     auto& CeilingInstance    = Scene->Instances.back();
     CeilingInstance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -61,6 +63,7 @@ std::shared_ptr<scene> CreateCornellBox()
     BackWallShape.Positions   = {{-1, 0, -1}, {1, 0, -1}, {1, 2, -1}, {-1, 2, -1}};
     BackWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
     BackWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    BackWallShape.Colours = {{0.4,0.4,0.4,1},{0.4,0.4,0.4,1},{0.4,0.4,0.4,1},{0.4,0.4,0.4,1}};
     Scene->Instances.emplace_back();
     auto& BackWallInstance    = Scene->Instances.back();
     BackWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -72,6 +75,7 @@ std::shared_ptr<scene> CreateCornellBox()
     RightWallShape.Positions   = {{1, 0, -1}, {1, 0, 1}, {1, 2, 1}, {1, 2, -1}};
     RightWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
     RightWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    RightWallShape.Colours = {{1,0,0,1},{1,0,0,1},{1,0,0,1},{1,0,0,1}};
     Scene->Instances.emplace_back();
     auto& RightWallInstance    = Scene->Instances.back();
     RightWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -83,6 +87,7 @@ std::shared_ptr<scene> CreateCornellBox()
     LeftWallShape.Positions   = {{-1, 0, 1}, {-1, 0, -1}, {-1, 2, -1}, {-1, 2, 1}};
     LeftWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
     LeftWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    LeftWallShape.Colours = {{0,1,0,1},{0,1,0,1},{0,1,0,1},{0,1,0,1}};
     Scene->Instances.emplace_back();
     auto& LeftWallInstance    = Scene->Instances.back();
     LeftWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -103,6 +108,7 @@ std::shared_ptr<scene> CreateCornellBox()
     ShortBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
         {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
         {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
+    ShortBoxShape.Colours.resize(ShortBoxShape.Positions.size(), {0.7,0.7,0.7,1});
     Scene->Instances.emplace_back();
     auto& shortbox_instance    = Scene->Instances.back();
     shortbox_instance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -123,6 +129,7 @@ std::shared_ptr<scene> CreateCornellBox()
     TallBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
          {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
          {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
+    TallBoxShape.Colours.resize(ShortBoxShape.Positions.size(), {0.6,0.6,0.6,1});
     Scene->Instances.emplace_back();
     auto& tallbox_instance    = Scene->Instances.back();
     tallbox_instance.Shape    = (int)Scene->Shapes.size() - 1;

@@ -1,9 +1,13 @@
 #pragma once
 #include <string>
+#include <memory>
+
 #include "GL/glew.h"
 
 namespace gpupt
 {
+
+class bufferGL;
 
 class shaderGL {
 public:
@@ -14,6 +18,7 @@ public:
     void SetInt(const std::string& name, int value);
     void SetTexture(int ImageUnit, GLuint TextureID, GLenum Access);
     void SetTexture(int ImageUnit, GLuint TextureID) const;
+    void SetSSBO(std::shared_ptr<bufferGL> Buffer, int BindingPoint);
     void Dispatch(uint32_t X, uint32_t Y, uint32_t Z);
     void Barrier();
     ~shaderGL();

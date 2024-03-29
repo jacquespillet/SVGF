@@ -11,9 +11,11 @@
 #include "TextureGL.h"
 #include "BufferCu.cuh"
 #include "CudaUtil.h"
-#include "PathTrace.cu"
 #include "Scene.h"
 #include "BVH.h"
+#if API==API_CU
+#include "PathTrace.cu"
+#endif
 
 
 namespace gpupt
@@ -89,11 +91,21 @@ void application::Run()
 #if API==API_GL
         PathTracingShader->Use();
         PathTracingShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
+        PathTracingShader->SetSSBO(BVH->TrianglesBuffer, 1);
+        PathTracingShader->SetSSBO(BVH->TrianglesExBuffer, 2);
+        PathTracingShader->SetSSBO(BVH->BVHBuffer, 3);
+        PathTracingShader->SetSSBO(BVH->IndicesBuffer, 4);
+        PathTracingShader->SetSSBO(BVH->IndexDataBuffer, 5);
+        PathTracingShader->SetSSBO(BVH->TLASInstancesBuffer, 6);
+        PathTracingShader->SetSSBO(BVH->TLASNodeBuffer, 7);        
+        PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
         PathTracingShader->Dispatch(Window->Width / 16 + 1, Window->Height / 16 +1, 1);
 #elif API==API_CU
         dim3 blockSize(16, 16);
         dim3 gridSize((Window->Width / blockSize.x)+1, (Window->Height / blockSize.y) + 1);
-        TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, Window->Width, Window->Height);
+        TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, Window->Width, Window->Height,
+                                            (triangle*)BVH->TrianglesBuffer->Data, (triangleExtraData*) BVH->TrianglesExBuffer->Data, (bvhNode*) BVH->BVHBuffer->Data, (u32*) BVH->IndicesBuffer->Data, (indexData*) BVH->IndexDataBuffer->Data, (bvhInstance*)BVH->TLASInstancesBuffer->Data, (tlasNode*) BVH->TLASNodeBuffer->Data,
+                                            (camera*)Scene->CamerasBuffer->Data);
         cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer->Data, Window->Width * Window->Height * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
 #endif
         

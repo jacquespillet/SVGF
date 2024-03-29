@@ -3,6 +3,8 @@
 #include <iostream>
 #include <sstream>
 
+#include "BufferGL.h"
+
 namespace gpupt
 {
 shaderGL::shaderGL(const char* computePath) {
@@ -37,6 +39,12 @@ void shaderGL::SetTexture(int ImageUnit, GLuint TextureID, GLenum Access) {
 
 void shaderGL::SetTexture(int ImageUnit, GLuint TextureID) const {    
     glBindTextureUnit(ImageUnit, TextureID);
+}
+
+void shaderGL::SetSSBO(std::shared_ptr<bufferGL> Buffer, int BindingPoint)
+{
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, Buffer->BufferID);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BindingPoint, Buffer->BufferID);
 }
 
 void shaderGL::Dispatch(uint32_t X, uint32_t Y, uint32_t Z)

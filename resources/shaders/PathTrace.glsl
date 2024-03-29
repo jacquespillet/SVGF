@@ -1,4 +1,7 @@
 #version 460
+#extension GL_ARB_gpu_shader_int64 : enable
+
+#include Structs.glsl
 #include Inputs.glsl
 #include Macros.glsl
 
@@ -11,5 +14,13 @@
 
 #define IMAGE_SIZE(Img) \
     imageSize(Img)
+
+
+#define FN_DECL
+
+#define INOUT(Type) inout Type
+
+#define GET_ATTR(Obj, Attr) \
+    Obj.Attr
 
 #include ../PathTraceCode.cpp
