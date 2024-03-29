@@ -36,8 +36,12 @@ window::window(uint32_t Width, uint32_t Height)
 
     glfwWindowHint(GLFW_DECORATED, true);
     glfwWindowHint(GLFW_RESIZABLE, true);
-    this->Handle = glfwCreateWindow(this->Width, this->Height, "GPU Path Tracing", nullptr, nullptr);
-    
+
+#if API==API_GL
+    this->Handle = glfwCreateWindow(this->Width, this->Height, "GPU Path Tracing - OpenGL", nullptr, nullptr);
+#elif API==API_CU
+    this->Handle = glfwCreateWindow(this->Width, this->Height, "GPU Path Tracing - Cuda", nullptr, nullptr);
+#endif 
 
     if(this->Handle == nullptr)
     {
