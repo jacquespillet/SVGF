@@ -53,11 +53,8 @@ void application::InitGpuObjects()
 void application::Init()
 {
     Window = std::make_shared<window>(800, 600);
-
     InitImGui();
-
     Scene = CreateCornellBox();
-
     InitGpuObjects();
 }
 

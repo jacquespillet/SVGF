@@ -1,6 +1,8 @@
 #include "Scene.h"
 #include <glm/ext.hpp>
 
+#include "BufferCu.cuh"
+#include "BufferGL.h"
 namespace gpupt
 {
 
@@ -154,6 +156,12 @@ std::shared_ptr<scene> CreateCornellBox()
         if(Scene->Shapes[i].Colours.size() != Scene->Shapes[i].Positions.size()) Scene->Shapes[i].Colours.resize(Scene->Shapes[i].Positions.size(), glm::vec4{1,1,1,1});
     }
     
+
+#if API==API_GL
+    Scene->CamerasBuffer = std::make_shared<bufferGL>(Scene->Cameras.size() * sizeof(camera), Scene->Cameras.data());
+#elif API==API_CU
+    Scene->CamerasBuffer = std::make_shared<bufferCu>(Scene->Cameras.size() * sizeof(camera), Scene->Cameras.data());
+#endif    
     return Scene;
 }
 

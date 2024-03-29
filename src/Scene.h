@@ -6,6 +6,9 @@
 
 namespace gpupt
 {
+class bufferCu;
+class bufferGL;
+
 static const int InvalidID = -1;
 
 struct camera
@@ -61,6 +64,13 @@ struct scene
     std::vector<std::string> CameraNames = {};
     std::vector<std::string> InstanceNames = {};
     std::vector<std::string> ShapeNames = {};
+
+
+#if API==API_GL
+    std::shared_ptr<bufferGL> CamerasBuffer;
+#elif API==API_CU
+    std::shared_ptr<bufferCu> CamerasBuffer;
+#endif    
 };
 
 std::shared_ptr<scene> CreateCornellBox();

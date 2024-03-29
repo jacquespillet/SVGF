@@ -53,6 +53,7 @@ set (sourceFiles
         src/ShaderGL.cpp
         src/TextureGL.cpp
         src/BufferCu.cu
+        src/BufferGL.cpp
         src/Scene.cpp
         ${IMGUI_SOURCE}
 )
