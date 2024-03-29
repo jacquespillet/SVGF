@@ -44,7 +44,7 @@ struct shape
     std::vector<glm::vec2> TexCoords;
     std::vector<glm::vec4> Colours;
     std::vector<glm::vec4> Tangents;
-    
+
     std::vector<glm::ivec3> Triangles;
 };
 
@@ -63,7 +63,7 @@ struct scene
     std::vector<std::string> ShapeNames = {};
 };
 
-
+std::shared_ptr<scene> CreateCornellBox();
 void CalculateTangents(shape &Shape);
 
 }

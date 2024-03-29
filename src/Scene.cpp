@@ -18,6 +18,145 @@ glm::mat4 instance::GetModelMatrix() const
     return ModelMatrix;    
 }
 
+std::shared_ptr<scene> CreateCornellBox()
+{
+    std::shared_ptr<scene> Scene = std::make_shared<scene>();
+
+    Scene->Cameras.emplace_back();
+    camera &Camera = Scene->Cameras.back();
+    Camera.Frame = glm::translate(glm::mat4(1), glm::vec3(0, 1, 3.9f));
+    Camera.Lens = 0.035f;
+    Camera.Aperture = 0.0f;
+    Camera.Focus = 3.9f;
+    Camera.Film = 0.024f;
+    Camera.Aspect = 1.0f;
+    Scene->CameraNames.push_back("Main Camera");
+
+    Scene->Shapes.emplace_back();
+    shape &Floor = Scene->Shapes.back();
+    Floor.Positions = { {-1, 0, 1}, {1, 0, 1}, {1, 0, -1}, {-1, 0, -1} };
+    Floor.Triangles = { {0, 1, 2}, {2, 3, 0} };
+    Floor.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Scene->Instances.emplace_back();
+    instance &FloorInstance = Scene->Instances.back();
+    FloorInstance.Shape = (int)Scene->Shapes.size()-1;
+    Scene->ShapeNames.push_back("Floor");
+    Scene->InstanceNames.push_back("Floor");
+
+    Scene->Shapes.emplace_back();
+    shape& CeilingShape       = Scene->Shapes.back();
+    CeilingShape.Positions   = {{-1, 2, 1}, {-1, 2, -1}, {1, 2, -1}, {1, 2, 1}};
+    CeilingShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
+    CeilingShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Scene->Instances.emplace_back();
+    auto& CeilingInstance    = Scene->Instances.back();
+    CeilingInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    Scene->ShapeNames.push_back("Ceiling");
+    Scene->InstanceNames.push_back("Ceiling");
+
+    Scene->Shapes.emplace_back();
+    shape& BackWallShape       = Scene->Shapes.back();
+    BackWallShape.Positions   = {{-1, 0, -1}, {1, 0, -1}, {1, 2, -1}, {-1, 2, -1}};
+    BackWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
+    BackWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Scene->Instances.emplace_back();
+    auto& BackWallInstance    = Scene->Instances.back();
+    BackWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    Scene->ShapeNames.push_back("BackWall");
+    Scene->InstanceNames.push_back("BackWall");
+
+    Scene->Shapes.emplace_back();
+    shape& RightWallShape       = Scene->Shapes.back();
+    RightWallShape.Positions   = {{1, 0, -1}, {1, 0, 1}, {1, 2, 1}, {1, 2, -1}};
+    RightWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
+    RightWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Scene->Instances.emplace_back();
+    auto& RightWallInstance    = Scene->Instances.back();
+    RightWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    Scene->ShapeNames.push_back("RightWall");
+    Scene->InstanceNames.push_back("RightWall");
+
+    Scene->Shapes.emplace_back();
+    shape& LeftWallShape       = Scene->Shapes.back();
+    LeftWallShape.Positions   = {{-1, 0, 1}, {-1, 0, -1}, {-1, 2, -1}, {-1, 2, 1}};
+    LeftWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
+    LeftWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Scene->Instances.emplace_back();
+    auto& LeftWallInstance    = Scene->Instances.back();
+    LeftWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    Scene->ShapeNames.push_back("LeftWall");
+    Scene->InstanceNames.push_back("LeftWall");
+
+    Scene->Shapes.emplace_back();
+    auto& ShortBoxShape       = Scene->Shapes.back();
+    ShortBoxShape.Positions   = {{0.53f, 0.6f, 0.75f}, {0.7f, 0.6f, 0.17f},
+        {0.13f, 0.6f, 0.0f}, {-0.05f, 0.6f, 0.57f}, {-0.05f, 0.0f, 0.57f},
+        {-0.05f, 0.6f, 0.57f}, {0.13f, 0.6f, 0.0f}, {0.13f, 0.0f, 0.0f},
+        {0.53f, 0.0f, 0.75f}, {0.53f, 0.6f, 0.75f}, {-0.05f, 0.6f, 0.57f},
+        {-0.05f, 0.0f, 0.57f}, {0.7f, 0.0f, 0.17f}, {0.7f, 0.6f, 0.17f},
+        {0.53f, 0.6f, 0.75f}, {0.53f, 0.0f, 0.75f}, {0.13f, 0.0f, 0.0f},
+        {0.13f, 0.6f, 0.0f}, {0.7f, 0.6f, 0.17f}, {0.7f, 0.0f, 0.17f},
+        {0.53f, 0.0f, 0.75f}, {0.7f, 0.0f, 0.17f}, {0.13f, 0.0f, 0.0f},
+        {-0.05f, 0.0f, 0.57f}};
+    ShortBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
+        {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
+        {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
+    Scene->Instances.emplace_back();
+    auto& shortbox_instance    = Scene->Instances.back();
+    shortbox_instance.Shape    = (int)Scene->Shapes.size() - 1;
+    Scene->ShapeNames.push_back("ShortBox");
+    Scene->InstanceNames.push_back("ShortBox");
+
+    Scene->Shapes.emplace_back();
+    auto& TallBoxShape       = Scene->Shapes.back();
+    TallBoxShape.Positions   = {{-0.53f, 1.2f, 0.09f}, {0.04f, 1.2f, -0.09f},
+         {-0.14f, 1.2f, -0.67f}, {-0.71f, 1.2f, -0.49f}, {-0.53f, 0.0f, 0.09f},
+         {-0.53f, 1.2f, 0.09f}, {-0.71f, 1.2f, -0.49f}, {-0.71f, 0.0f, -0.49f},
+         {-0.71f, 0.0f, -0.49f}, {-0.71f, 1.2f, -0.49f}, {-0.14f, 1.2f, -0.67f},
+         {-0.14f, 0.0f, -0.67f}, {-0.14f, 0.0f, -0.67f}, {-0.14f, 1.2f, -0.67f},
+         {0.04f, 1.2f, -0.09f}, {0.04f, 0.0f, -0.09f}, {0.04f, 0.0f, -0.09f},
+         {0.04f, 1.2f, -0.09f}, {-0.53f, 1.2f, 0.09f}, {-0.53f, 0.0f, 0.09f},
+         {-0.53f, 0.0f, 0.09f}, {0.04f, 0.0f, -0.09f}, {-0.14f, 0.0f, -0.67f},
+         {-0.71f, 0.0f, -0.49f}};
+    TallBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
+         {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
+         {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
+    Scene->Instances.emplace_back();
+    auto& tallbox_instance    = Scene->Instances.back();
+    tallbox_instance.Shape    = (int)Scene->Shapes.size() - 1;
+    Scene->ShapeNames.push_back("TallBox");
+    Scene->InstanceNames.push_back("TallBox");
+
+    // Checkup
+    for (size_t i = 0; i < Scene->Shapes.size(); i++)
+    {
+        if(Scene->Shapes[i].Normals.size() == 0)
+        {
+            Scene->Shapes[i].Normals.resize(Scene->Shapes[i].Positions.size());
+            for (size_t j = 0; j < Scene->Shapes[i].Triangles.size(); j++)
+            {
+                glm::ivec3 Tri = Scene->Shapes[i].Triangles[j];
+                glm::vec3 v0 = Scene->Shapes[i].Positions[Tri.x];
+                glm::vec3 v1 = Scene->Shapes[i].Positions[Tri.y];
+                glm::vec3 v2 = Scene->Shapes[i].Positions[Tri.z];
+
+                glm::vec3 Normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+                Scene->Shapes[i].Normals[Tri.x] = Normal;
+                Scene->Shapes[i].Normals[Tri.y] = Normal;
+                Scene->Shapes[i].Normals[Tri.z] = Normal;
+            }
+        }
+        if(Scene->Shapes[i].Tangents.size() ==0)
+        {
+            CalculateTangents(Scene->Shapes[i]);            
+        }
+        if(Scene->Shapes[i].TexCoords.size() != Scene->Shapes[i].Positions.size()) Scene->Shapes[i].TexCoords.resize(Scene->Shapes[i].Positions.size());
+        if(Scene->Shapes[i].Colours.size() != Scene->Shapes[i].Positions.size()) Scene->Shapes[i].Colours.resize(Scene->Shapes[i].Positions.size(), glm::vec4{1,1,1,1});
+    }
+    
+    return Scene;
+}
+
 
 void CalculateTangents(shape &Shape)
 {

@@ -8,6 +8,7 @@ class shaderGL;
 class textureGL;
 class bufferCu;
 class cudaTextureMapping;
+struct scene;
 
 class application
 {
@@ -20,6 +21,8 @@ public:
 private:
     static std::shared_ptr<application> Singleton;
     std::shared_ptr<window> Window;
+
+    std::shared_ptr<scene> Scene;
 
 #if API==API_GL
     std::shared_ptr<shaderGL> PathTracingShader;
