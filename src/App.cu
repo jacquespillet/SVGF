@@ -13,6 +13,7 @@
 #include "CudaUtil.h"
 #include "PathTrace.cu"
 #include "Scene.h"
+#include "BVH.h"
 
 
 namespace gpupt
@@ -55,6 +56,8 @@ void application::Init()
     Window = std::make_shared<window>(800, 600);
     InitImGui();
     Scene = CreateCornellBox();
+    BVH = CreateBVH(Scene); 
+    
     InitGpuObjects();
 }
 

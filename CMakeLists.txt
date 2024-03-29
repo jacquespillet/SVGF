@@ -55,6 +55,7 @@ set (sourceFiles
         src/BufferCu.cu
         src/BufferGL.cpp
         src/Scene.cpp
+        src/BVH.cpp
         ${IMGUI_SOURCE}
 )
 

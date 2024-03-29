@@ -9,6 +9,7 @@ class textureGL;
 class bufferCu;
 class cudaTextureMapping;
 struct scene;
+struct sceneBVH;
 
 class application
 {
@@ -23,6 +24,7 @@ private:
     std::shared_ptr<window> Window;
 
     std::shared_ptr<scene> Scene;
+    std::shared_ptr<sceneBVH> BVH;
 
 #if API==API_GL
     std::shared_ptr<shaderGL> PathTracingShader;
