@@ -4,6 +4,8 @@
 using namespace glm;
 using namespace gpupt;
 
+#define PI_F 3.141592653589
+
 __device__ u32 Width;
 __device__ u32 Height;
 __device__ triangle *TriangleBuffer;
@@ -46,6 +48,11 @@ __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
 __device__ void imageStore(vec4 *Image, ivec2 p, vec4 Colour)
 {
     Image[p.y * Width + p.x] = Colour;
+}
+
+__device__ vec4 imageLoad(vec4 *Image, ivec2 p)
+{
+    return Image[p.y * Width + p.x];
 }
 
  

@@ -8,6 +8,7 @@ namespace gpupt
 {
 
 class bufferGL;
+class uniformBufferGL;
 
 class shaderGL {
 public:
@@ -19,6 +20,7 @@ public:
     void SetTexture(int ImageUnit, GLuint TextureID, GLenum Access);
     void SetTexture(int ImageUnit, GLuint TextureID) const;
     void SetSSBO(std::shared_ptr<bufferGL> Buffer, int BindingPoint);
+    void SetUBO(std::shared_ptr<uniformBufferGL> Buffer, int BindingPoint);
     void Dispatch(uint32_t X, uint32_t Y, uint32_t Z);
     void Barrier();
     ~shaderGL();

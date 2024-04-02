@@ -75,7 +75,7 @@ std::shared_ptr<scene> CreateCornellBox()
     RightWallShape.Positions   = {{1, 0, -1}, {1, 0, 1}, {1, 2, 1}, {1, 2, -1}};
     RightWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
     RightWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    RightWallShape.Colours = {{1,0,0,1},{1,0,0,1},{1,0,0,1},{1,0,0,1}};
+    RightWallShape.Colours = {{0.8,0.2,0.1,1},{0.8,0.2,0.1,1},{0.8,0.2,0.1,1},{0.8,0.2,0.1,1}};
     Scene->Instances.emplace_back();
     auto& RightWallInstance    = Scene->Instances.back();
     RightWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -87,7 +87,7 @@ std::shared_ptr<scene> CreateCornellBox()
     LeftWallShape.Positions   = {{-1, 0, 1}, {-1, 0, -1}, {-1, 2, -1}, {-1, 2, 1}};
     LeftWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
     LeftWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    LeftWallShape.Colours = {{0,1,0,1},{0,1,0,1},{0,1,0,1},{0,1,0,1}};
+    LeftWallShape.Colours = {{0.2,0.8,0.1,1},{0.2,0.8,0.1,1},{0.2,0.8,0.1,1},{0.2,0.8,0.1,1}};
     Scene->Instances.emplace_back();
     auto& LeftWallInstance    = Scene->Instances.back();
     LeftWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -135,6 +135,18 @@ std::shared_ptr<scene> CreateCornellBox()
     tallbox_instance.Shape    = (int)Scene->Shapes.size() - 1;
     Scene->ShapeNames.push_back("TallBox");
     Scene->InstanceNames.push_back("TallBox");
+
+    Scene->Shapes.emplace_back();
+    shape &LightShape = Scene->Shapes.back();
+    LightShape.Positions = {{-0.25f, 1.99f, 0.25f}, {-0.25f, 1.99f, -0.25f}, {0.25f, 1.99f, -0.25f}, {0.25f, 1.99f, 0.25f}};
+    LightShape.Triangles = { {0, 1, 2}, {2, 3, 0} };
+    LightShape.Colours.resize(ShortBoxShape.Positions.size(), {100,100,100,1});
+    Scene->Instances.emplace_back();
+    instance &LightInstance = Scene->Instances.back(); 
+    LightInstance.Shape = (int)Scene->Shapes.size()-1;
+    Scene->ShapeNames.push_back("Light");
+    Scene->InstanceNames.push_back("Light");
+
 
     // Checkup
     for (size_t i = 0; i < Scene->Shapes.size(); i++)

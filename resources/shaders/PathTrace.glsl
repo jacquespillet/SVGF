@@ -5,6 +5,9 @@
 #include Inputs.glsl
 #include Macros.glsl
 
+#define PI_F 3.141592653589
+
+
 #define INIT()
 
 #define MAIN()  void main()

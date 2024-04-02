@@ -100,3 +100,11 @@ struct camera
     int Orthographic;
     ivec3 Padding;
 };
+
+struct tracingParameters
+{
+    int CurrentSample;
+    int TotalSamples;
+    int Batch;
+    int Pad;
+};

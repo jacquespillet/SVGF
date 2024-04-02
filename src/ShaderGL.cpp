@@ -47,6 +47,11 @@ void shaderGL::SetSSBO(std::shared_ptr<bufferGL> Buffer, int BindingPoint)
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BindingPoint, Buffer->BufferID);
 }
 
+void shaderGL::SetUBO(std::shared_ptr<uniformBufferGL> Buffer, int BindingPoint)
+{
+    glBindBufferBase(GL_UNIFORM_BUFFER, BindingPoint, Buffer->BufferID);
+}
+
 void shaderGL::Dispatch(uint32_t X, uint32_t Y, uint32_t Z)
 {
     this->Use();

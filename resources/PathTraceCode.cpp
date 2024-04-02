@@ -1,11 +1,40 @@
+struct randomState
+{
+    uint64_t State;
+    uint64_t Inc;
+};
+
+
 struct sceneIntersection
 {
     float Distance;
-    uint InstanceIndex;
-    uint PrimitiveIndex;
     float U;
     float V;
+    
+    uint InstanceIndex;
+    uint PrimitiveIndex;
+    
+    mat4 InstanceTransform;
+
+    vec3 Normal;
+    randomState RandomState;
+
 };
+
+// Util
+FN_DECL bool IsFinite(float A)
+{
+    return !isnan(A);
+}
+
+FN_DECL bool IsFinite(vec3 A)
+{
+    return IsFinite(A.x) && IsFinite(A.y) && IsFinite(A.z);
+}
+
+
+
+// BVH
 
 FN_DECL float RayAABBIntersection(ray Ray, vec3 AABBMin, vec3 AABBMax, INOUT(sceneIntersection) Isect)
 {
@@ -175,6 +204,7 @@ FN_DECL void IntersectTLAS(ray Ray, INOUT(sceneIntersection) Isect)
     }
 }
 
+// Geometry
 
 FN_DECL ray MakeRay(vec3 Origin, vec3 Direction, vec3 InverseDirection)
 {
@@ -197,6 +227,27 @@ FN_DECL vec3 TransformDirection(mat4 A, vec3 B)
     return normalize(vec3(Res));
 }
 
+FN_DECL vec3 TransformDirection(mat3 A, vec3 B)
+{
+    vec3 Res = A * B; 
+    return normalize(Res);
+}
+
+FN_DECL mat3 BasisFromZ(vec3 V)
+{
+    vec3 Z = normalize(V);
+    
+    // https://graphics.pixar.com/library/OrthonormalB/paper.pdf
+    float Sign = Z.z > 0 ? 1.0f : -1.0f;
+    float A = -1.0f / (Sign + Z.z);
+    float B = Z.x * Z.y * A;
+    vec3 X = vec3(1.0f + Sign * Z.x * Z.x * A, Sign * B, -Sign * Z.x);
+    vec3 Y = vec3(B, Sign + Z.y * Z.y * A, -Z.y);
+
+    return mat3(X, Y, Z);
+}
+
+
 FN_DECL ray GetRay(vec2 ImageUV)
 {
     camera Camera = Cameras[0];
@@ -204,7 +255,7 @@ FN_DECL ray GetRay(vec2 ImageUV)
     // Point on the film
     vec3 Q = vec3(
         (0.5f - ImageUV.x),
-        (ImageUV.y - 0.5f),
+        (0.5f - ImageUV.y ),
         1
     );
     vec3 RayDirection = -normalize(Q);
@@ -219,6 +270,111 @@ FN_DECL ray GetRay(vec2 ImageUV)
     return Ray;
 }
 
+FN_DECL vec3 EvalShadingPosition(INOUT(vec3) OutgoingDir, INOUT(sceneIntersection) Isect)
+{
+    uint Element = Isect.PrimitiveIndex;
+    triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];
+
+    vec3 Position = 
+        Tri.v1 * Isect.U + 
+        Tri.v2 * Isect.V +
+        Tri.v0 * (1 - Isect.U - Isect.V);
+    return TransformPoint(Isect.InstanceTransform, Position);
+}
+
+// BSDF
+
+FN_DECL vec3 SampleHemisphereCosine(vec3 Normal, vec2 UV)
+{
+    // Calculates Phi and theta angles
+    float Phi = 2 * PI_F * UV.x; //Azimuthal angle
+    float CosTheta = sqrt(1.0f - UV.y);  // Cosine of polar angle
+    float SinTheta = sqrt(UV.y);  // Sine of polar angle
+
+    // By taking the square root of UV.y, we essentially map a uniform distribution to a distribution that gives higher weight #
+    // to points closer to the normal vector. This weighting ensures that more samples are taken in directions aligned with the surface normal
+    
+    // Generates a direction from the angles
+    vec3 LocalDirection = vec3(
+        cos(Phi) * SinTheta, 
+        sin(Phi) * CosTheta,
+        SinTheta
+    );
+    return TransformDirection(BasisFromZ(Normal), LocalDirection);
+}
+
+FN_DECL float SampleHemisphereCosinePDF(INOUT(vec3) Normal, INOUT(vec3) Direction)
+{
+    // The probability of generating a direction v is proportional to cos(θ) (as in the cosine-weighted hemisphere).
+    // The total probability over the hemisphere should be 1. So, to normalize, we divide by the integral of cos⁡cos(θ) over the hemisphere, which is π.
+
+    float CosW = dot(Normal, Direction);
+    return (CosW <= 0) ? 0 : CosW / PI_F;
+}
+
+FN_DECL vec3 SampleMatte(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3) Outgoing, vec2 RN)
+{
+    vec3 UpNormal = dot(Normal, Outgoing) <= 0 ? -Normal : Normal;
+    return SampleHemisphereCosine(UpNormal, RN);
+}
+
+FN_DECL vec3 EvalMatte(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming)
+{
+    if(dot(Normal, Incoming) * dot(Normal, Outgoing) <= 0) return vec3(0,0,0);
+    // Lambertian BRDF:  
+    // F(wi, wo) = (DiffuseReflectance / PI) * Cos(Theta)
+    //Note :  This does not take the outgoing direction into account : it's perfectly isotropic : it scatters light uniformly in all directions.
+    return Colour / vec3(PI_F) * abs(dot(Normal, Incoming));
+}
+
+FN_DECL float SampleMattePDF(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming)
+{
+    if(dot(Normal, Incoming) * dot(Normal, Outgoing) <= 0) return 0;
+    // returns the pdf of a the normal
+    vec3 UpNormal = dot(Normal, Outgoing) <= 0 ? -Normal : Normal;
+    return SampleHemisphereCosinePDF(UpNormal, Incoming);
+}
+
+
+// Random
+FN_DECL uint AdvanceState(INOUT(randomState) RNG)
+{
+    uint64_t OldState = RNG.State;
+    RNG.State = OldState * 6364136223846793005ul + RNG.Inc;
+    uint XorShifted = uint(((OldState >> uint(18)) ^ OldState) >> uint(27));
+    uint Rot = uint(OldState >> uint(59));
+
+    return (XorShifted >> Rot) | (XorShifted << ((~Rot + 1u) & 31));
+}
+
+FN_DECL randomState CreateRNG(uint64_t Seed, uint64_t Sequence)
+{
+    randomState State;
+
+    State.State = 0U;
+    State.Inc = (Sequence << 1u) | 1u;
+    AdvanceState(State);
+    State.State += Seed;
+    AdvanceState(State);
+
+    return State;
+}
+
+FN_DECL int Rand1i(INOUT(randomState) RNG, int n)
+{
+    return int(AdvanceState(RNG) % n);
+}
+
+FN_DECL float RandomUnilateral(INOUT(randomState) RNG)
+{
+    uint u = (AdvanceState(RNG) >> 9) | 0x3f800000u;
+    return uintBitsToFloat(u) - 1.0f;
+}
+
+FN_DECL vec2 Random2F(INOUT(randomState) State)
+{
+    return vec2(RandomUnilateral(State), RandomUnilateral(State));
+}
 
 
 
@@ -231,23 +387,64 @@ MAIN()
     int Height = ImageSize.y;
 
     uvec2 GlobalID = GLOBAL_ID();
+    vec2 UV = vec2(GlobalID) / vec2(ImageSize);
+    UV.y = 1 - UV.y;
+        
     if (GlobalID.x < Width && GlobalID.y < Height) {
-
-        vec2 UV = vec2(GLOBAL_ID()) / vec2(ImageSize);
-        ray Ray = GetRay(UV);
-
-        sceneIntersection Isect;
-        Isect.Distance = 1e30f;
-
-        IntersectTLAS(Ray, Isect);
-        if(Isect.Distance < 1e30f)
+        vec4 PrevCol = imageLoad(RenderImage, ivec2(GlobalID));
+        vec4 NewCol;
+        for(int Sample=0; Sample < 100; Sample++)
         {
-            triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];    
-            vec4 Colour = 
-                ExtraData.Colour1 * Isect.U + 
-                ExtraData.Colour2 * Isect.V +
-                ExtraData.Colour0 * (1 - Isect.U - Isect.V);
-            imageStore(RenderImage, ivec2(GLOBAL_ID()), Colour);
+            randomState RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277)  + Sample) * uint(26699) | uint(1), 371213); 
+            ray Ray = GetRay(UV);
+            
+
+            vec3 Radiance = vec3(0,0,0);
+            vec3 Weight = vec3(1,1,1);
+            for(int Bounce=0; Bounce < 3; Bounce++)
+            {
+                sceneIntersection Isect;
+                Isect.Distance = 1e30f;
+                Isect.RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(Bounce + Sample) * uint(117191)) | uint(1), 371213); 
+
+                IntersectTLAS(Ray, Isect);
+                if(Isect.Distance == 1e30f)
+                {
+                    Radiance += Weight * vec3(1);
+                    // Environment radiance
+                    break;
+                }
+
+                uint Element = Isect.PrimitiveIndex;
+                triangle Tri = TriangleBuffer[Element];
+                triangleExtraData ExtraData = TriangleExBuffer[Element];    
+                Isect.InstanceTransform = TLASInstancesBuffer[Isect.InstanceIndex].Transform;
+                
+                mat4 NormalTransform = TLASInstancesBuffer[Isect.InstanceIndex].NormalTransform;
+                vec3 Normal = ExtraData.Normal1 * Isect.U + ExtraData.Normal2 * Isect.V +ExtraData.Normal0 * (1 - Isect.U - Isect.V);
+                Isect.Normal = TransformDirection(NormalTransform, Normal);
+                
+                vec4 Colour = ExtraData.Colour1 * Isect.U + ExtraData.Colour2 * Isect.V + ExtraData.Colour0 * (1 - Isect.U - Isect.V);                
+
+                vec3 Position = Tri.v1 * Isect.U + Tri.v2 * Isect.V + Tri.v0 * (1 - Isect.U - Isect.V);
+
+
+                Weight *= vec3(Colour);
+                
+                vec3 OutgoingDir = -Ray.Direction;
+                vec3 Incoming = SampleHemisphereCosine(Normal, Random2F(Isect.RandomState));
+                
+                Ray.Origin = Position;
+                Ray.Direction = Incoming;
+
+                if(Weight == vec3(0,0,0) || !IsFinite(Weight)) break;
+            }
+
+            float SampleWeight = 1.0f / (float(Sample) + 1);
+
+            NewCol = mix(PrevCol, vec4(Radiance.x, Radiance.y, Radiance.z, 1.0f), SampleWeight);
+            PrevCol = NewCol;
         }
+        imageStore(RenderImage, ivec2(GlobalID), NewCol);
     }
 }

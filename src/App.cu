@@ -10,6 +10,7 @@
 #include "ShaderGL.h"
 #include "TextureGL.h"
 #include "BufferCu.cuh"
+#include "BufferGL.h"
 #include "CudaUtil.h"
 #include "Scene.h"
 #include "BVH.h"
@@ -46,10 +47,12 @@ void application::InitGpuObjects()
 #if API==API_GL
     PathTracingShader = std::make_shared<shaderGL>("resources/shaders/PathTrace.glsl");
     RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
+    TracingParamsBuffer = std::make_shared<uniformBufferGL>(sizeof(tracingParameters), &Params);
 #elif API==API_CU
     RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
     RenderBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * 4 * sizeof(float));
     RenderTextureMapping = CreateMapping(RenderTexture);    
+    TracingParamsBuffer = std::make_shared<bufferCu>(sizeof(tracingParameters), &Params);
 #endif
 }
     
@@ -60,6 +63,8 @@ void application::Init()
     Scene = CreateCornellBox();
     BVH = CreateBVH(Scene); 
     
+    Params =  GetTracingParameters();  
+
     InitGpuObjects();
 }
 
@@ -81,14 +86,13 @@ void application::EndFrame()
     Window->Present();
 }
 
-void application::Run()
+void application::Trace()
 {
-    while(!Window->ShouldClose())
+    if(Params.CurrentSample < Params.TotalSamples)
     {
-        Window->PollEvents();
-        StartFrame();
-
-#if API==API_GL
+        TracingParamsBuffer->updateData(&Params, sizeof(tracingParameters));
+        
+    #if API==API_GL
         PathTracingShader->Use();
         PathTracingShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
         PathTracingShader->SetSSBO(BVH->TrianglesBuffer, 1);
@@ -99,15 +103,28 @@ void application::Run()
         PathTracingShader->SetSSBO(BVH->TLASInstancesBuffer, 6);
         PathTracingShader->SetSSBO(BVH->TLASNodeBuffer, 7);        
         PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
+        PathTracingShader->SetUBO(TracingParamsBuffer, 9);
         PathTracingShader->Dispatch(Window->Width / 16 + 1, Window->Height / 16 +1, 1);
 #elif API==API_CU
         dim3 blockSize(16, 16);
         dim3 gridSize((Window->Width / blockSize.x)+1, (Window->Height / blockSize.y) + 1);
         TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, Window->Width, Window->Height,
                                             (triangle*)BVH->TrianglesBuffer->Data, (triangleExtraData*) BVH->TrianglesExBuffer->Data, (bvhNode*) BVH->BVHBuffer->Data, (u32*) BVH->IndicesBuffer->Data, (indexData*) BVH->IndexDataBuffer->Data, (bvhInstance*)BVH->TLASInstancesBuffer->Data, (tlasNode*) BVH->TLASNodeBuffer->Data,
-                                            (camera*)Scene->CamerasBuffer->Data);
+                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data);
         cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer->Data, Window->Width * Window->Height * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
 #endif
+        Params.CurrentSample+= Params.Batch;
+    }    
+}
+
+void application::Run()
+{
+    while(!Window->ShouldClose())
+    {
+        Window->PollEvents();
+        StartFrame();
+
+        Trace();
         
         ImGui::SetNextWindowPos(ImVec2(0,0), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(Window->Width, Window->Height), ImGuiCond_Always);
