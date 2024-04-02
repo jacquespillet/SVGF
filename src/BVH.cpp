@@ -411,7 +411,7 @@ std::shared_ptr<sceneBVH> CreateBVH(std::shared_ptr<scene> Scene)
     {
         Result->Instances.push_back(
             bvhInstance(&Result->Meshes, Scene->Instances[i].Shape,
-                        Scene->Instances[i].GetModelMatrix(), (uint32_t)i)
+                        Scene->Instances[i].GetModelMatrix(), (uint32_t)i, Scene->Instances[i].Material)
         );
     }
     

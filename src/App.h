@@ -12,6 +12,7 @@ class bufferCu;
 class cudaTextureMapping;
 struct scene;
 struct sceneBVH;
+class bufferGL;
 
 class application
 {
@@ -34,11 +35,13 @@ private:
     std::shared_ptr<shaderGL> PathTracingShader;
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<uniformBufferGL> TracingParamsBuffer;
+    std::shared_ptr<bufferGL> MaterialBuffer;    
 #elif API==API_CU
     std::shared_ptr<bufferCu> TracingParamsBuffer;
     std::shared_ptr<bufferCu> RenderBuffer;
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<cudaTextureMapping> RenderTextureMapping;
+    std::shared_ptr<bufferCu> MaterialBuffer;
 #endif
     void Trace();
 

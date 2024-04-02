@@ -74,7 +74,8 @@ struct bvhInstance
 
     uint MeshIndex;
     uint Index;
-    uvec2 Pad;
+    uint MaterialIndex;
+    uint Pad;
 };
 
 struct tlasNode
@@ -108,3 +109,23 @@ struct tracingParameters
     int Batch;
     int Pad;
 };
+
+struct material
+{
+    vec3 Emission;
+    float Padding0;
+    
+    vec3 Colour;
+    float Padding1;
+    
+    int MaterialType;
+    ivec3 Padding2;
+};
+
+struct materialPoint
+{
+    vec3 Emission;
+    vec3 Colour;
+    int MaterialType;
+};
+

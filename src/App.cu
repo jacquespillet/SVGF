@@ -48,11 +48,13 @@ void application::InitGpuObjects()
     PathTracingShader = std::make_shared<shaderGL>("resources/shaders/PathTrace.glsl");
     RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
     TracingParamsBuffer = std::make_shared<uniformBufferGL>(sizeof(tracingParameters), &Params);
+    MaterialBuffer = std::make_shared<bufferGL>(sizeof(material) * Scene->Materials.size(), Scene->Materials.data());
 #elif API==API_CU
     RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
     RenderBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * 4 * sizeof(float));
     RenderTextureMapping = CreateMapping(RenderTexture);    
     TracingParamsBuffer = std::make_shared<bufferCu>(sizeof(tracingParameters), &Params);
+    MaterialBuffer = std::make_shared<bufferCu>(sizeof(material) * Scene->Materials.size(), Scene->Materials.data());
 #endif
 }
     
@@ -103,6 +105,7 @@ void application::Trace()
         PathTracingShader->SetSSBO(BVH->TLASInstancesBuffer, 6);
         PathTracingShader->SetSSBO(BVH->TLASNodeBuffer, 7);        
         PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
+        PathTracingShader->SetSSBO(MaterialBuffer, 8);
         PathTracingShader->SetUBO(TracingParamsBuffer, 9);
         PathTracingShader->Dispatch(Window->Width / 16 + 1, Window->Height / 16 +1, 1);
 #elif API==API_CU
@@ -110,7 +113,7 @@ void application::Trace()
         dim3 gridSize((Window->Width / blockSize.x)+1, (Window->Height / blockSize.y) + 1);
         TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, Window->Width, Window->Height,
                                             (triangle*)BVH->TrianglesBuffer->Data, (triangleExtraData*) BVH->TrianglesExBuffer->Data, (bvhNode*) BVH->BVHBuffer->Data, (u32*) BVH->IndicesBuffer->Data, (indexData*) BVH->IndexDataBuffer->Data, (bvhInstance*)BVH->TLASInstancesBuffer->Data, (tlasNode*) BVH->TLASNodeBuffer->Data,
-                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data);
+                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data);
         cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer->Data, Window->Width * Window->Height * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
 #endif
         Params.CurrentSample+= Params.Batch;

@@ -39,60 +39,81 @@ std::shared_ptr<scene> CreateCornellBox()
     Floor.Positions = { {-1, 0, 1}, {1, 0, 1}, {1, 0, -1}, {-1, 0, -1} };
     Floor.Triangles = { {0, 1, 2}, {2, 3, 0} };
     Floor.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    Floor.Colours = {{0.5,0.5,0.5,1},{0.5,0.5,0.5,1},{0.5,0.5,0.5,1},{0.5,0.5,0.5,1}};
+    Scene->Materials.emplace_back();
+    material &FloorMaterial = Scene->Materials.back(); 
+    FloorMaterial.Colour = {0.725f, 0.71f, 0.68f};
     Scene->Instances.emplace_back();
     instance &FloorInstance = Scene->Instances.back();
     FloorInstance.Shape = (int)Scene->Shapes.size()-1;
+    FloorInstance.Material = (int)Scene->Materials.size()-1;
     Scene->ShapeNames.push_back("Floor");
     Scene->InstanceNames.push_back("Floor");
+    Scene->MaterialNames.push_back("Floor");
+
 
     Scene->Shapes.emplace_back();
     shape& CeilingShape       = Scene->Shapes.back();
     CeilingShape.Positions   = {{-1, 2, 1}, {-1, 2, -1}, {1, 2, -1}, {1, 2, 1}};
     CeilingShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
     CeilingShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    CeilingShape.Colours = {{0.6,0.6,0.6,1},{0.6,0.6,0.6,1},{0.6,0.6,0.6,1},{0.6,0.6,0.6,1}};
+    Scene->Materials.emplace_back();
+    auto& CeilingMaterial    = Scene->Materials.back();
+    CeilingMaterial.Colour    = {0.725f, 0.71f, 0.68f};    
     Scene->Instances.emplace_back();
     auto& CeilingInstance    = Scene->Instances.back();
     CeilingInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    CeilingInstance.Material = (int)Scene->Materials.size()-1;
     Scene->ShapeNames.push_back("Ceiling");
     Scene->InstanceNames.push_back("Ceiling");
+    Scene->MaterialNames.push_back("Ceiling");
 
     Scene->Shapes.emplace_back();
     shape& BackWallShape       = Scene->Shapes.back();
     BackWallShape.Positions   = {{-1, 0, -1}, {1, 0, -1}, {1, 2, -1}, {-1, 2, -1}};
     BackWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
     BackWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    BackWallShape.Colours = {{0.4,0.4,0.4,1},{0.4,0.4,0.4,1},{0.4,0.4,0.4,1},{0.4,0.4,0.4,1}};
+    Scene->Materials.emplace_back();
+    auto& BackWallMaterial    = Scene->Materials.back();
+    BackWallMaterial.Colour    = {0.725f, 0.71f, 0.68f};    
     Scene->Instances.emplace_back();
     auto& BackWallInstance    = Scene->Instances.back();
     BackWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    BackWallInstance.Material = (int)Scene->Materials.size() - 1;  
     Scene->ShapeNames.push_back("BackWall");
     Scene->InstanceNames.push_back("BackWall");
+    Scene->MaterialNames.push_back("BackWall");
 
     Scene->Shapes.emplace_back();
     shape& RightWallShape       = Scene->Shapes.back();
     RightWallShape.Positions   = {{1, 0, -1}, {1, 0, 1}, {1, 2, 1}, {1, 2, -1}};
     RightWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
     RightWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    RightWallShape.Colours = {{0.8,0.2,0.1,1},{0.8,0.2,0.1,1},{0.8,0.2,0.1,1},{0.8,0.2,0.1,1}};
+    Scene->Materials.emplace_back();
+    auto& RightWallMaterial    = Scene->Materials.back();
+    RightWallMaterial.Colour    = {0.14f, 0.45f, 0.091f};    
     Scene->Instances.emplace_back();
     auto& RightWallInstance    = Scene->Instances.back();
     RightWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    RightWallInstance.Material = (int)Scene->Materials.size() - 1;  
     Scene->ShapeNames.push_back("RightWall");
     Scene->InstanceNames.push_back("RightWall");
+    Scene->MaterialNames.push_back("RightWall");
 
     Scene->Shapes.emplace_back();
     shape& LeftWallShape       = Scene->Shapes.back();
     LeftWallShape.Positions   = {{-1, 0, 1}, {-1, 0, -1}, {-1, 2, -1}, {-1, 2, 1}};
     LeftWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
     LeftWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    LeftWallShape.Colours = {{0.2,0.8,0.1,1},{0.2,0.8,0.1,1},{0.2,0.8,0.1,1},{0.2,0.8,0.1,1}};
+    Scene->Materials.emplace_back();
+    auto& LeftWallMaterial    = Scene->Materials.back();
+    LeftWallMaterial.Colour    = {0.63, 0.065, 0.05f};    
     Scene->Instances.emplace_back();
     auto& LeftWallInstance    = Scene->Instances.back();
     LeftWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    LeftWallInstance.Material = (int)Scene->Materials.size() - 1;
     Scene->ShapeNames.push_back("LeftWall");
     Scene->InstanceNames.push_back("LeftWall");
+    Scene->MaterialNames.push_back("LeftWall");
 
     Scene->Shapes.emplace_back();
     auto& ShortBoxShape       = Scene->Shapes.back();
@@ -108,12 +129,17 @@ std::shared_ptr<scene> CreateCornellBox()
     ShortBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
         {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
         {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
-    ShortBoxShape.Colours.resize(ShortBoxShape.Positions.size(), {0.7,0.7,0.7,1});
+    Scene->Materials.emplace_back();        
+    Scene->Materials.back();
+    auto& ShortBoxMaterial    = Scene->Materials.back();
+    ShortBoxMaterial.Colour = {0.8, 0.8, 0.8};
     Scene->Instances.emplace_back();
-    auto& shortbox_instance    = Scene->Instances.back();
-    shortbox_instance.Shape    = (int)Scene->Shapes.size() - 1;
+    auto& ShortBoxInstance    = Scene->Instances.back();
+    ShortBoxInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    ShortBoxInstance.Material = (int)Scene->Materials.size() - 1;    
     Scene->ShapeNames.push_back("ShortBox");
     Scene->InstanceNames.push_back("ShortBox");
+    Scene->MaterialNames.push_back("ShortBox");
 
     Scene->Shapes.emplace_back();
     auto& TallBoxShape       = Scene->Shapes.back();
@@ -129,23 +155,31 @@ std::shared_ptr<scene> CreateCornellBox()
     TallBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
          {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
          {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
-    TallBoxShape.Colours.resize(ShortBoxShape.Positions.size(), {0.6,0.6,0.6,1});
+    Scene->Materials.emplace_back();                 
+    auto& TallBoxMaterial   = Scene->Materials.back();
+    TallBoxMaterial.Colour = {0.8, 0.8, 0.8};
     Scene->Instances.emplace_back();
-    auto& tallbox_instance    = Scene->Instances.back();
-    tallbox_instance.Shape    = (int)Scene->Shapes.size() - 1;
+    auto& TallBoxInstance    = Scene->Instances.back();
+    TallBoxInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    TallBoxInstance.Material = (int)Scene->Materials.size() - 1;    
     Scene->ShapeNames.push_back("TallBox");
     Scene->InstanceNames.push_back("TallBox");
+    Scene->MaterialNames.push_back("TallBox");
 
     Scene->Shapes.emplace_back();
     shape &LightShape = Scene->Shapes.back();
     LightShape.Positions = {{-0.25f, 1.99f, 0.25f}, {-0.25f, 1.99f, -0.25f}, {0.25f, 1.99f, -0.25f}, {0.25f, 1.99f, 0.25f}};
     LightShape.Triangles = { {0, 1, 2}, {2, 3, 0} };
-    LightShape.Colours.resize(ShortBoxShape.Positions.size(), {100,100,100,1});
+    Scene->Materials.emplace_back();
+    material &LightMaterial = Scene->Materials.back();
+    LightMaterial.Emission = {25, 25, 25};    
     Scene->Instances.emplace_back();
     instance &LightInstance = Scene->Instances.back(); 
     LightInstance.Shape = (int)Scene->Shapes.size()-1;
+    LightInstance.Material = (int)Scene->Materials.size()-1;
     Scene->ShapeNames.push_back("Light");
     Scene->InstanceNames.push_back("Light");
+    Scene->MaterialNames.push_back("Light");
 
 
     // Checkup

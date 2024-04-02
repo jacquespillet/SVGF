@@ -18,6 +18,7 @@ struct sceneIntersection
 
     vec3 Normal;
     randomState RandomState;
+    uint MaterialIndex;
 
 };
 
@@ -48,7 +49,7 @@ FN_DECL float RayAABBIntersection(ray Ray, vec3 AABBMin, vec3 AABBMax, INOUT(sce
     else return 1e30f;    
 }
 
-FN_DECL void RayTriangleInteresection(ray Ray, triangle Triangle, INOUT(sceneIntersection) Isect, uint InstanceIndex, uint PrimitiveIndex)
+FN_DECL void RayTriangleInteresection(ray Ray, triangle Triangle, INOUT(sceneIntersection) Isect, uint InstanceIndex, uint PrimitiveIndex, uint MaterialIndex)
 {
     vec3 Edge1 = Triangle.v1 - Triangle.v0;
     vec3 Edge2 = Triangle.v2 - Triangle.v0;
@@ -73,6 +74,7 @@ FN_DECL void RayTriangleInteresection(ray Ray, triangle Triangle, INOUT(sceneInt
         Isect.U = u;
         Isect.V = v;
         Isect.Distance = t;
+        Isect.MaterialIndex = MaterialIndex;
     }
 }
 
@@ -87,7 +89,8 @@ FN_DECL void IntersectBVH(ray Ray, INOUT(sceneIntersection) Isect, uint Instance
     uint NodeStartInx = IndexData.BVHNodeDataStartInx;
     uint TriangleStartInx = IndexData.triangleDataStartInx;
     uint IndexStartInx = IndexData.IndicesDataStartInx;
-    
+    uint MaterialIndex = TLASInstancesBuffer[InstanceIndex].MaterialIndex;
+
     //We start with the root node of the shape 
     while(t)
     {
@@ -103,7 +106,8 @@ FN_DECL void IntersectBVH(ray Ray, INOUT(sceneIntersection) Isect, uint Instance
                                          TriangleBuffer[Index], 
                                          Isect, 
                                          InstanceIndex, 
-                                         Index);
+                                         Index,
+                                         MaterialIndex);
             }
             // Go back up the stack and continue to process the next node on the stack
             if(StackPointer==0) break;
@@ -282,6 +286,18 @@ FN_DECL vec3 EvalShadingPosition(INOUT(vec3) OutgoingDir, INOUT(sceneIntersectio
     return TransformPoint(Isect.InstanceTransform, Position);
 }
 
+// Eval
+
+FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
+{
+    material Material = Materials[Isect.MaterialIndex];
+    materialPoint Point;
+    Point.Colour = Material.Colour;
+    Point.Emission = Material.Emission;
+    return Point;
+}
+
+
 // BSDF
 
 FN_DECL vec3 SampleHemisphereCosine(vec3 Normal, vec2 UV)
@@ -324,7 +340,7 @@ FN_DECL vec3 EvalMatte(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3) Outgo
     // Lambertian BRDF:  
     // F(wi, wo) = (DiffuseReflectance / PI) * Cos(Theta)
     //Note :  This does not take the outgoing direction into account : it's perfectly isotropic : it scatters light uniformly in all directions.
-    return Colour / vec3(PI_F) * abs(dot(Normal, Incoming));
+    return Colour / vec3(PI_F);
 }
 
 FN_DECL float SampleMattePDF(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming)
@@ -333,6 +349,11 @@ FN_DECL float SampleMattePDF(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3)
     // returns the pdf of a the normal
     vec3 UpNormal = dot(Normal, Outgoing) <= 0 ? -Normal : Normal;
     return SampleHemisphereCosinePDF(UpNormal, Incoming);
+}
+
+FN_DECL vec3 EvalBSDF(INOUT(materialPoint) Material, vec3 Normal, vec3 OutgoingDir, vec3 Incoming)
+{
+    return EvalMatte(Material.Colour, Normal, OutgoingDir, Incoming);
 }
 
 
@@ -393,7 +414,7 @@ MAIN()
     if (GlobalID.x < Width && GlobalID.y < Height) {
         vec4 PrevCol = imageLoad(RenderImage, ivec2(GlobalID));
         vec4 NewCol;
-        for(int Sample=0; Sample < Parameters.Batch; Sample++)
+        for(int Sample=0; Sample < GET_ATTR(Parameters, Batch); Sample++)
         {
             ray Ray = GetRay(UV);
             
@@ -423,15 +444,16 @@ MAIN()
                 vec3 Normal = ExtraData.Normal1 * Isect.U + ExtraData.Normal2 * Isect.V +ExtraData.Normal0 * (1 - Isect.U - Isect.V);
                 Isect.Normal = TransformDirection(NormalTransform, Normal);
                 
-                vec4 Colour = ExtraData.Colour1 * Isect.U + ExtraData.Colour2 * Isect.V + ExtraData.Colour0 * (1 - Isect.U - Isect.V);                
-
                 vec3 Position = Tri.v1 * Isect.U + Tri.v2 * Isect.V + Tri.v0 * (1 - Isect.U - Isect.V);
 
-
-                Weight *= vec3(Colour);
+                materialPoint Material = EvalMaterial(Isect);
                 
                 vec3 OutgoingDir = -Ray.Direction;
                 vec3 Incoming = SampleHemisphereCosine(Normal, Random2F(Isect.RandomState));
+
+                Radiance += Weight * Material.Emission;
+                Weight *= EvalBSDF(Material, Normal, OutgoingDir, Incoming);
+
                 
                 Ray.Origin = Position;
                 Ray.Direction = Incoming;

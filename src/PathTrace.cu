@@ -16,11 +16,13 @@ __device__ indexData *IndexDataBuffer;
 __device__ bvhInstance *TLASInstancesBuffer;
 __device__ tlasNode *TLASNodes;
 __device__ camera *Cameras;
+__device__ tracingParameters *Parameters;
+__device__ material *Materials;
 
 #define MAIN() \
 __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
                             triangle *_AllTriangles, triangleExtraData *_AllTrianglesEx, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, bvhInstance *_Instances, tlasNode *_TLASNodes,\
-                            camera *_Cameras)
+                            camera *_Cameras, tracingParameters* _TracingParams, material *_Materials)
 
 #define INIT() \
     Width = _Width; \
@@ -33,6 +35,8 @@ __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
     TLASInstancesBuffer = _Instances; \
     TLASNodes = _TLASNodes; \
     Cameras = _Cameras; \
+    Parameters = _TracingParams; \
+    Materials = _Materials; \
 
 
 #define IMAGE_SIZE(Img) \
@@ -44,6 +48,10 @@ __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
 #define FN_DECL __device__
 
 #define INOUT(Type) Type &
+
+#define GET_ATTR(Obj, Attr) \
+    Obj->Attr
+
 
 __device__ void imageStore(vec4 *Image, ivec2 p, vec4 Colour)
 {

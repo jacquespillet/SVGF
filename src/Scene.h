@@ -27,6 +27,18 @@ struct camera
     glm::ivec3 Padding;
 };
 
+struct material
+{
+    glm::vec3 Emission = {};
+    float Padding0;
+    
+    glm::vec3 Colour = {};
+    float Padding1;
+    
+    int MaterialType = 0;
+    glm::ivec3 Padding2;
+};
+
 
 struct instance
 {
@@ -34,7 +46,7 @@ struct instance
     glm::vec3 Rotation;
     glm::vec3 Scale = glm::vec3(1);
     int Shape = InvalidID;
-
+    int Material = InvalidID;
     glm::mat4 GetModelMatrix() const;
 };
 
@@ -55,15 +67,16 @@ struct shape
 
 struct scene
 {
-    std::vector<camera> Cameras = {};
     
+    std::vector<camera> Cameras = {};
     std::vector<instance> Instances = {};
     std::vector<shape> Shapes = {};
-    
+    std::vector<material> Materials = {};
     
     std::vector<std::string> CameraNames = {};
     std::vector<std::string> InstanceNames = {};
     std::vector<std::string> ShapeNames = {};
+    std::vector<std::string> MaterialNames = {};
 
 
 #if API==API_GL

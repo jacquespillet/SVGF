@@ -153,7 +153,7 @@ struct tlasNode
 
 struct bvhInstance
 {
-    bvhInstance(std::vector<mesh*> *Meshes, uint32_t MeshIndex, glm::mat4 Transform, uint32_t Index) : MeshIndex(MeshIndex), Index(Index)
+    bvhInstance(std::vector<mesh*> *Meshes, uint32_t MeshIndex, glm::mat4 Transform, uint32_t Index, uint32_t MaterialIndex) : MeshIndex(MeshIndex), Index(Index), MaterialIndex(MaterialIndex)
     {
         SetTransform(Transform, Meshes);
     }
@@ -167,6 +167,7 @@ struct bvhInstance
 
     uint32_t MeshIndex;
     uint32_t Index=0;
+    uint32_t MaterialIndex;
     glm::uvec2 pad;
 };
 
