@@ -393,9 +393,8 @@ MAIN()
     if (GlobalID.x < Width && GlobalID.y < Height) {
         vec4 PrevCol = imageLoad(RenderImage, ivec2(GlobalID));
         vec4 NewCol;
-        for(int Sample=0; Sample < 100; Sample++)
+        for(int Sample=0; Sample < Parameters.Batch; Sample++)
         {
-            randomState RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277)  + Sample) * uint(26699) | uint(1), 371213); 
             ray Ray = GetRay(UV);
             
 
@@ -405,7 +404,7 @@ MAIN()
             {
                 sceneIntersection Isect;
                 Isect.Distance = 1e30f;
-                Isect.RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(Bounce + Sample) * uint(117191)) | uint(1), 371213); 
+                Isect.RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(Bounce + GET_ATTR(Parameters,CurrentSample) + Sample) * uint(117191)) | uint(1), 371213); 
 
                 IntersectTLAS(Ray, Isect);
                 if(Isect.Distance == 1e30f)
@@ -440,7 +439,7 @@ MAIN()
                 if(Weight == vec3(0,0,0) || !IsFinite(Weight)) break;
             }
 
-            float SampleWeight = 1.0f / (float(Sample) + 1);
+            float SampleWeight = 1.0f / (float(GET_ATTR(Parameters,CurrentSample) + Sample) + 1);
 
             NewCol = mix(PrevCol, vec4(Radiance.x, Radiance.y, Radiance.z, 1.0f), SampleWeight);
             PrevCol = NewCol;
