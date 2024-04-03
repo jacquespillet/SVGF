@@ -105,7 +105,7 @@ void application::Trace()
         PathTracingShader->SetSSBO(BVH->TLASInstancesBuffer, 6);
         PathTracingShader->SetSSBO(BVH->TLASNodeBuffer, 7);        
         PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
-        PathTracingShader->SetSSBO(MaterialBuffer, 8);
+        PathTracingShader->SetSSBO(MaterialBuffer, 12);
         PathTracingShader->SetUBO(TracingParamsBuffer, 9);
         PathTracingShader->Dispatch(Window->Width / 16 + 1, Window->Height / 16 +1, 1);
 #elif API==API_CU

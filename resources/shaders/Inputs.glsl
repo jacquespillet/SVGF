@@ -46,3 +46,8 @@ layout(std430, binding = 7)  buffer tlasNodes
 layout(std140, binding = 9) uniform ParametersUBO {
   tracingParameters Parameters;
 };
+
+layout(std430, binding = 12) buffer MaterialsBuffer {
+  material Materials[];
+};
+

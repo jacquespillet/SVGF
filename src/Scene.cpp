@@ -172,7 +172,7 @@ std::shared_ptr<scene> CreateCornellBox()
     LightShape.Triangles = { {0, 1, 2}, {2, 3, 0} };
     Scene->Materials.emplace_back();
     material &LightMaterial = Scene->Materials.back();
-    LightMaterial.Emission = {25, 25, 25};    
+    LightMaterial.Emission = {40, 40, 40};    
     Scene->Instances.emplace_back();
     instance &LightInstance = Scene->Instances.back(); 
     LightInstance.Shape = (int)Scene->Shapes.size()-1;

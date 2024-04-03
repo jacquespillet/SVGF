@@ -302,20 +302,11 @@ FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
 
 FN_DECL vec3 SampleHemisphereCosine(vec3 Normal, vec2 UV)
 {
-    // Calculates Phi and theta angles
-    float Phi = 2 * PI_F * UV.x; //Azimuthal angle
-    float CosTheta = sqrt(1.0f - UV.y);  // Cosine of polar angle
-    float SinTheta = sqrt(UV.y);  // Sine of polar angle
 
-    // By taking the square root of UV.y, we essentially map a uniform distribution to a distribution that gives higher weight #
-    // to points closer to the normal vector. This weighting ensures that more samples are taken in directions aligned with the surface normal
-    
-    // Generates a direction from the angles
-    vec3 LocalDirection = vec3(
-        cos(Phi) * SinTheta, 
-        sin(Phi) * CosTheta,
-        SinTheta
-    );
+    float Z = sqrt(UV.y);
+    float R = sqrt(1 - Z * Z);
+    float Phi = 2 * PI_F * UV.x;
+    vec3 LocalDirection = vec3(R * cos(Phi), R * sin(Phi), Z);    
     return TransformDirection(BasisFromZ(Normal), LocalDirection);
 }
 
@@ -340,7 +331,7 @@ FN_DECL vec3 EvalMatte(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3) Outgo
     // Lambertian BRDF:  
     // F(wi, wo) = (DiffuseReflectance / PI) * Cos(Theta)
     //Note :  This does not take the outgoing direction into account : it's perfectly isotropic : it scatters light uniformly in all directions.
-    return Colour / vec3(PI_F);
+    return Colour / vec3(PI_F) * abs(dot(Normal, Incoming));
 }
 
 FN_DECL float SampleMattePDF(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming)
@@ -351,9 +342,14 @@ FN_DECL float SampleMattePDF(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3)
     return SampleHemisphereCosinePDF(UpNormal, Incoming);
 }
 
-FN_DECL vec3 EvalBSDF(INOUT(materialPoint) Material, vec3 Normal, vec3 OutgoingDir, vec3 Incoming)
+FN_DECL vec3 EvalBSDFCos(INOUT(materialPoint) Material, vec3 Normal, vec3 OutgoingDir, vec3 Incoming)
 {
     return EvalMatte(Material.Colour, Normal, OutgoingDir, Incoming);
+}
+
+FN_DECL float SampleBSDFCosPDF(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming)
+{
+    return SampleMattePDF(Material.Colour, Normal, Outgoing, Incoming);
 }
 
 
@@ -430,7 +426,7 @@ MAIN()
                 IntersectTLAS(Ray, Isect);
                 if(Isect.Distance == 1e30f)
                 {
-                    Radiance += Weight * vec3(1);
+                    // Radiance += Weight * vec3(1);
                     // Environment radiance
                     break;
                 }
@@ -448,11 +444,13 @@ MAIN()
 
                 materialPoint Material = EvalMaterial(Isect);
                 
-                vec3 OutgoingDir = -Ray.Direction;
-                vec3 Incoming = SampleHemisphereCosine(Normal, Random2F(Isect.RandomState));
-
                 Radiance += Weight * Material.Emission;
-                Weight *= EvalBSDF(Material, Normal, OutgoingDir, Incoming);
+
+                vec3 Incoming = SampleHemisphereCosine(Normal, Random2F(Isect.RandomState));
+                vec3 OutgoingDir = -Ray.Direction;
+
+                Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                          SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
 
                 
                 Ray.Origin = Position;
