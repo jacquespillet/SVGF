@@ -118,8 +118,8 @@ struct material
     vec3 Colour;
     float Metallic;
     
+    ivec3 Padding0;
     int MaterialType;
-    ivec3 Padding2;
 };
 
 struct materialPoint

@@ -168,7 +168,7 @@ struct bvhInstance
     uint32_t MeshIndex;
     uint32_t Index=0;
     uint32_t MaterialIndex;
-    glm::uvec2 pad;
+    uint32_t pad;
 };
 
 struct tlas
