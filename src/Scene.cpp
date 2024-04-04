@@ -3,6 +3,7 @@
 
 #include "BufferCu.cuh"
 #include "BufferGL.h"
+#include "App.h"
 namespace gpupt
 {
 
@@ -24,6 +25,9 @@ std::shared_ptr<scene> CreateCornellBox()
 {
     std::shared_ptr<scene> Scene = std::make_shared<scene>();
 
+    glm::uvec2 RenderSize = application::GetSize();
+
+
     Scene->Cameras.emplace_back();
     camera &Camera = Scene->Cameras.back();
     Camera.Frame = glm::translate(glm::mat4(1), glm::vec3(0, 1, 3.9f));
@@ -31,7 +35,7 @@ std::shared_ptr<scene> CreateCornellBox()
     Camera.Aperture = 0.0f;
     Camera.Focus = 3.9f;
     Camera.Film = 0.024f;
-    Camera.Aspect = 1.0f;
+    Camera.Aspect = (float)RenderSize.x / (float)RenderSize.y;
     Scene->CameraNames.push_back("Main Camera");
 
     Scene->Shapes.emplace_back();

@@ -264,23 +264,33 @@ FN_DECL mat3 BasisFromZ(vec3 V)
 }
 
 
-FN_DECL ray GetRay(vec2 ImageUV)
+FN_DECL ray GetRay( vec2 ImageUV, vec2 LensUV)
 {
     camera Camera = Cameras[0];
 
+    vec2 Film = Camera.Aspect >= 1 ? 
+               vec2(Camera.Film, Camera.Film / Camera.Aspect): 
+               vec2(Camera.Film * Camera.Aspect, Camera.Film);
+    
     // Point on the film
     vec3 Q = vec3(
-        (0.5f - ImageUV.x),
-        (0.5f - ImageUV.y ),
-        1
+        Film.x * (0.5f - ImageUV.x),
+        Film.y * (0.5f - ImageUV.y),
+        Camera.Lens
     );
     vec3 RayDirection = -normalize(Q);
-    vec3 PointOnLens = vec3 (0,0,0);
+    vec3 PointOnFocusPlane = RayDirection * Camera.Focus / abs(RayDirection.z);
+    
+    // Jitter the point on the lens
+    vec3 PointOnLens = vec3 (LensUV.x * Camera.Aperture / 2, LensUV.y * Camera.Aperture / 2, 0);
+
+    
+    vec3 FinalDirection =normalize(PointOnFocusPlane - PointOnLens);
 
     //Transform the ray direction and origin
     ray Ray = MakeRay(
         TransformPoint(Camera.Frame, PointOnLens),
-        TransformDirection(Camera.Frame, RayDirection),
+        TransformDirection(Camera.Frame, FinalDirection),
         vec3(0)
     );
     return Ray;
@@ -580,7 +590,8 @@ MAIN()
         vec4 NewCol;
         for(int Sample=0; Sample < GET_ATTR(Parameters, Batch); Sample++)
         {
-            ray Ray = GetRay(UV);
+            randomState RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277) + uint(GET_ATTR(Parameters,CurrentSample) + Sample) * uint(26699)) | uint(1), 371213); 
+            ray Ray = GetRay(UV, Random2F(RandomState));
             
 
             vec3 Radiance = vec3(0,0,0);

@@ -32,6 +32,14 @@ application *application::Get()
     return Singleton.get();
 }
 
+glm::uvec2 application::GetSize()
+{
+    return glm::uvec2(
+        Singleton->Window->Width,
+        Singleton->Window->Height
+    );
+}
+
 void application::InitImGui()
 {
     IMGUI_CHECKVERSION();

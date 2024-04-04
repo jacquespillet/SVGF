@@ -23,6 +23,7 @@ public:
     void Cleanup();
 
     static application *Get();
+    static glm::uvec2 GetSize();
 private:
     static std::shared_ptr<application> Singleton;
     std::shared_ptr<window> Window;
