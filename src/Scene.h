@@ -45,9 +45,7 @@ struct material
 
 struct instance
 {
-    glm::vec3 Position;
-    glm::vec3 Rotation;
-    glm::vec3 Scale = glm::vec3(1);
+    glm::mat4 ModelMatrix;
     int Shape = InvalidID;
     int Material = InvalidID;
     glm::mat4 GetModelMatrix() const;

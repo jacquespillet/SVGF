@@ -2,7 +2,7 @@ project(gpuPathTracing)
 
 set(API_GL 0)
 set(API_CU 1)
-set(API ${API_CU})
+set(API ${API_GL})
 
 add_definitions(-DAPI_GL=${API_GL})
 add_definitions(-DAPI_CU=${API_CU})
@@ -38,6 +38,14 @@ link_directories(${GLEW_LIB_DIR})
 set(GLM_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/glm)
 include_directories(${GLM_INC_DIR})
 
+# TinyGLTF
+set(TINYGLTF_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/tinygltf)
+include_directories(${TINYGLTF_INC_DIR})
+
+# STB
+set(STB_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/stb)
+include_directories(${STB_INC_DIR})
+
 find_package(CUDA REQUIRED)
 enable_language(CUDA)
 
@@ -55,6 +63,7 @@ set (sourceFiles
         src/BufferCu.cu
         src/BufferGL.cpp
         src/CameraController.cpp
+        src/GLTFLoader.cpp
         src/Scene.cpp
         src/BVH.cpp
         ${IMGUI_SOURCE}

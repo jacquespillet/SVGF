@@ -57,6 +57,22 @@
         "xloctime": "cpp",
         "xmemory": "cpp",
         "xstddef": "cpp",
-        "xtr1common": "cpp"
+        "xtr1common": "cpp",
+        "array": "cpp",
+        "charconv": "cpp",
+        "chrono": "cpp",
+        "codecvt": "cpp",
+        "filesystem": "cpp",
+        "format": "cpp",
+        "forward_list": "cpp",
+        "map": "cpp",
+        "mutex": "cpp",
+        "numeric": "cpp",
+        "optional": "cpp",
+        "ratio": "cpp",
+        "stop_token": "cpp",
+        "thread": "cpp",
+        "valarray": "cpp",
+        "xtree": "cpp"
     }
 }

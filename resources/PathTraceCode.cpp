@@ -238,7 +238,7 @@ FN_DECL ray MakeRay(vec3 Origin, vec3 Direction, vec3 InverseDirection)
 FN_DECL vec3 TransformPoint(mat4 A, vec3 B)
 {
     vec4 Res = A * vec4(B, 1); 
-    return vec3((Res / Res.w));
+    return vec3(Res);
 }
 
 FN_DECL vec3 TransformDirection(mat4 A, vec3 B)
@@ -610,6 +610,7 @@ MAIN()
                 IntersectTLAS(Ray, Isect);
                 if(Isect.Distance == 1e30f)
                 {
+                    // Radiance += vec3(1,1,1);
                     break;
                 }
 
@@ -619,9 +620,13 @@ MAIN()
                 Isect.InstanceTransform = TLASInstancesBuffer[Isect.InstanceIndex].Transform;
                 
                 mat4 NormalTransform = TLASInstancesBuffer[Isect.InstanceIndex].NormalTransform;
-                vec3 Normal = ExtraData.Normal1 * Isect.U + ExtraData.Normal2 * Isect.V +ExtraData.Normal0 * (1 - Isect.U - Isect.V);
-                Isect.Normal = TransformDirection(NormalTransform, Normal);
+                
+                vec3 Normal = TransformDirection(NormalTransform, ExtraData.Normal1 * Isect.U + ExtraData.Normal2 * Isect.V +ExtraData.Normal0 * (1 - Isect.U - Isect.V));
                 vec3 Position = TransformPoint(Isect.InstanceTransform, Tri.v1 * Isect.U + Tri.v2 * Isect.V + Tri.v0 * (1 - Isect.U - Isect.V));
+                // vec3 Normal = ExtraData.Normal1 * Isect.U + ExtraData.Normal2 * Isect.V +ExtraData.Normal0 * (1 - Isect.U - Isect.V);
+                // vec3 Position = Tri.v1 * Isect.U + Tri.v2 * Isect.V + Tri.v0 * (1 - Isect.U - Isect.V);
+                
+                Isect.Normal = Normal;
                 vec3 OutgoingDir = -Ray.Direction;
                 materialPoint Material = EvalMaterial(Isect);
 
