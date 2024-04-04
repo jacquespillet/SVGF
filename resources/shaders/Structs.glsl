@@ -113,10 +113,10 @@ struct tracingParameters
 struct material
 {
     vec3 Emission;
-    float Padding0;
+    float Roughness;
     
     vec3 Colour;
-    float Padding1;
+    float Metallic;
     
     int MaterialType;
     ivec3 Padding2;
@@ -127,5 +127,7 @@ struct materialPoint
     vec3 Emission;
     vec3 Colour;
     int MaterialType;
+    float Roughness;
+    float Metallic;
 };
 

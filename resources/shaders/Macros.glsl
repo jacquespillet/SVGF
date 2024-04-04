@@ -1,0 +1,3 @@
+
+#define MATERIAL_TYPE_MATTE 0
+#define MATERIAL_TYPE_PBR   1

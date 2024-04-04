@@ -26,6 +26,7 @@ struct materialPoint
     glm::vec3 Emission;
     glm::vec3 Colour;
     int MaterialType;
+    float Roughness, Metallic;
 };
 
 

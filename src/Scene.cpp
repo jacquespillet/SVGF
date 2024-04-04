@@ -75,6 +75,9 @@ std::shared_ptr<scene> CreateCornellBox()
     Scene->Materials.emplace_back();
     auto& BackWallMaterial    = Scene->Materials.back();
     BackWallMaterial.Colour    = {0.725f, 0.71f, 0.68f};    
+    BackWallMaterial.Roughness = 0.1f;
+    BackWallMaterial.Metallic = 0.8f;
+    BackWallMaterial.MaterialType = MATERIAL_TYPE_PBR;    
     Scene->Instances.emplace_back();
     auto& BackWallInstance    = Scene->Instances.back();
     BackWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -107,6 +110,9 @@ std::shared_ptr<scene> CreateCornellBox()
     Scene->Materials.emplace_back();
     auto& LeftWallMaterial    = Scene->Materials.back();
     LeftWallMaterial.Colour    = {0.63, 0.065, 0.05f};    
+    LeftWallMaterial.Roughness = 0.1f;
+    LeftWallMaterial.Metallic = 0.5f;
+    LeftWallMaterial.MaterialType = MATERIAL_TYPE_PBR;    
     Scene->Instances.emplace_back();
     auto& LeftWallInstance    = Scene->Instances.back();
     LeftWallInstance.Shape    = (int)Scene->Shapes.size() - 1;

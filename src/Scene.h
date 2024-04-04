@@ -4,6 +4,9 @@
 #include <memory>
 #include <glm/glm.hpp>
 
+#define MATERIAL_TYPE_MATTE 0
+#define MATERIAL_TYPE_PBR   1
+
 namespace gpupt
 {
 class bufferCu;
@@ -30,10 +33,10 @@ struct camera
 struct material
 {
     glm::vec3 Emission = {};
-    float Padding0;
+    float Roughness = 0;
     
     glm::vec3 Colour = {};
-    float Padding1;
+    float Metallic = 0;
     
     int MaterialType = 0;
     glm::ivec3 Padding2;

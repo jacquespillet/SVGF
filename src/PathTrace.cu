@@ -6,6 +6,10 @@ using namespace gpupt;
 
 #define PI_F 3.141592653589
 
+
+#define MATERIAL_TYPE_MATTE 0
+#define MATERIAL_TYPE_PBR   1
+
 __device__ u32 Width;
 __device__ u32 Height;
 __device__ triangle *TriangleBuffer;

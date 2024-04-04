@@ -33,6 +33,18 @@ FN_DECL bool IsFinite(vec3 A)
     return IsFinite(A.x) && IsFinite(A.y) && IsFinite(A.z);
 }
 
+FN_DECL float Sum(INOUT(vec3) A) { 
+    return A.x + A.y + A.z; 
+}
+
+FN_DECL float Mean(vec3 A) { 
+    return Sum(A) / 3; 
+}
+
+FN_DECL bool SameHemisphere(vec3 Normal, vec3 Outgoing, vec3 Incoming)
+{
+    return dot(Normal, Outgoing) * dot(Normal, Incoming) >= 0;
+}
 
 
 // BVH
@@ -292,14 +304,17 @@ FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
 {
     material Material = Materials[Isect.MaterialIndex];
     materialPoint Point;
+    Point.MaterialType = Material.MaterialType;
     Point.Colour = Material.Colour;
     Point.Emission = Material.Emission;
+    Point.Roughness = Material.Roughness;
+    Point.Roughness = Point.Roughness * Point.Roughness;
+    Point.Metallic = Material.Metallic;
     return Point;
 }
 
 
-// BSDF
-
+// Cosine
 FN_DECL vec3 SampleHemisphereCosine(vec3 Normal, vec2 UV)
 {
 
@@ -318,6 +333,131 @@ FN_DECL float SampleHemisphereCosinePDF(INOUT(vec3) Normal, INOUT(vec3) Directio
     float CosW = dot(Normal, Direction);
     return (CosW <= 0) ? 0 : CosW / PI_F;
 }
+
+
+// Microfacet & Misc brdf functions
+FN_DECL vec3 EtaToReflectivity(vec3 Eta) {
+  return ((Eta - 1.0f) * (Eta - 1.0f)) / ((Eta + 1.0f) * (Eta + 1.0f));
+}
+
+FN_DECL vec3 FresnelSchlick(INOUT(vec3) Specular, INOUT(vec3) Normal, INOUT(vec3) Outgoing) {
+    // Schlick approximation of the Fresnel term
+  if (Specular == vec3(0, 0, 0)) return vec3(0, 0, 0);
+  float cosine = dot(Normal, Outgoing);
+  return Specular +
+         (1.0f - Specular) * pow(clamp(1.0f - abs(cosine), 0.0f, 1.0f), 5.0f);
+}
+
+// Microfacet
+FN_DECL vec3 SampleMicrofacet(float Roughness, vec3 Normal, vec2 RN)
+{
+    float Phi = 2 * PI_F * RN.x;
+    float SinTheta = 0.0f;
+    float CosTheta = 0.0f;
+
+    float Theta = atan(Roughness * sqrt(RN.y / (1 - RN.y)));
+    SinTheta = sin(Theta);
+    CosTheta = cos(Theta);
+
+    vec3 LocalHalfVector = vec3(
+        cos(Phi) * SinTheta,
+        sin(Phi) * SinTheta,
+        CosTheta
+    );
+
+    //Transform the half vector to world space
+    return TransformDirection(BasisFromZ(Normal), LocalHalfVector);
+}
+
+
+FN_DECL float MicrofacetDistribution(float Roughness, vec3 Normal, vec3 Halfway)
+{
+    float Cosine = dot(Normal, Halfway);
+    if(Cosine <= 0) return 0;
+
+    float Roughness2 = Roughness * Roughness;
+    float Cosine2 = Cosine * Cosine;
+    return Roughness2 / (PI_F * (Cosine2 * Roughness2 + 1 - Cosine2) * (Cosine2 * Roughness2 + 1 - Cosine2));
+}
+
+
+FN_DECL float MicrofacetShadowing1(float Roughness, vec3 Normal, vec3 Halfway, vec3 Direction)
+{
+    float Cosine = dot(Normal, Direction);
+    float Cosine2 = Cosine * Cosine;
+    float CosineH = dot(Halfway, Direction);
+    
+    if(Cosine * CosineH <= 0) return 0;
+
+    float Roughness2 = Roughness * Roughness;
+    return 2.0f / (sqrt(((Roughness2 * (1.0f - Cosine2)) + Cosine2) / Cosine2) + 1.0f);
+}
+
+
+FN_DECL float MicrofacetShadowing(float Roughness, vec3 Normal, vec3 Halfway, vec3 Outgoing, vec3 Incoming)
+{
+    return 1.0f / (1.0f + MicrofacetShadowing1(Roughness, Normal, Halfway, Outgoing) + MicrofacetShadowing1(Roughness, Normal, Halfway, Incoming));
+}
+
+FN_DECL float SampleMicrofacetPDF(float Roughness, vec3 Normal, vec3 Halfway)
+{
+    float Cosine = dot(Normal, Halfway);
+    if(Cosine < 0) return 0;
+
+    return MicrofacetDistribution(Roughness, Normal, Halfway) * Cosine;
+}
+
+
+// PBR Material
+
+FN_DECL vec3 SamplePbr(INOUT(vec3) Colour, float IOR, float Roughness,
+    float Metallic, INOUT(vec3) Normal, INOUT(vec3) Outgoing, float Rand0,
+    INOUT(vec2) Rand1) {
+    vec3 UpNormal    = dot(Normal, Outgoing) <= 0 ? -Normal : Normal;
+    vec3 Reflectivity = mix(EtaToReflectivity(vec3(IOR, IOR, IOR)), Colour, Metallic);
+    if (Rand0 < Mean(FresnelSchlick(Reflectivity, UpNormal, Outgoing))) {
+        vec3 Halfway  = SampleMicrofacet(Roughness, UpNormal, Rand1);
+        vec3 Incoming = reflect(-Outgoing, Halfway);
+        if (!SameHemisphere(UpNormal, Outgoing, Incoming)) return vec3(0, 0, 0);
+        return Incoming;
+    } else {
+        return SampleHemisphereCosine(UpNormal, Rand1);
+    }
+}
+
+FN_DECL vec3 EvalPbr(INOUT(vec3) Colour, float IOR, float Roughness, float Metallic, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming) {
+    // Evaluate a specular BRDF lobe.
+    if (dot(Normal, Incoming) * dot(Normal, Outgoing) <= 0) return vec3(0, 0, 0);
+
+    vec3 Reflectivity = mix(EtaToReflectivity(vec3(IOR, IOR, IOR)), Colour, Metallic);
+    vec3 UpNormal = dot(Normal, Outgoing) <= 0 ? -Normal : Normal;
+    vec3 F1        = FresnelSchlick(Reflectivity, UpNormal, Outgoing);
+    vec3 Halfway   = normalize(Incoming + Outgoing);
+    vec3 F         = FresnelSchlick(Reflectivity, Halfway, Incoming);
+    float D        = MicrofacetDistribution(Roughness, UpNormal, Halfway);
+    float G         = MicrofacetShadowing(Roughness, UpNormal, Halfway, Outgoing, Incoming);
+
+    float Cosine = abs(dot(UpNormal, Incoming));
+    vec3 Diffuse = Colour * (1.0f - Metallic) * (1.0f - F1) / vec3(PI_F) *
+                abs(dot(UpNormal, Incoming));
+    vec3 Specular = F * D * G / (4 * dot(UpNormal, Outgoing) * dot(UpNormal, Incoming));
+
+    return  Diffuse * Cosine + Specular * Cosine;
+}
+
+FN_DECL float SamplePbrPDF(INOUT(vec3) Colour, float IOR, float Roughness, float Metallic, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming) {
+  if (dot(Normal, Incoming) * dot(Normal, Outgoing) <= 0) return 0;
+  vec3 UpNormal    = dot(Normal, Outgoing) <= 0 ? -Normal : Normal;
+  vec3 Halfway      = normalize(Outgoing + Incoming);
+  vec3 Reflectivity = mix(EtaToReflectivity(vec3(IOR, IOR, IOR)), Colour, Metallic);
+  float F = Mean(FresnelSchlick(Reflectivity, UpNormal, Outgoing));
+  return F * SampleMicrofacetPDF(Roughness, UpNormal, Halfway) /
+             (4 * abs(dot(Outgoing, Halfway))) +
+         (1 - F) * SampleHemisphereCosinePDF(UpNormal, Incoming);
+}
+
+
+// Matte
 
 FN_DECL vec3 SampleMatte(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3) Outgoing, vec2 RN)
 {
@@ -342,14 +482,42 @@ FN_DECL float SampleMattePDF(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3)
     return SampleHemisphereCosinePDF(UpNormal, Incoming);
 }
 
+// BSDF
+
 FN_DECL vec3 EvalBSDFCos(INOUT(materialPoint) Material, vec3 Normal, vec3 OutgoingDir, vec3 Incoming)
 {
-    return EvalMatte(Material.Colour, Normal, OutgoingDir, Incoming);
+    if(Material.MaterialType == MATERIAL_TYPE_MATTE)
+    {
+        return EvalMatte(Material.Colour, Normal, OutgoingDir, Incoming);
+    }
+    else if(Material.MaterialType == MATERIAL_TYPE_PBR)
+    {
+        return EvalPbr(Material.Colour, 1.5, Material.Roughness, Material.Metallic, Normal, OutgoingDir, Incoming);
+    }
 }
 
-FN_DECL float SampleBSDFCosPDF(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming)
+FN_DECL float SampleBSDFCosPDF(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) OutgoingDir, INOUT(vec3) Incoming)
 {
-    return SampleMattePDF(Material.Colour, Normal, Outgoing, Incoming);
+    if(Material.MaterialType == MATERIAL_TYPE_MATTE)
+    {
+        return SampleMattePDF(Material.Colour, Normal, OutgoingDir, Incoming);
+    }
+    else if(Material.MaterialType == MATERIAL_TYPE_PBR)
+    {
+        return SamplePbrPDF(Material.Colour, 1.5, Material.Roughness, Material.Metallic, Normal, OutgoingDir, Incoming);
+    }
+}
+
+FN_DECL vec3 SampleBSDFCos(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) OutgoingDir, float RNL, vec2 RN)
+{
+    if(Material.MaterialType == MATERIAL_TYPE_MATTE)
+    {
+        return SampleMatte(Material.Colour, Normal, OutgoingDir, RN);
+    }
+    else if(Material.MaterialType == MATERIAL_TYPE_PBR)
+    {
+        return SamplePbr(Material.Colour, 1.5, Material.Roughness, Material.Metallic, Normal, OutgoingDir, RNL, RN);
+    }
 }
 
 
@@ -443,11 +611,11 @@ MAIN()
                 vec3 Position = Tri.v1 * Isect.U + Tri.v2 * Isect.V + Tri.v0 * (1 - Isect.U - Isect.V);
 
                 materialPoint Material = EvalMaterial(Isect);
+                vec3 OutgoingDir = -Ray.Direction;
                 
                 Radiance += Weight * Material.Emission;
 
-                vec3 Incoming = SampleHemisphereCosine(Normal, Random2F(Isect.RandomState));
-                vec3 OutgoingDir = -Ray.Direction;
+                vec3 Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
 
                 Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
                           SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
