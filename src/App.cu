@@ -90,10 +90,16 @@ void application::EndFrame()
 
 void application::Trace()
 {
+    if(ResetRender) 
+    {
+        Params.CurrentSample=0;
+    }
+
     if(Params.CurrentSample < Params.TotalSamples)
     {
         TracingParamsBuffer->updateData(&Params, sizeof(tracingParameters));
-        
+        Scene->CamerasBuffer->updateData(0 * sizeof(camera), Scene->Cameras.data(), Scene->Cameras.size() * sizeof(camera));
+
     #if API==API_GL
         PathTracingShader->Use();
         PathTracingShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
@@ -126,6 +132,11 @@ void application::Run()
     {
         Window->PollEvents();
         StartFrame();
+        ResetRender=false;
+
+        ResetRender |= Controller.Update();
+        Scene->Cameras[0].Frame = Controller.ModelMatrix;
+
 
         Trace();
         

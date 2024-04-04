@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include "Tracing.h"
+#include "CameraController.h"
 
 namespace gpupt
 {
@@ -25,6 +26,10 @@ public:
 private:
     static std::shared_ptr<application> Singleton;
     std::shared_ptr<window> Window;
+
+    bool ResetRender = false;
+
+    orbitCameraController Controller;
 
     tracingParameters Params;
 
