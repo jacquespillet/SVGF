@@ -54,13 +54,16 @@ void application::InitGpuObjects()
 {
 #if API==API_GL
     PathTracingShader = std::make_shared<shaderGL>("resources/shaders/PathTrace.glsl");
+    TonemapShader = std::make_shared<shaderGL>("resources/shaders/Tonemap.glsl");
     RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
+    TonemapTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);    
     TracingParamsBuffer = std::make_shared<uniformBufferGL>(sizeof(tracingParameters), &Params);
     MaterialBuffer = std::make_shared<bufferGL>(sizeof(material) * Scene->Materials.size(), Scene->Materials.data());
 #elif API==API_CU
-    RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
+    TonemapTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
     RenderBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * 4 * sizeof(float));
-    RenderTextureMapping = CreateMapping(RenderTexture);    
+    TonemapBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * 4 * sizeof(float));
+    RenderTextureMapping = CreateMapping(TonemapTexture);    
     TracingParamsBuffer = std::make_shared<bufferCu>(sizeof(tracingParameters), &Params);
     MaterialBuffer = std::make_shared<bufferCu>(sizeof(material) * Scene->Materials.size(), Scene->Materials.data());
 #endif
@@ -131,7 +134,20 @@ void application::Trace()
         cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer->Data, Window->Width * Window->Height * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
 #endif
         Params.CurrentSample+= Params.Batch;
-    }    
+    }
+
+#if API==API_GL
+    TonemapShader->Use();
+    TonemapShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
+    TonemapShader->SetTexture(1, TonemapTexture->TextureID, GL_READ_WRITE);
+    TonemapShader->Dispatch(Window->Width / 16 + 1, Window->Height / 16 + 1, 1);
+#elif API==API_CU
+    dim3 blockSize(16, 16);
+    dim3 gridSize((Window->Width / blockSize.x)+1, (Window->Height / blockSize.y) + 1);
+    TonemapKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, (glm::vec4*)TonemapBuffer->Data, Window->Width, Window->Height);
+    cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, TonemapBuffer->Data, Window->Width * Window->Height * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+#endif
+
 }
 
 void application::Run()
@@ -151,7 +167,7 @@ void application::Run()
         ImGui::SetNextWindowPos(ImVec2(0,0), ImGuiCond_Always);
         ImGui::SetNextWindowSize(ImVec2(Window->Width, Window->Height), ImGuiCond_Always);
         ImGui::Begin("RenderWindow", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
-        ImGui::Image((ImTextureID)RenderTexture->TextureID, ImVec2(Window->Width, Window->Height));
+        ImGui::Image((ImTextureID)TonemapTexture->TextureID, ImVec2(Window->Width, Window->Height));
         ImGui::End();
 
         EndFrame();

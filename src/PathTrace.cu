@@ -69,3 +69,30 @@ __device__ vec4 imageLoad(vec4 *Image, ivec2 p)
 
  
 #include "../../resources/PathTraceCode.cpp"
+
+
+__device__ float ToSRGB(float Col) {
+  return (Col <= 0.0031308f) ? 12.92f * Col
+                             : (1 + 0.055f) * pow(Col, 1 / 2.4f) - 0.055f;
+}
+
+__device__ glm::vec3 ToSRGB(glm::vec3 Col)
+{
+    return glm::vec3(
+        ToSRGB(Col.x),
+        ToSRGB(Col.y),
+        ToSRGB(Col.z)
+    );
+}
+
+__global__ void TonemapKernel(glm::vec4 *Input,glm::vec4 *Output, int Width, int Height)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x < Width && y < Height) {    
+        int index = y * Width + x;
+
+        glm::vec3 Col = ToSRGB(Input[y * Width + x]);
+        Output[y * Width + x] = vec4(Col, 1);    
+    }
+}
