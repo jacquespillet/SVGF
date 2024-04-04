@@ -46,6 +46,10 @@ FN_DECL bool SameHemisphere(vec3 Normal, vec3 Outgoing, vec3 Incoming)
     return dot(Normal, Outgoing) * dot(Normal, Incoming) >= 0;
 }
 
+FN_DECL float max3 (vec3 v) {
+  return max (max (v.x, v.y), v.z);
+}
+
 
 // BVH
 
@@ -596,6 +600,7 @@ MAIN()
 
             vec3 Radiance = vec3(0,0,0);
             vec3 Weight = vec3(1,1,1);
+
             for(int Bounce=0; Bounce < 3; Bounce++)
             {
                 sceneIntersection Isect;
@@ -605,8 +610,6 @@ MAIN()
                 IntersectTLAS(Ray, Isect);
                 if(Isect.Distance == 1e30f)
                 {
-                    // Radiance += Weight * vec3(1);
-                    // Environment radiance
                     break;
                 }
 
@@ -618,15 +621,15 @@ MAIN()
                 mat4 NormalTransform = TLASInstancesBuffer[Isect.InstanceIndex].NormalTransform;
                 vec3 Normal = ExtraData.Normal1 * Isect.U + ExtraData.Normal2 * Isect.V +ExtraData.Normal0 * (1 - Isect.U - Isect.V);
                 Isect.Normal = TransformDirection(NormalTransform, Normal);
-                
-                vec3 Position = Tri.v1 * Isect.U + Tri.v2 * Isect.V + Tri.v0 * (1 - Isect.U - Isect.V);
-
-                materialPoint Material = EvalMaterial(Isect);
+                vec3 Position = TransformPoint(Isect.InstanceTransform, Tri.v1 * Isect.U + Tri.v2 * Isect.V + Tri.v0 * (1 - Isect.U - Isect.V));
                 vec3 OutgoingDir = -Ray.Direction;
-                
-                Radiance += Weight * Material.Emission;
+                materialPoint Material = EvalMaterial(Isect);
 
+                Radiance += Weight * Material.Emission;
+                
                 vec3 Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+
+                if(Incoming == vec3(0,0,0)) break;
 
                 Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
                           SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
@@ -636,7 +639,17 @@ MAIN()
                 Ray.Direction = Incoming;
 
                 if(Weight == vec3(0,0,0) || !IsFinite(Weight)) break;
+
+                if(Bounce > 3)
+                {
+                    float RussianRouletteProb = min(0.99f, max3(Weight));
+                    if(RandomUnilateral(Isect.RandomState) >= RussianRouletteProb) break;
+                    Weight *= 1.0f / RussianRouletteProb;
+                }                
             }
+
+            if(!IsFinite(Radiance)) Radiance = vec3(0,0,0);
+            if(max3(Radiance) > 10) Radiance = Radiance * (10 / max3(Radiance)); 
 
             float SampleWeight = 1.0f / (float(GET_ATTR(Parameters,CurrentSample) + Sample) + 1);
 
