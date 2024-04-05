@@ -15,7 +15,10 @@ struct tracingParameters
     int CurrentSample;
     int TotalSamples;
     int Batch;
-    int Pad0;    
+    int Bounces;
+
+    glm::vec3 Pad;    
+    float Clamp;
 };
 
 inline tracingParameters GetTracingParameters()
@@ -24,6 +27,8 @@ inline tracingParameters GetTracingParameters()
     Params.CurrentSample = 0;
     Params.Batch = 1;
     Params.TotalSamples = 4096;
+    Params.Bounces = 5;
+    Params.Clamp = 10;
     return Params;
 }
 

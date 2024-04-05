@@ -22,6 +22,10 @@ struct cudaTextureMapping
         cudaGraphicsUnmapResources(1, &CudaTextureResource);
         cudaFree(CudaBuffer);
     }
+    ~cudaTextureMapping()
+    {
+        Destroy();
+    }
 };
 
 std::shared_ptr<cudaTextureMapping> CreateMapping(std::shared_ptr<textureGL> Tex, bool Write=false)

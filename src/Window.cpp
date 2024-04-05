@@ -52,6 +52,11 @@ window::window(uint32_t Width, uint32_t Height)
     glfwMakeContextCurrent(this->Handle);
     glfwSwapInterval(0);
 
+    glfwSetWindowSizeCallback(this->Handle, [](GLFWwindow *handle, int width, int height){
+        auto &Window = *(window*)glfwGetWindowUserPointer(handle);
+        if(Window.OnResize) Window.OnResize(Window, glm::ivec2(width, height));
+    });    
+
     glfwSetWindowUserPointer(this->Handle, (void*)this);
 
     bool Error = glewInit() != GLEW_OK;

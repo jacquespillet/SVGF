@@ -14,6 +14,8 @@ class cudaTextureMapping;
 struct scene;
 struct sceneBVH;
 class bufferGL;
+class gui;
+
 
 class application
 {
@@ -24,20 +26,33 @@ public:
 
     static application *Get();
     static glm::uvec2 GetSize();
+
+    void OnResize(uint32_t NewWidth, uint32_t NewHeight);
 private:
+    friend class gui;
+
+    bool Inited=false;
+
     static std::shared_ptr<application> Singleton;
     std::shared_ptr<window> Window;
 
+    std::shared_ptr<scene> Scene;
+    std::shared_ptr<sceneBVH> BVH;
     bool ResetRender = false;
+    lights Lights;
 
     orbitCameraController Controller;
 
     tracingParameters Params;
+    std::shared_ptr<gui> GUI;
 
-    std::shared_ptr<scene> Scene;
-    std::shared_ptr<sceneBVH> BVH;
-
-    lights Lights;
+    
+    uint32_t  RenderResolution;
+    uint32_t  RenderWidth;
+    uint32_t  RenderHeight;
+    uint32_t  RenderWindowWidth;
+    uint32_t  RenderWindowHeight;
+    float RenderAspectRatio = 1;
 
     std::shared_ptr<textureGL> TonemapTexture;
 #if API==API_GL
@@ -62,7 +77,9 @@ private:
 
     void InitGpuObjects();
     void InitImGui();
-    
+    void UploadMaterial(int MaterialInx);
+    void ResizeRenderTextures();
+    void CalculateWindowSizes();
     void StartFrame();
     void EndFrame();
 };

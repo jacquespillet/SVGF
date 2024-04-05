@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <functional>
+#include <glm/vec2.hpp>
 
 struct GLFWwindow;
 
@@ -11,6 +12,8 @@ class window
 {
 public:
     window(uint32_t Width, uint32_t Height);
+
+    std::function<void(window &, glm::ivec2)> OnResize;
 
     bool ShouldClose() const;
     void PollEvents() const;

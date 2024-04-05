@@ -7,6 +7,6 @@ namespace gpupt
 {
 struct scene;
 
-void LoadGLTF(std::string FilePath, std::shared_ptr<scene> Scene);
+void LoadGLTF(std::string FilePath, std::shared_ptr<scene> Scene, bool AddInstances);
 
 }

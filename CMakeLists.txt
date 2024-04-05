@@ -2,7 +2,7 @@ project(gpuPathTracing)
 
 set(API_GL 0)
 set(API_CU 1)
-set(API ${API_GL})
+set(API ${API_CU})
 
 add_definitions(-DAPI_GL=${API_GL})
 add_definitions(-DAPI_CU=${API_CU})
@@ -46,6 +46,14 @@ include_directories(${TINYGLTF_INC_DIR})
 set(STB_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/stb)
 include_directories(${STB_INC_DIR})
 
+# FileDialog
+set(FILEDIALOG_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/fileDialog/include)
+set(FILEDIALOG_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/vendor/fileDialog/src/nfd_common.c)
+set(FILEDIALOG_SOURCE ${FILEDIALOG_SOURCE} ${CMAKE_CURRENT_SOURCE_DIR}/vendor/fileDialog/src/nfd_win.cpp)
+include_directories(${FILEDIALOG_INC_DIR})
+link_directories(${FILEDIALOG_LIB_DIR})
+
+
 find_package(CUDA REQUIRED)
 enable_language(CUDA)
 
@@ -69,8 +77,10 @@ set (sourceFiles
         src/TextureArrayCu.cu
         src/Scene.cpp
         src/Tracing.cpp
+        src/GUI.cpp
         src/BVH.cpp
         ${IMGUI_SOURCE}
+        ${FILEDIALOG_SOURCE}
 )
 
 cuda_add_executable(PathTracer ${sourceFiles})

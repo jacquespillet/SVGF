@@ -14,6 +14,7 @@
 #include "CudaUtil.h"
 #include "Scene.h"
 #include "BVH.h"
+#include "GUI.h"
 #if API==API_CU
 #include "PathTrace.cu"
 #include "TextureArrayCu.cuh"
@@ -22,6 +23,9 @@
 
 namespace gpupt
 {
+
+void OnResizeWindow(window &Window, glm::ivec2 NewSize);
+
 std::shared_ptr<application> application::Singleton = {};
 
 application *application::Get()
@@ -74,7 +78,15 @@ void application::InitGpuObjects()
     
 void application::Init()
 {
+    this->GUI = std::make_shared<gui>(this);
+
+    GUI->GuiWidth = 200;
+    RenderResolution = 600;
+    
+
     Window = std::make_shared<window>(800, 600);
+    Window->OnResize = OnResizeWindow;
+
     InitImGui();
     Scene = CreateCornellBox();
     BVH = CreateBVH(Scene); 
@@ -83,6 +95,7 @@ void application::Init()
     Lights = GetLights(Scene, Params);
 
     InitGpuObjects();
+    Inited=true;
 }
 
 void application::StartFrame()
@@ -130,14 +143,14 @@ void application::Trace()
         PathTracingShader->SetUBO(TracingParamsBuffer, 9);
         PathTracingShader->SetSSBO(LightsBuffer, 10);
         PathTracingShader->SetTextureArray(Scene->TexArray, 13, "SceneTextures");
-        PathTracingShader->Dispatch(Window->Width / 16 + 1, Window->Height / 16 +1, 1);
+        PathTracingShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 +1, 1);
 #elif API==API_CU
         dim3 blockSize(16, 16);
-        dim3 gridSize((Window->Width / blockSize.x)+1, (Window->Height / blockSize.y) + 1);
-        TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, Window->Width, Window->Height,
+        dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
+        TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, RenderWidth, RenderHeight,
                                             (triangle*)BVH->TrianglesBuffer->Data, (triangleExtraData*) BVH->TrianglesExBuffer->Data, (bvhNode*) BVH->BVHBuffer->Data, (u32*) BVH->IndicesBuffer->Data, (indexData*) BVH->IndexDataBuffer->Data, (bvhInstance*)BVH->TLASInstancesBuffer->Data, (tlasNode*) BVH->TLASNodeBuffer->Data,
                                             (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data, Scene->TexArray->TexObject, (lights*)LightsBuffer->Data);
-        cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer->Data, Window->Width * Window->Height * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+        cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
 #endif
         Params.CurrentSample+= Params.Batch;
     }
@@ -146,12 +159,12 @@ void application::Trace()
     TonemapShader->Use();
     TonemapShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
     TonemapShader->SetTexture(1, TonemapTexture->TextureID, GL_READ_WRITE);
-    TonemapShader->Dispatch(Window->Width / 16 + 1, Window->Height / 16 + 1, 1);
+    TonemapShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 + 1, 1);
 #elif API==API_CU
     dim3 blockSize(16, 16);
-    dim3 gridSize((Window->Width / blockSize.x)+1, (Window->Height / blockSize.y) + 1);
-    TonemapKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, (glm::vec4*)TonemapBuffer->Data, Window->Width, Window->Height);
-    cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, TonemapBuffer->Data, Window->Width * Window->Height * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+    dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
+    TonemapKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, (glm::vec4*)TonemapBuffer->Data, RenderWidth, RenderHeight);
+    cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, TonemapBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
 #endif
 
 }
@@ -168,21 +181,121 @@ void application::Run()
         Scene->Cameras[0].Frame = Controller.ModelMatrix;
 
 
+        GUI->GUI();
         Trace();
         
-        ImGui::SetNextWindowPos(ImVec2(0,0), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(Window->Width, Window->Height), ImGuiCond_Always);
-        ImGui::Begin("RenderWindow", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
-        ImGui::Image((ImTextureID)TonemapTexture->TextureID, ImVec2(Window->Width, Window->Height));
-        ImGui::End();
 
         EndFrame();
-    }
+    }  
 }
 
 void application::Cleanup()
 {
        
+}
+
+void application::UploadMaterial(int MaterialInx)
+{
+    MaterialBuffer->updateData((size_t)MaterialInx * sizeof(material), (void*)&Scene->Materials[MaterialInx], sizeof(material));
+}
+
+
+void application::ResizeRenderTextures()
+{
+    if(!Inited) return;
+#if API==API_GL
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+
+    // Delete objects
+    cudaFree(DenoiseBuffer);
+    
+    RenderTextureMapping.Destroy();
+    AlbedoMapping.Destroy();
+    NormalMapping.Destroy();
+    DenoisedMapping.Destroy();
+        
+    // Recreate them
+    RenderTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
+    AlbedoTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
+    NormalTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
+    TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
+    DenoisedTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
+
+    RenderTextureMapping = CreateMapping(RenderTexture);    
+    AlbedoMapping = CreateMapping(AlbedoTexture);    
+    NormalMapping = CreateMapping(NormalTexture);    
+    DenoisedMapping = CreateMapping(DenoisedTexture, true);    
+    
+    size_t bufferSize = RenderWidth * RenderHeight * sizeof(glm::vec4);
+    cudaMalloc((void**)&DenoiseBuffer, bufferSize);    
+
+    
+    Filter.setImage("color",  RenderTextureMapping.CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
+    Filter.setImage("albedo", AlbedoMapping.CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
+    Filter.setImage("normal", NormalMapping.CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
+    Filter.setImage("output", DenoiseBuffer, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
+    Filter.commit();
+#elif API==API_CU
+    TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
+    RenderBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    TonemapBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    RenderTextureMapping = CreateMapping(TonemapTexture);
+#endif
+
+    Params.CurrentSample=0;
+    Scene->Cameras[0].Aspect = (f32)RenderWidth / (f32)RenderHeight;
+
+    ResetRender=true;
+}
+
+void application::CalculateWindowSizes()
+{
+    if(!Inited) return;
+    
+    // GUIWindow size
+    RenderWindowWidth = Window->Width - GUI->GuiWidth;
+    RenderWindowHeight = Window->Height;
+
+    // Aspect ratio of the GUI window
+    RenderAspectRatio = (f32)RenderWindowWidth / (f32)RenderWindowHeight;
+
+    // Set the render width accordingly
+    u32 NewRenderWidth, NewRenderHeight;
+    if(RenderAspectRatio > 1)
+    {
+        NewRenderWidth = RenderResolution * RenderAspectRatio;
+        NewRenderHeight = RenderResolution;
+    }
+    else
+    {
+        NewRenderWidth = RenderResolution;
+        NewRenderHeight = RenderResolution / RenderAspectRatio;
+    }
+
+    if(Inited && Scene->Cameras[0].Aspect != RenderAspectRatio)
+    {
+        Scene->Cameras[0].Aspect = RenderAspectRatio;
+        ResetRender = true;
+    }
+
+    if(NewRenderWidth != RenderWidth || NewRenderHeight != RenderHeight)
+    {
+        RenderWidth = NewRenderWidth;
+        RenderHeight = NewRenderHeight;
+        ResizeRenderTextures();
+    }
+}
+
+void application::OnResize(uint32_t NewWidth, uint32_t NewHeight)
+{
+    // std::cout << "ON RESIZE " << NewWidth << std::endl;
+    Window->Width = NewWidth;
+    Window->Height = NewHeight;
+}
+
+void OnResizeWindow(window &Window, glm::ivec2 NewSize)
+{
+	application::Get()->OnResize(NewSize.x, NewSize.y);
 }
 
 }

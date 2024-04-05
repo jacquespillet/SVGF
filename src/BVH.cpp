@@ -488,6 +488,99 @@ std::shared_ptr<sceneBVH> CreateBVH(std::shared_ptr<scene> Scene)
     return Result;
 }
 
+
+void sceneBVH::UpdateShape(uint32_t InstanceInx, uint32_t ShapeInx)
+{
+    Instances[InstanceInx].MeshIndex = ShapeInx;
+    TLAS.Build();
+    this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(bvhInstance));
+    this->TLASNodeBuffer->updateData(this->TLAS.Nodes.data(), this->TLAS.Nodes.size() * sizeof(tlasNode));
+}
+
+void sceneBVH::UpdateMaterial(uint32_t InstanceInx, uint32_t MaterialInx)
+{
+    Instances[InstanceInx].MaterialIndex = MaterialInx;
+    this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(bvhInstance));
+}
+
+void sceneBVH::UpdateTLAS(uint32_t InstanceInx)
+{
+    Instances[InstanceInx].SetTransform(Scene->Instances[InstanceInx].GetModelMatrix(), &this->Meshes);
+    TLAS.Build();
+    this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(bvhInstance));
+    this->TLASNodeBuffer->updateData(this->TLAS.Nodes.data(), this->TLAS.Nodes.size() * sizeof(tlasNode));
+}
+
+void sceneBVH::AddInstance(uint32_t InstanceInx)
+{
+    Instances.push_back(
+            bvhInstance(&Meshes, Scene->Instances[InstanceInx].Shape,
+                        Scene->Instances[InstanceInx].GetModelMatrix(), (uint32_t)Instances.size(), Scene->Instances[InstanceInx].Material)
+        );
+    TLAS.Build();
+#if API==API_GL
+    this->TLASInstancesBuffer =std::make_shared<bufferGL>(this->TLAS.BLAS->size() * sizeof(bvhInstance), this->TLAS.BLAS->data());
+    this->TLASNodeBuffer =std::make_shared<bufferGL>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
+#elif API==API_CU
+    this->TLASInstancesBuffer =std::make_shared<bufferCu>(this->TLAS.BLAS->size() * sizeof(bvhInstance), this->TLAS.BLAS->data());
+    this->TLASNodeBuffer =std::make_shared<bufferCu>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
+#endif
+}
+
+void sceneBVH::AddShape(uint32_t ShapeInx)
+{
+    const shape &Shape = Scene->Shapes[ShapeInx];
+    this->Meshes.push_back(new mesh(Scene->Shapes[ShapeInx]));
+    mesh *Mesh = this->Meshes[this->Meshes.size()-1];
+
+    uint32_t RunningTriangleCount = AllTriangles.size();
+    uint32_t RunningIndicesCount = AllTriangleIndices.size();
+    uint32_t RunningBVHNodeCount = AllBVHNodes.size();
+    uint32_t Inx = Meshes.size()-1;
+
+    AllTriangles.resize(AllTriangles.size() + Mesh->Triangles.size());
+    AllTrianglesEx.resize(AllTrianglesEx.size() + Mesh->TrianglesExtraData.size());
+    AllTriangleIndices.resize(AllTriangleIndices.size() + Mesh->BVH->TriangleIndices.size());
+    AllBVHNodes.resize(AllBVHNodes.size() + Mesh->BVH->NodesUsed);
+    IndexData.resize(Meshes.size());
+
+
+    memcpy((void*)(AllTriangles.data() + RunningTriangleCount), Meshes[Inx]->Triangles.data(), Meshes[Inx]->Triangles.size() * sizeof(triangle));
+    memcpy((void*)(AllTrianglesEx.data() + RunningTriangleCount), Meshes[Inx]->TrianglesExtraData.data(), Meshes[Inx]->TrianglesExtraData.size() * sizeof(triangleExtraData));
+    memcpy((void*)(AllTriangleIndices.data() + RunningIndicesCount), Meshes[Inx]->BVH->TriangleIndices.data(), Meshes[Inx]->BVH->TriangleIndices.size() * sizeof(uint32_t));
+    memcpy((void*)(AllBVHNodes.data() + RunningBVHNodeCount), Meshes[Inx]->BVH->BVHNodes.data(), Meshes[Inx]->BVH->NodesUsed * sizeof(bvhNode));
+
+    IndexData[Inx] = 
+    {
+        RunningTriangleCount,
+        RunningIndicesCount,
+        RunningBVHNodeCount,
+        (uint32_t)Meshes[Inx]->Triangles.size()
+    };
+
+
+    // BLAS
+#if API==API_GL
+    TrianglesBuffer =std::make_shared<bufferGL>(AllTriangles.size() * sizeof(triangle), AllTriangles.data());
+    TrianglesExBuffer =std::make_shared<bufferGL>(AllTrianglesEx.size() * sizeof(triangleExtraData), AllTrianglesEx.data());
+    BVHBuffer =std::make_shared<bufferGL>(AllBVHNodes.size() * sizeof(bvhNode), AllBVHNodes.data());
+    IndicesBuffer =std::make_shared<bufferGL>(AllTriangleIndices.size() * sizeof(uint32_t), AllTriangleIndices.data());
+    IndexDataBuffer =std::make_shared<bufferGL>(IndexData.size() * sizeof(indexData), IndexData.data());
+#elif API==API_CU
+    TrianglesBuffer =std::make_shared<bufferCu>(AllTriangles.size() * sizeof(triangle), AllTriangles.data());
+    TrianglesExBuffer =std::make_shared<bufferCu>(AllTrianglesEx.size() * sizeof(triangleExtraData), AllTrianglesEx.data());
+    BVHBuffer =std::make_shared<bufferCu>(AllBVHNodes.size() * sizeof(bvhNode), AllBVHNodes.data());
+    IndicesBuffer =std::make_shared<bufferCu>(AllTriangleIndices.size() * sizeof(uint32_t), AllTriangleIndices.data());
+    IndexDataBuffer =std::make_shared<bufferCu>(IndexData.size() * sizeof(indexData), IndexData.data());
+#endif
+}
+
+
+sceneBVH::~sceneBVH()
+{
+    this->Destroy();
+}
+
 void sceneBVH::Destroy()
 {
     for (size_t i = 0; i < this->Meshes.size(); i++)

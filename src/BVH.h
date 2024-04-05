@@ -227,6 +227,13 @@ struct sceneBVH
     std::shared_ptr<bufferCu> TLASNodeBuffer;
 #endif
 
+    void UpdateShape(uint32_t InstanceInx, uint32_t ShapeInx);
+    void UpdateMaterial(uint32_t InstanceInx, uint32_t MaterialInx);
+    void UpdateTLAS(uint32_t InstanceInx);
+    void AddInstance(uint32_t InstanceInx);
+    void AddShape(uint32_t ShapeInx);
+
+    ~sceneBVH();
     void Destroy();
     std::shared_ptr<scene> Scene;
 };

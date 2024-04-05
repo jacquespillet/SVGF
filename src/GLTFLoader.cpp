@@ -391,7 +391,7 @@ void LoadInstances(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std
     }
 }
 
-void LoadGLTF(std::string FileName, std::shared_ptr<scene> Scene)
+void LoadGLTF(std::string FileName, std::shared_ptr<scene> Scene, bool AddInstances)
 {
     tinygltf::Model GLTFModel;
     tinygltf::TinyGLTF ModelLoader;
@@ -419,7 +419,7 @@ void LoadGLTF(std::string FileName, std::shared_ptr<scene> Scene)
     std::vector<std::vector<uint32_t>> InstanceMapping;
     
     LoadGeometry(GLTFModel, Scene, InstanceMapping);
-    LoadInstances(GLTFModel, Scene, InstanceMapping);
+    if(AddInstances) LoadInstances(GLTFModel, Scene, InstanceMapping);
     LoadMaterials(GLTFModel, Scene);
     LoadTextures(GLTFModel, Scene);
 }    
