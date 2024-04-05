@@ -1,0 +1,58 @@
+#include "ImageLoader.h"
+#include <stb_image.h>
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "stb_image_resize.h"
+#include <iostream>
+
+namespace gpupt
+{
+
+void ImageFromFile(const std::string &FileName, std::vector<uint8_t> &Data, int &Width, int &Height, int &NumChannels)
+{
+    int ImgWidth, ImgHeight;
+    int channels;
+
+    // Load the image
+    stbi_uc* Image = stbi_load(FileName.c_str(), &ImgWidth, &ImgHeight, &channels, STBI_rgb_alpha);
+
+    if (Image == nullptr) {
+        // Handle error (file not found, invalid format, etc.)
+        std::cout << "Failed to load image: " << FileName << std::endl;
+        return;
+    }
+
+    // If there's a requested size, set target size with it. Otherwise, use the image size
+    int TargetWidth = (Width != 0) ? Width : ImgWidth;
+    int TargetHeight = (Height != 0) ? Height : ImgHeight;
+
+    // If the target size is not the current size, resize the image
+    if(TargetWidth != ImgWidth || TargetHeight != ImgHeight)
+    {
+        // Resize the image using stbir_resize (part of stb_image_resize.h)
+        stbi_uc* ResizedImage = new stbi_uc[Width * Height * 4]; // Assuming RGBA format
+
+        int result = stbir_resize_uint8(Image, ImgWidth, ImgHeight, 0, ResizedImage, TargetWidth, TargetHeight, 0, 4);
+        
+        stbi_image_free(Image);
+
+        if (!result) {
+            // Handle resize error
+            std::cout << "Failed to resize image: " << FileName << std::endl;
+            delete[] ResizedImage;
+            return;
+        }
+
+        // Resize the pixel data, and copy to it
+        Data.resize(TargetWidth * TargetHeight * 4);
+        memcpy(Data.data(), ResizedImage, TargetWidth * TargetHeight * 4);
+        delete[] ResizedImage;
+    }
+    else
+    {
+        // Resize the pixel data, and copy to it
+        Data.resize(TargetWidth * TargetHeight * 4);
+        memcpy(Data.data(), Image, TargetWidth * TargetHeight * 4);
+        delete[] Image;
+    }
+}    
+}

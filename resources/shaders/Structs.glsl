@@ -120,6 +120,12 @@ struct material
     
     ivec3 Padding0;
     int MaterialType;
+
+
+    int EmissionTexture;
+    int ColourTexture;
+    int RoughnessTexture;
+    int NormalTexture;
 };
 
 struct materialPoint

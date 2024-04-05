@@ -11,6 +11,8 @@ namespace gpupt
 {
 class bufferCu;
 class bufferGL;
+class textureArrayGL;
+class textureArrayCu;
 
 static const int InvalidID = -1;
 
@@ -30,6 +32,18 @@ struct camera
     glm::ivec3 Padding;
 };
 
+struct texture
+{
+    int Width = 0;
+    int Height = 0;
+    int NumChannels = 0;
+    std::vector<uint8_t> Pixels = {};
+
+    void SetFromFile(const std::string &FileName, int Width = -1, int Height = -1);
+    void SetFromPixels(const std::vector<uint8_t> &PixelData, int Width = -1, int Height = -1);
+};
+
+
 struct material
 {
     glm::vec3 Emission = {};
@@ -40,6 +54,11 @@ struct material
     
     glm::ivec3 Padding;
     int MaterialType = 0;
+
+    int EmissionTexture = InvalidID;
+    int ColourTexture = InvalidID;
+    int RoughnessTexture = InvalidID;
+    int NormalTexture = InvalidID;
 };
 
 
@@ -73,17 +92,26 @@ struct scene
     std::vector<instance> Instances = {};
     std::vector<shape> Shapes = {};
     std::vector<material> Materials = {};
+    std::vector<texture> Textures = {};
+
     
     std::vector<std::string> CameraNames = {};
     std::vector<std::string> InstanceNames = {};
     std::vector<std::string> ShapeNames = {};
     std::vector<std::string> MaterialNames = {};
+    std::vector<std::string> TextureNames = {};
 
+
+    int TextureWidth = 512;
+    int TextureHeight = 512;
+    void ReloadTextureArray();
 
 #if API==API_GL
     std::shared_ptr<bufferGL> CamerasBuffer;
+    std::shared_ptr<textureArrayGL> TexArray;
 #elif API==API_CU
     std::shared_ptr<bufferCu> CamerasBuffer;
+    std::shared_ptr<textureArrayCu> TexArray;
 #endif    
 };
 

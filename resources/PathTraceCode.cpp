@@ -50,6 +50,23 @@ FN_DECL float max3 (vec3 v) {
   return max (max (v.x, v.y), v.z);
 }
 
+// region utils
+FN_DECL float ToLinear(float SRGB) {
+  return (SRGB <= 0.04045) ? SRGB / 12.92f
+                           : pow((SRGB + 0.055f) / (1.0f + 0.055f), 2.4f);
+}
+
+FN_DECL vec4 ToLinear(vec4 SRGB)
+{
+    return vec4(
+        ToLinear(SRGB.x),
+        ToLinear(SRGB.y),
+        ToLinear(SRGB.z),
+        SRGB.w
+    );
+}
+
+
 
 // BVH
 
@@ -313,17 +330,45 @@ FN_DECL vec3 EvalShadingPosition(INOUT(vec3) OutgoingDir, INOUT(sceneIntersectio
 }
 
 // Eval
+FN_DECL vec2 EvalTexCoord(INOUT(sceneIntersection) Isect)
+{
+    uint Element = Isect.PrimitiveIndex;
+    triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];
+    return
+        ExtraData.UV1 * Isect.U + 
+        ExtraData.UV2 * Isect.V +
+        ExtraData.UV0 * (1 - Isect.U - Isect.V);    
+}
+
+FN_DECL vec4 EvalTexture(int Texture, vec2 UV, bool Linear)
+{
+    if(Texture == INVALID_ID) return vec4(1, 1, 1, 1);
+    vec3 texCoord3D = vec3(UV, Texture);
+    vec4 Colour = textureSample(SceneTextures, texCoord3D); 
+    // vec4 Colour = vec4(1);
+    if(Linear) Colour = ToLinear(Colour);
+    return Colour;
+}
+
 
 FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
 {
     material Material = Materials[Isect.MaterialIndex];
     materialPoint Point;
+
+    vec2 TexCoords = EvalTexCoord(Isect);
+    vec4 EmissionTexture = EvalTexture(Material.EmissionTexture, TexCoords, true);    
+    vec4 ColourTexture = EvalTexture(Material.ColourTexture, TexCoords, true);
+    vec4 RoughnessTexture = EvalTexture(Material.RoughnessTexture, TexCoords, false);
+    
     Point.MaterialType = Material.MaterialType;
-    Point.Colour = Material.Colour;
-    Point.Emission = Material.Emission;
-    Point.Roughness = Material.Roughness;
+    Point.Colour = Material.Colour * vec3(ColourTexture);
+    Point.Emission = Material.Emission * vec3(EmissionTexture);
+    
+    Point.Metallic = Material.Metallic * RoughnessTexture.z;
+    Point.Roughness = Material.Roughness * RoughnessTexture.y;
     Point.Roughness = Point.Roughness * Point.Roughness;
-    Point.Metallic = Material.Metallic;
+
     return Point;
 }
 

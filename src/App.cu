@@ -16,6 +16,7 @@
 #include "BVH.h"
 #if API==API_CU
 #include "PathTrace.cu"
+#include "TextureArrayCu.cuh"
 #endif
 
 
@@ -124,13 +125,14 @@ void application::Trace()
         PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
         PathTracingShader->SetSSBO(MaterialBuffer, 12);
         PathTracingShader->SetUBO(TracingParamsBuffer, 9);
+        PathTracingShader->SetTextureArray(Scene->TexArray, 13, "SceneTextures");
         PathTracingShader->Dispatch(Window->Width / 16 + 1, Window->Height / 16 +1, 1);
 #elif API==API_CU
         dim3 blockSize(16, 16);
         dim3 gridSize((Window->Width / blockSize.x)+1, (Window->Height / blockSize.y) + 1);
         TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, Window->Width, Window->Height,
                                             (triangle*)BVH->TrianglesBuffer->Data, (triangleExtraData*) BVH->TrianglesExBuffer->Data, (bvhNode*) BVH->BVHBuffer->Data, (u32*) BVH->IndicesBuffer->Data, (indexData*) BVH->IndexDataBuffer->Data, (bvhInstance*)BVH->TLASInstancesBuffer->Data, (tlasNode*) BVH->TLASNodeBuffer->Data,
-                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data);
+                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data, Scene->TexArray->TexObject);
         cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer->Data, Window->Width * Window->Height * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
 #endif
         Params.CurrentSample+= Params.Batch;

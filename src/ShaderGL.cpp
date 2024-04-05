@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include "BufferGL.h"
+#include "TextureArrayGL.h"
 
 namespace gpupt
 {
@@ -50,6 +51,13 @@ void shaderGL::SetSSBO(std::shared_ptr<bufferGL> Buffer, int BindingPoint)
 void shaderGL::SetUBO(std::shared_ptr<uniformBufferGL> Buffer, int BindingPoint)
 {
     glBindBufferBase(GL_UNIFORM_BUFFER, BindingPoint, Buffer->BufferID);
+}
+
+void shaderGL::SetTextureArray(std::shared_ptr<textureArrayGL> Texture, int Unit, std::string Name)
+{
+    glActiveTexture(GL_TEXTURE0 + Unit);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, Texture->TextureID);
+    glUniform1i(glGetUniformLocation(ID, Name.c_str()), Unit);
 }
 
 void shaderGL::Dispatch(uint32_t X, uint32_t Y, uint32_t Z)

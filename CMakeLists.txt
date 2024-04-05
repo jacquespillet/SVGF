@@ -64,6 +64,9 @@ set (sourceFiles
         src/BufferGL.cpp
         src/CameraController.cpp
         src/GLTFLoader.cpp
+        src/ImageLoader.cpp
+        src/TextureArrayGL.cpp
+        src/TextureArrayCu.cu
         src/Scene.cpp
         src/BVH.cpp
         ${IMGUI_SOURCE}

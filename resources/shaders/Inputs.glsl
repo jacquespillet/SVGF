@@ -51,3 +51,4 @@ layout(std430, binding = 12) buffer MaterialsBuffer {
   material Materials[];
 };
 
+layout(binding=13) uniform sampler2DArray SceneTextures;

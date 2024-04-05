@@ -5,6 +5,7 @@ using namespace glm;
 using namespace gpupt;
 
 #define PI_F 3.141592653589
+#define INVALID_ID -1
 
 
 #define MATERIAL_TYPE_MATTE 0
@@ -22,11 +23,12 @@ __device__ tlasNode *TLASNodes;
 __device__ camera *Cameras;
 __device__ tracingParameters *Parameters;
 __device__ material *Materials;
+__device__ cudaTextureObject_t SceneTextures;
 
 #define MAIN() \
 __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
                             triangle *_AllTriangles, triangleExtraData *_AllTrianglesEx, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, bvhInstance *_Instances, tlasNode *_TLASNodes,\
-                            camera *_Cameras, tracingParameters* _TracingParams, material *_Materials)
+                            camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures)
 
 #define INIT() \
     Width = _Width; \
@@ -41,6 +43,7 @@ __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
     Cameras = _Cameras; \
     Parameters = _TracingParams; \
     Materials = _Materials; \
+    SceneTextures = _SceneTextures; \
 
 
 #define IMAGE_SIZE(Img) \
@@ -65,6 +68,25 @@ __device__ void imageStore(vec4 *Image, ivec2 p, vec4 Colour)
 __device__ vec4 imageLoad(vec4 *Image, ivec2 p)
 {
     return Image[p.y * Width + p.x];
+}
+
+__device__ vec4 textureSample(cudaTextureObject_t _SceneTextures, glm::vec3 Coords)
+{
+    static int NumLayersX = 8192 / 512;
+    int LayerInx = Coords.z;
+    
+    int LocalCoordX = Coords.x * 512;
+    int LocalCoordY = Coords.y * 512;
+
+    int XOffset = (LayerInx % NumLayersX) * 512;
+    int YOffset = (LayerInx / NumLayersX) * 512;
+
+    int CoordX = XOffset + LocalCoordX;
+    int CoordY = YOffset + LocalCoordY;
+
+    uchar4 TexValue = tex2D<uchar4>(_SceneTextures, CoordX, CoordY);
+    vec4 TexValueF = vec4((float)TexValue.x / 255.0f, (float)TexValue.y / 255.0f, (float)TexValue.z / 255.0f, (float)TexValue.w / 255.0f);
+    return TexValueF;
 }
 
  

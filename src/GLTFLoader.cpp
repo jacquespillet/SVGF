@@ -46,8 +46,6 @@ void LoadGeometry(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std:
             int IndicesIndex = GLTFPrimitive.indices;
             int PositionIndex = -1;
             int NormalIndex = -1;
-            int TangentIndex = -1;
-            int UVIndex=-1;
             if(GLTFPrimitive.attributes.count("POSITION") >0)
                 PositionIndex = GLTFPrimitive.attributes["POSITION"];
             if(GLTFPrimitive.attributes.count("NORMAL") >0)
@@ -78,12 +76,6 @@ void LoadGeometry(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std:
                 if(NormalBufferView.byteStride > 0) NormalStride =(int) NormalBufferView.byteStride;
             }
 
-            //Indices
-            tinygltf::Accessor IndicesAccessor = GLTFModel.accessors[IndicesIndex];
-            tinygltf::BufferView IndicesBufferView = GLTFModel.bufferViews[IndicesAccessor.bufferView];
-            const tinygltf::Buffer &IndicesBuffer = GLTFModel.buffers[IndicesBufferView.buffer];
-            const uint8_t *IndicesBufferAddress = IndicesBuffer.data.data();
-            int IndicesStride = tinygltf::GetComponentSizeInBytes(IndicesAccessor.componentType) * tinygltf::GetNumComponentsInType(IndicesAccessor.type); 
 
             Shape.Positions.resize(PositionAccessor.count);
             Shape.Normals.resize(PositionAccessor.count);
@@ -108,6 +100,12 @@ void LoadGeometry(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std:
 
 
             //Fill indices buffer
+            tinygltf::Accessor IndicesAccessor = GLTFModel.accessors[IndicesIndex];
+            tinygltf::BufferView IndicesBufferView = GLTFModel.bufferViews[IndicesAccessor.bufferView];
+            const tinygltf::Buffer &IndicesBuffer = GLTFModel.buffers[IndicesBufferView.buffer];
+            const uint8_t *IndicesBufferAddress = IndicesBuffer.data.data();
+            int IndicesStride = tinygltf::GetComponentSizeInBytes(IndicesAccessor.componentType) * tinygltf::GetNumComponentsInType(IndicesAccessor.type); 
+            
             Shape.Triangles.resize(IndicesAccessor.count/3);
             const uint8_t *baseAddress = IndicesBufferAddress + IndicesBufferView.byteOffset + IndicesAccessor.byteOffset;
             if(IndicesStride == 1)
@@ -155,7 +153,6 @@ void LoadMaterials(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene)
     std::vector<material> &Materials = Scene->Materials;
     std::vector<std::string> &MaterialNames = Scene->MaterialNames;
     
-    // AScene->mMaterials[i]->Get(AI_MATKEY_TEXTURE_DIFFUSE(0), Materials[i].MaterialData.BaseColorTextureID);
     uint32_t BaseInx = Materials.size();
     Materials.resize(Materials.size() + GLTFModel.materials.size());
     MaterialNames.resize(MaterialNames.size() + GLTFModel.materials.size());
@@ -182,7 +179,6 @@ void LoadMaterials(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene)
         Material.Colour = glm::vec3(PBR.baseColorFactor[0], PBR.baseColorFactor[1], PBR.baseColorFactor[2]);
         Material.Roughness = std::max(0.01, PBR.roughnessFactor);
         Material.Metallic = PBR.metallicFactor;
-        Material.Colour = glm::vec3(0.7);
         // Material.Emission = glm::vec3(GLTFMaterial.emissiveFactor[0], GLTFMaterial.emissiveFactor[1], GLTFMaterial.emissiveFactor[2]);
 
         // TODO: Textures
@@ -264,10 +260,10 @@ void TraverseNodes(tinygltf::Model &GLTFModel, uint32_t nodeIndex, glm::mat4 Par
 
 void LoadInstances(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std::vector<std::vector<uint32_t>> &InstanceMapping)
 {
-    // glm::mat4 Scale = glm::scale(glm::mat4(1), glm::vec3(25));
-    // glm::mat4 Translate = glm::translate(glm::mat4(1), glm::vec3(0, 0.4, 0));
-    // glm::mat4 RootTransform =  Translate * Scale;
-    glm::mat4 RootTransform(0.5f);
+    glm::mat4 Scale = glm::scale(glm::mat4(1), glm::vec3(25));
+    glm::mat4 Translate = glm::translate(glm::mat4(1), glm::vec3(0, 0.4, 0));
+    glm::mat4 RootTransform =  Translate * Scale;
+    // glm::mat4 RootTransform(0.3f);
     const tinygltf::Scene GLTFScene = GLTFModel.scenes[GLTFModel.defaultScene];
     for (size_t i = 0; i < GLTFScene.nodes.size(); i++)
     {
