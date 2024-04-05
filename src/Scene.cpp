@@ -43,6 +43,7 @@ std::shared_ptr<scene> CreateCornellBox()
     Scene->Materials.emplace_back();
     material &FloorMaterial = Scene->Materials.back(); 
     FloorMaterial.Colour = {0.725f, 0.71f, 0.68f};
+    FloorMaterial.NormalTexture = 1;
     Scene->Instances.emplace_back();
     instance &FloorInstance = Scene->Instances.back();
     FloorInstance.Shape = (int)Scene->Shapes.size()-1;

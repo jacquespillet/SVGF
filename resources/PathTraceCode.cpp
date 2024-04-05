@@ -19,7 +19,8 @@ struct sceneIntersection
     vec3 Normal;
     randomState RandomState;
     uint MaterialIndex;
-
+    vec3 Tangent;
+    vec3 Bitangent;
 };
 
 // Util
@@ -64,6 +65,10 @@ FN_DECL vec4 ToLinear(vec4 SRGB)
         ToLinear(SRGB.z),
         SRGB.w
     );
+}
+FN_DECL mat3 GetTBN(INOUT(sceneIntersection) Isect, vec3 Normal)
+{ 
+    return mat3(Isect.Tangent, Isect.Bitangent, Normal);    
 }
 
 
@@ -348,6 +353,28 @@ FN_DECL vec4 EvalTexture(int Texture, vec2 UV, bool Linear)
     // vec4 Colour = vec4(1);
     if(Linear) Colour = ToLinear(Colour);
     return Colour;
+}
+
+FN_DECL vec3 EvalNormalMap(vec3 Normal, INOUT(sceneIntersection) Isect)
+{
+    // TODO: Optimize
+    vec2 UV = EvalTexCoord(Isect);
+    if(Materials[Isect.MaterialIndex].NormalTexture != INVALID_ID)
+    {
+        vec3 NormalTex = vec3(2) * vec3(EvalTexture(Materials[Isect.MaterialIndex].NormalTexture, UV, false)) - vec3(1);
+
+        mat3 TBN = GetTBN(Isect, Normal);
+        Normal = TBN * normalize(NormalTex);
+
+        return normalize(Normal);
+    }
+    return Normal;
+}
+
+FN_DECL vec3 EvalShadingNormal(INOUT(vec3) OutgoingDir, INOUT(sceneIntersection) Isect)
+{
+    vec3 Normal = EvalNormalMap(Isect.Normal, Isect);
+    return dot(Normal, OutgoingDir) >= 0 ? Normal : -Normal;
 }
 
 
@@ -659,24 +686,26 @@ MAIN()
                     break;
                 }
 
-                uint Element = Isect.PrimitiveIndex;
-                triangle Tri = TriangleBuffer[Element];
-                triangleExtraData ExtraData = TriangleExBuffer[Element];    
+                // get all the necessary geometry information
+                triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];    
                 Isect.InstanceTransform = TLASInstancesBuffer[Isect.InstanceIndex].Transform;
-                
                 mat4 NormalTransform = TLASInstancesBuffer[Isect.InstanceIndex].NormalTransform;
-                
-                vec3 Normal = TransformDirection(NormalTransform, ExtraData.Normal1 * Isect.U + ExtraData.Normal2 * Isect.V +ExtraData.Normal0 * (1 - Isect.U - Isect.V));
-                vec3 Position = TransformPoint(Isect.InstanceTransform, Tri.v1 * Isect.U + Tri.v2 * Isect.V + Tri.v0 * (1 - Isect.U - Isect.V));
-                // vec3 Normal = ExtraData.Normal1 * Isect.U + ExtraData.Normal2 * Isect.V +ExtraData.Normal0 * (1 - Isect.U - Isect.V);
-                // vec3 Position = Tri.v1 * Isect.U + Tri.v2 * Isect.V + Tri.v0 * (1 - Isect.U - Isect.V);
-                
-                Isect.Normal = Normal;
+                vec3 HitNormal = ExtraData.Normal1 * Isect.U + ExtraData.Normal2 * Isect.V +ExtraData.Normal0 * (1 - Isect.U - Isect.V);
+                vec4 Tangent = ExtraData.Tangent1 * Isect.U + ExtraData.Tangent2 * Isect.V + ExtraData.Tangent0 * (1 - Isect.U - Isect.V);
+                Isect.Normal = TransformDirection(NormalTransform, HitNormal);
+                Isect.Tangent = TransformDirection(NormalTransform, vec3(Tangent));
+                Isect.Bitangent = TransformDirection(NormalTransform, normalize(cross(Isect.Normal, vec3(Tangent)) * Tangent.w));    
+
                 vec3 OutgoingDir = -Ray.Direction;
+                vec3 Position = EvalShadingPosition(OutgoingDir, Isect);
+                vec3 Normal = EvalShadingNormal(OutgoingDir, Isect);
+                
+                // Material evaluation
                 materialPoint Material = EvalMaterial(Isect);
+                
 
                 Radiance += Weight * Material.Emission;
-                
+
                 vec3 Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
 
                 if(Incoming == vec3(0,0,0)) break;
