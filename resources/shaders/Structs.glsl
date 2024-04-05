@@ -137,3 +137,11 @@ struct materialPoint
     float Metallic;
 };
 
+struct light
+{
+    int Instance;
+    int CDFCount;
+    ivec2 Pad0;
+
+    float CDF[MAX_CDF];
+};

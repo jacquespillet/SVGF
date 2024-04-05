@@ -23,7 +23,7 @@ inline tracingParameters GetTracingParameters()
     tracingParameters Params;
     Params.CurrentSample = 0;
     Params.Batch = 1;
-    Params.TotalSamples = 32;
+    Params.TotalSamples = 4096;
     return Params;
 }
 
