@@ -52,8 +52,9 @@ struct material
     glm::vec3 Colour = {};
     float Metallic = 0;
     
-    glm::ivec3 Padding;
-    int MaterialType = 0;
+    glm::vec2 Padding;
+    float MaterialType = 0;
+    float Opacity = 1;
 
     int EmissionTexture = InvalidID;
     int ColourTexture = InvalidID;

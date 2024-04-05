@@ -436,6 +436,7 @@ FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
     Point.Roughness = Material.Roughness * RoughnessTexture.y;
     Point.Roughness = Point.Roughness * Point.Roughness;
 
+    Point.Opacity = Material.Opacity * ColourTexture.w;
     return Point;
 }
 
@@ -833,10 +834,19 @@ MAIN()
                 // Material evaluation
                 materialPoint Material = EvalMaterial(Isect);
                 
+                // Opacity
+                uint OpacityBound=0;
+                if(Material.Opacity < 1 && RandomUnilateral(Isect.RandomState) >= Material.Opacity)
+                {
+                    if(OpacityBound++ > 128) break;
+                    Ray.Origin = Position + Ray.Direction * 1e-2f;
+                    Bounce--;
+                    continue;
+                }
+                
 
                 Radiance += Weight * Material.Emission;
                 
-#if 1
                 vec3 Incoming = vec3(0);
                 if(RandomUnilateral(Isect.RandomState) < 0.5f)
                 {
@@ -849,14 +859,7 @@ MAIN()
                 if(Incoming == vec3(0,0,0)) break;
                 Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
                           vec3(0.5 * SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming) + 0.5f * SampleLightsPDF(Position, Incoming));
-#else
-                vec3 Incoming = vec3(0);
-                    Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                if(Incoming == vec3(0,0,0)) break;
-                Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
-                          SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
 
-#endif
                 
                 Ray.Origin = Position;
                 Ray.Direction = Incoming;

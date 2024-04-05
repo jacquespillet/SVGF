@@ -273,11 +273,14 @@ bool gui::MaterialGUI(int MaterialInx)
     ImGui::Text(App->Scene->MaterialNames[MaterialInx].c_str());
     material &Mat = App->Scene->Materials[MaterialInx];
 
-    Changed |= ImGui::Combo("Type", &Mat.MaterialType, "Matte\0PBR\0\0");
+    int MaterialTypeInt = (int)Mat.MaterialType;
+    Changed |= ImGui::Combo("Type", &MaterialTypeInt, "Matte\0PBR\0\0");
+    Mat.MaterialType = (float)MaterialTypeInt;
 
     glm::vec3 PrevEmission = Mat.Emission;
     Changed |= ImGui::DragFloat3("Emission", &Mat.Emission[0], 2, 0, 100);
     Changed |= ImGui::ColorEdit3("Colour", &Mat.Colour[0]);
+    Changed |= ImGui::DragFloat("Opacity", &Mat.Opacity, 0.01f, 0, 1);
 
     if(Mat.MaterialType != MATERIAL_TYPE_MATTE)
     {
