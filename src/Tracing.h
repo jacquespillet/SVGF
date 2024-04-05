@@ -1,8 +1,14 @@
 #pragma once
 #include <glm/vec3.hpp>
+#include <glm/vec2.hpp>
+#include <memory>
+
+#define MAX_LIGHTS 32
+#define MAX_CDF 512
 
 namespace gpupt
 {
+struct scene;
 
 struct tracingParameters
 {
@@ -17,7 +23,7 @@ inline tracingParameters GetTracingParameters()
     tracingParameters Params;
     Params.CurrentSample = 0;
     Params.Batch = 1;
-    Params.TotalSamples = 4096;
+    Params.TotalSamples = 32;
     return Params;
 }
 
@@ -29,7 +35,23 @@ struct materialPoint
     float Roughness, Metallic;
 };
 
+struct light 
+{
+    int Instance = -1;
+    int CDFCount = 0;
+    glm::ivec2 Pad0;
 
+    float CDF[MAX_CDF];
+};
 
+struct lights
+{
+    glm::uvec3 Pad0;
+    uint32_t LightsCount = 0;
+    
+    light Lights[MAX_LIGHTS];
+};
+
+lights GetLights(std::shared_ptr<scene> Scene, tracingParameters &Parameters);
 
 }

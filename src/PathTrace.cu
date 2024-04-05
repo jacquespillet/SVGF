@@ -24,11 +24,14 @@ __device__ camera *Cameras;
 __device__ tracingParameters *Parameters;
 __device__ material *Materials;
 __device__ cudaTextureObject_t SceneTextures;
+__device__ int LightsCount;
+__device__ light *Lights;
+
 
 #define MAIN() \
 __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
                             triangle *_AllTriangles, triangleExtraData *_AllTrianglesEx, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, bvhInstance *_Instances, tlasNode *_TLASNodes,\
-                            camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures)
+                            camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures, lights *_Lights)
 
 #define INIT() \
     Width = _Width; \
@@ -44,6 +47,8 @@ __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
     Parameters = _TracingParams; \
     Materials = _Materials; \
     SceneTextures = _SceneTextures; \
+    LightsCount = _Lights->LightsCount; \
+    Lights = _Lights->Lights; \
 
 
 #define IMAGE_SIZE(Img) \

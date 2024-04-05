@@ -37,6 +37,8 @@ private:
     std::shared_ptr<scene> Scene;
     std::shared_ptr<sceneBVH> BVH;
 
+    lights Lights;
+
     std::shared_ptr<textureGL> TonemapTexture;
 #if API==API_GL
     std::shared_ptr<shaderGL> PathTracingShader;
@@ -45,6 +47,7 @@ private:
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<uniformBufferGL> TracingParamsBuffer;
     std::shared_ptr<bufferGL> MaterialBuffer;
+    std::shared_ptr<bufferGL> LightsBuffer;
 #elif API==API_CU
     std::shared_ptr<bufferCu> TracingParamsBuffer;
     std::shared_ptr<bufferCu> RenderBuffer;
@@ -52,6 +55,7 @@ private:
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<cudaTextureMapping> RenderTextureMapping;
     std::shared_ptr<bufferCu> MaterialBuffer;
+    std::shared_ptr<bufferCu> LightsBuffer;
 
 #endif
     void Trace();

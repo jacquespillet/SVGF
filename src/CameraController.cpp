@@ -10,9 +10,8 @@ namespace gpupt
 
 orbitCameraController::orbitCameraController()
 {
-    Position = glm::vec3(0,0,3);
+    Position = glm::vec3(1,3,5);
     Rotation = glm::vec3(0,0,0);
-    Distance = 1.0f;
 
     this->Distance = std::sqrt(Position.x * Position.x + Position.y * Position.y + Position.z * Position.z);
     this->Theta = std::acos(Position.y / this->Distance);

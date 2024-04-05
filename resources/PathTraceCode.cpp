@@ -71,6 +71,46 @@ FN_DECL mat3 GetTBN(INOUT(sceneIntersection) Isect, vec3 Normal)
     return mat3(Isect.Tangent, Isect.Bitangent, Normal);    
 }
 
+FN_DECL vec2 SampleTriangle(vec2 UV){
+    return vec2(
+        1 - sqrt(UV.x),
+        UV.y * sqrt(UV.x)
+    );
+}
+FN_DECL int SampleUniform(int Size, float Rand)
+{
+    // returns a random number inside the range (0 - Size)
+    return clamp(int(Rand * Size), 0, Size-1);
+}
+FN_DECL int SampleDiscrete(int LightInx, float R)
+{
+    //Remap R from 0 to the size of the distribution
+    float LastValue = Lights[LightInx].CDF[Lights[LightInx].CDFCount-1];
+
+    R = clamp(R * LastValue, 0.0f, LastValue - 0.00001f);
+    // Returns the first element in the array that's greater than R.#
+    int Inx=0;
+    for(int i=0; i<Lights[LightInx].CDFCount; i++)
+    {
+        if(Lights[LightInx].CDF[i] > R) 
+        {
+            Inx = i;
+            break;
+        }
+    }
+    return clamp(Inx, 0, Lights[LightInx].CDFCount-1);
+}
+
+FN_DECL float DistanceSquared(vec3 A, vec3 B)
+{
+    return dot(A-B, A-B);
+}
+FN_DECL float SampleUniformPDF(int Size)
+{
+    // the probability of a uniform distribution is just the inverse of the size.
+    return 1.0f / float(Size);
+}
+
 
 
 // BVH
@@ -399,6 +439,96 @@ FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
     return Point;
 }
 
+// Region lights
+
+
+FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 RandUV)
+{
+    // Take a random light index
+    int LightID = SampleUniform(int(LightsCount), RandL);
+    LightID = 0;
+    // Returns a vector that points to a light in the scene.
+    if(Lights[LightID].Instance != INVALID_ID)
+    {
+        bvhInstance Instance = TLASInstancesBuffer[Lights[LightID].Instance];
+        indexData IndexData = IndexDataBuffer[Instance.MeshIndex];
+        uint TriangleStartInx = IndexData.triangleDataStartInx;
+        uint TriangleCount = IndexData.TriangleCount;
+        
+        // Sample an element on the shape
+        int Element = SampleDiscrete(LightID, RandEl);
+        // // Sample a point on the triangle
+        vec2 UV = TriangleCount > 0 ? SampleTriangle(RandUV) : RandUV;
+        // // Calculate the position
+        triangle Tri = TriangleBuffer[TriangleStartInx + Element];
+        vec3 LightPos = 
+            Tri.v1 * UV.x + 
+            Tri.v2 * UV.y +
+            Tri.v0 * (1 - UV.x - UV.y);
+
+        // return the normalized direction
+        return normalize(LightPos - Position);
+    }
+    else
+    {
+        return vec3(0,0,0);
+    }
+}
+
+// Returns the probability of choosing a position on the light
+FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
+{
+    // Initialize the pdf to 0
+    float PDF = 0.0f;
+
+    // Loop through all the lights
+    for(int i=0; i<LightsCount; i++)
+    {
+        if(Lights[i].Instance != INVALID_ID)
+        {
+            float LightPDF = 0.0f;
+            // Check if the ray intersects the light. If it doesn't, we break. 
+            ray Ray;
+            Ray.Origin = Position;
+            Ray.Direction = Direction;
+            
+            sceneIntersection Isect;
+            Isect.Distance = 1e30f;
+            IntersectInstance(Ray, Isect, Lights[i].Instance);
+            
+            if(Isect.Distance == 1e30f) continue;
+
+            mat4 InstanceTransform = TLASInstancesBuffer[Lights[i].Instance].Transform;
+            //Get the point on the light
+            triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];
+            vec3 LightPos = 
+                Tri.v1 * Isect.U + 
+                Tri.v2 * Isect.V +
+                Tri.v0 * (1 - Isect.U - Isect.V);     
+            LightPos = TransformPoint(InstanceTransform, LightPos);
+            
+            triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];
+            vec3 LightNormal = 
+                ExtraData.Normal1 * Isect.U + 
+                ExtraData.Normal2 * Isect.V +
+                ExtraData.Normal0 * (1 - Isect.U - Isect.V);                    
+            LightNormal = TransformDirection(InstanceTransform, LightNormal);
+
+            //Find the probability that this point was sampled
+            float Area = Lights[i].CDF[Lights[i].CDFCount-1];
+            LightPDF += DistanceSquared(LightPos, Position) / 
+                        (abs(dot(LightNormal, Direction)) * Area);
+
+            //Continue for the next ray
+            PDF += LightPDF;
+        }
+    }
+
+    // Multiply the PDF with the probability to pick one light in the scene.
+    PDF *= SampleUniformPDF(int(LightsCount));
+    
+    return PDF;
+}
 
 // Cosine
 FN_DECL vec3 SampleHemisphereCosine(vec3 Normal, vec2 UV)
@@ -705,14 +835,28 @@ MAIN()
                 
 
                 Radiance += Weight * Material.Emission;
-
-                vec3 Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-
+                
+#if 1
+                vec3 Incoming = vec3(0);
+                if(RandomUnilateral(Isect.RandomState) < 0.5f)
+                {
+                    Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                }
+                else
+                {
+                    Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                }
                 if(Incoming == vec3(0,0,0)) break;
-
+                Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                          vec3(0.5 * SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming) + 0.5f * SampleLightsPDF(Position, Incoming));
+#else
+                vec3 Incoming = vec3(0);
+                    Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                if(Incoming == vec3(0,0,0)) break;
                 Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
                           SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
 
+#endif
                 
                 Ray.Origin = Position;
                 Ray.Direction = Incoming;
