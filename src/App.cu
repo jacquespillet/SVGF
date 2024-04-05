@@ -148,7 +148,7 @@ void application::Trace()
         dim3 blockSize(16, 16);
         dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
         TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, RenderWidth, RenderHeight,
-                                            (triangle*)BVH->TrianglesBuffer->Data, (triangleExtraData*) BVH->TrianglesExBuffer->Data, (bvhNode*) BVH->BVHBuffer->Data, (u32*) BVH->IndicesBuffer->Data, (indexData*) BVH->IndexDataBuffer->Data, (bvhInstance*)BVH->TLASInstancesBuffer->Data, (tlasNode*) BVH->TLASNodeBuffer->Data,
+                                            (triangle*)BVH->TrianglesBuffer->Data, (triangleExtraData*) BVH->TrianglesExBuffer->Data, (bvhNode*) BVH->BVHBuffer->Data, (uint32_t*) BVH->IndicesBuffer->Data, (indexData*) BVH->IndexDataBuffer->Data, (bvhInstance*)BVH->TLASInstancesBuffer->Data, (tlasNode*) BVH->TLASNodeBuffer->Data,
                                             (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data, Scene->TexArray->TexObject, (lights*)LightsBuffer->Data);
         cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
 #endif
@@ -204,37 +204,8 @@ void application::ResizeRenderTextures()
 {
     if(!Inited) return;
 #if API==API_GL
-    glMemoryBarrier(GL_ALL_BARRIER_BITS);
-
-    // Delete objects
-    cudaFree(DenoiseBuffer);
-    
-    RenderTextureMapping.Destroy();
-    AlbedoMapping.Destroy();
-    NormalMapping.Destroy();
-    DenoisedMapping.Destroy();
-        
-    // Recreate them
     RenderTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
-    AlbedoTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
-    NormalTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
-    TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
-    DenoisedTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
-
-    RenderTextureMapping = CreateMapping(RenderTexture);    
-    AlbedoMapping = CreateMapping(AlbedoTexture);    
-    NormalMapping = CreateMapping(NormalTexture);    
-    DenoisedMapping = CreateMapping(DenoisedTexture, true);    
-    
-    size_t bufferSize = RenderWidth * RenderHeight * sizeof(glm::vec4);
-    cudaMalloc((void**)&DenoiseBuffer, bufferSize);    
-
-    
-    Filter.setImage("color",  RenderTextureMapping.CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-    Filter.setImage("albedo", AlbedoMapping.CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-    Filter.setImage("normal", NormalMapping.CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-    Filter.setImage("output", DenoiseBuffer, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-    Filter.commit();
+    TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);    
 #elif API==API_CU
     TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
     RenderBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
@@ -243,7 +214,7 @@ void application::ResizeRenderTextures()
 #endif
 
     Params.CurrentSample=0;
-    Scene->Cameras[0].Aspect = (f32)RenderWidth / (f32)RenderHeight;
+    Scene->Cameras[0].Aspect = (float)RenderWidth / (float)RenderHeight;
 
     ResetRender=true;
 }
@@ -257,10 +228,10 @@ void application::CalculateWindowSizes()
     RenderWindowHeight = Window->Height;
 
     // Aspect ratio of the GUI window
-    RenderAspectRatio = (f32)RenderWindowWidth / (f32)RenderWindowHeight;
+    RenderAspectRatio = (float)RenderWindowWidth / (float)RenderWindowHeight;
 
     // Set the render width accordingly
-    u32 NewRenderWidth, NewRenderHeight;
+    uint32_t NewRenderWidth, NewRenderHeight;
     if(RenderAspectRatio > 1)
     {
         NewRenderWidth = RenderResolution * RenderAspectRatio;

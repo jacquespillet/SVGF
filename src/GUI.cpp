@@ -8,6 +8,7 @@
 #include "IO.h"
 #include "TextureGL.h"
 #include "BufferCu.cuh"
+#include "BufferGL.h"
 #include "Window.h"
 #include "GLTFLoader.h"
 

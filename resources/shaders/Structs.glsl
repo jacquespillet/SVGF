@@ -107,7 +107,10 @@ struct tracingParameters
     int CurrentSample;
     int TotalSamples;
     int Batch;
-    int Pad;
+    int Bounces;
+
+    vec3 Pad;    
+    float Clamp;    
 };
 
 struct material

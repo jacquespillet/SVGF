@@ -803,7 +803,7 @@ MAIN()
             vec3 Radiance = vec3(0,0,0);
             vec3 Weight = vec3(1,1,1);
 
-            for(int Bounce=0; Bounce < 3; Bounce++)
+            for(int Bounce=0; Bounce < GET_ATTR(Parameters, Bounces); Bounce++)
             {
                 sceneIntersection Isect;
                 Isect.Distance = 1e30f;
@@ -872,7 +872,7 @@ MAIN()
             }
 
             if(!IsFinite(Radiance)) Radiance = vec3(0,0,0);
-            if(max3(Radiance) > 10) Radiance = Radiance * (10 / max3(Radiance)); 
+            if(max3(Radiance) > GET_ATTR(Parameters, Clamp)) Radiance = Radiance * (GET_ATTR(Parameters, Clamp) / max3(Radiance)); 
 
             float SampleWeight = 1.0f / (float(GET_ATTR(Parameters,CurrentSample) + Sample) + 1);
 
