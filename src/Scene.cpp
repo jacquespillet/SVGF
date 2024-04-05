@@ -43,7 +43,6 @@ std::shared_ptr<scene> CreateCornellBox()
     Scene->Materials.emplace_back();
     material &FloorMaterial = Scene->Materials.back(); 
     FloorMaterial.Colour = {0.725f, 0.71f, 0.68f};
-    FloorMaterial.NormalTexture = 1;
     Scene->Instances.emplace_back();
     instance &FloorInstance = Scene->Instances.back();
     FloorInstance.Shape = (int)Scene->Shapes.size()-1;
@@ -80,7 +79,6 @@ std::shared_ptr<scene> CreateCornellBox()
     BackWallMaterial.Roughness = 0.1f;
     BackWallMaterial.Metallic = 0.8f;
     BackWallMaterial.MaterialType = MATERIAL_TYPE_PBR;    
-    BackWallMaterial.ColourTexture = 0;
     Scene->Instances.emplace_back();
     auto& BackWallInstance    = Scene->Instances.back();
     BackWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -116,7 +114,6 @@ std::shared_ptr<scene> CreateCornellBox()
     LeftWallMaterial.Roughness = 1.0f;
     LeftWallMaterial.Metallic = 0.5f;
     LeftWallMaterial.MaterialType = MATERIAL_TYPE_PBR;   
-    LeftWallMaterial.RoughnessTexture = 2; 
     Scene->Instances.emplace_back();
     auto& LeftWallInstance    = Scene->Instances.back();
     LeftWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -125,59 +122,59 @@ std::shared_ptr<scene> CreateCornellBox()
     Scene->InstanceNames.push_back("LeftWall");
     Scene->MaterialNames.push_back("LeftWall");
 
-    Scene->Shapes.emplace_back();
-    auto& ShortBoxShape       = Scene->Shapes.back();
-    ShortBoxShape.Positions   = {{0.53f, 0.6f, 0.75f}, {0.7f, 0.6f, 0.17f},
-        {0.13f, 0.6f, 0.0f}, {-0.05f, 0.6f, 0.57f}, {-0.05f, 0.0f, 0.57f},
-        {-0.05f, 0.6f, 0.57f}, {0.13f, 0.6f, 0.0f}, {0.13f, 0.0f, 0.0f},
-        {0.53f, 0.0f, 0.75f}, {0.53f, 0.6f, 0.75f}, {-0.05f, 0.6f, 0.57f},
-        {-0.05f, 0.0f, 0.57f}, {0.7f, 0.0f, 0.17f}, {0.7f, 0.6f, 0.17f},
-        {0.53f, 0.6f, 0.75f}, {0.53f, 0.0f, 0.75f}, {0.13f, 0.0f, 0.0f},
-        {0.13f, 0.6f, 0.0f}, {0.7f, 0.6f, 0.17f}, {0.7f, 0.0f, 0.17f},
-        {0.53f, 0.0f, 0.75f}, {0.7f, 0.0f, 0.17f}, {0.13f, 0.0f, 0.0f},
-        {-0.05f, 0.0f, 0.57f}};
-    ShortBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
-        {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
-        {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
-    Scene->Materials.emplace_back();        
-    Scene->Materials.back();
-    auto& ShortBoxMaterial    = Scene->Materials.back();
-    ShortBoxMaterial.Colour = {0.8, 0.8, 0.8};
-    Scene->Instances.emplace_back();
-    auto& ShortBoxInstance    = Scene->Instances.back();
-    ShortBoxInstance.Shape    = (int)Scene->Shapes.size() - 1;
-    ShortBoxInstance.Material = (int)Scene->Materials.size() - 1;    
-    Scene->ShapeNames.push_back("ShortBox");
-    Scene->InstanceNames.push_back("ShortBox");
-    Scene->MaterialNames.push_back("ShortBox");
+    // Scene->Shapes.emplace_back();
+    // auto& ShortBoxShape       = Scene->Shapes.back();
+    // ShortBoxShape.Positions   = {{0.53f, 0.6f, 0.75f}, {0.7f, 0.6f, 0.17f},
+    //     {0.13f, 0.6f, 0.0f}, {-0.05f, 0.6f, 0.57f}, {-0.05f, 0.0f, 0.57f},
+    //     {-0.05f, 0.6f, 0.57f}, {0.13f, 0.6f, 0.0f}, {0.13f, 0.0f, 0.0f},
+    //     {0.53f, 0.0f, 0.75f}, {0.53f, 0.6f, 0.75f}, {-0.05f, 0.6f, 0.57f},
+    //     {-0.05f, 0.0f, 0.57f}, {0.7f, 0.0f, 0.17f}, {0.7f, 0.6f, 0.17f},
+    //     {0.53f, 0.6f, 0.75f}, {0.53f, 0.0f, 0.75f}, {0.13f, 0.0f, 0.0f},
+    //     {0.13f, 0.6f, 0.0f}, {0.7f, 0.6f, 0.17f}, {0.7f, 0.0f, 0.17f},
+    //     {0.53f, 0.0f, 0.75f}, {0.7f, 0.0f, 0.17f}, {0.13f, 0.0f, 0.0f},
+    //     {-0.05f, 0.0f, 0.57f}};
+    // ShortBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
+    //     {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
+    //     {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
+    // Scene->Materials.emplace_back();        
+    // Scene->Materials.back();
+    // auto& ShortBoxMaterial    = Scene->Materials.back();
+    // ShortBoxMaterial.Colour = {0.8, 0.8, 0.8};
+    // Scene->Instances.emplace_back();
+    // auto& ShortBoxInstance    = Scene->Instances.back();
+    // ShortBoxInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    // ShortBoxInstance.Material = (int)Scene->Materials.size() - 1;    
+    // Scene->ShapeNames.push_back("ShortBox");
+    // Scene->InstanceNames.push_back("ShortBox");
+    // Scene->MaterialNames.push_back("ShortBox");
 
-    Scene->Shapes.emplace_back();
-    auto& TallBoxShape       = Scene->Shapes.back();
-    TallBoxShape.Positions   = {{-0.53f, 1.2f, 0.09f}, {0.04f, 1.2f, -0.09f},
-         {-0.14f, 1.2f, -0.67f}, {-0.71f, 1.2f, -0.49f}, {-0.53f, 0.0f, 0.09f},
-         {-0.53f, 1.2f, 0.09f}, {-0.71f, 1.2f, -0.49f}, {-0.71f, 0.0f, -0.49f},
-         {-0.71f, 0.0f, -0.49f}, {-0.71f, 1.2f, -0.49f}, {-0.14f, 1.2f, -0.67f},
-         {-0.14f, 0.0f, -0.67f}, {-0.14f, 0.0f, -0.67f}, {-0.14f, 1.2f, -0.67f},
-         {0.04f, 1.2f, -0.09f}, {0.04f, 0.0f, -0.09f}, {0.04f, 0.0f, -0.09f},
-         {0.04f, 1.2f, -0.09f}, {-0.53f, 1.2f, 0.09f}, {-0.53f, 0.0f, 0.09f},
-         {-0.53f, 0.0f, 0.09f}, {0.04f, 0.0f, -0.09f}, {-0.14f, 0.0f, -0.67f},
-         {-0.71f, 0.0f, -0.49f}};
-    TallBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
-         {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
-         {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
-    Scene->Materials.emplace_back();                 
-    auto& TallBoxMaterial   = Scene->Materials.back();
-    TallBoxMaterial.Colour = {0.8, 0.8, 0.8};
-    Scene->Instances.emplace_back();
-    auto& TallBoxInstance    = Scene->Instances.back();
-    TallBoxInstance.Shape    = (int)Scene->Shapes.size() - 1;
-    TallBoxInstance.Material = (int)Scene->Materials.size() - 1;    
-    Scene->ShapeNames.push_back("TallBox");
-    Scene->InstanceNames.push_back("TallBox");
-    Scene->MaterialNames.push_back("TallBox");
+    // Scene->Shapes.emplace_back();
+    // auto& TallBoxShape       = Scene->Shapes.back();
+    // TallBoxShape.Positions   = {{-0.53f, 1.2f, 0.09f}, {0.04f, 1.2f, -0.09f},
+    //      {-0.14f, 1.2f, -0.67f}, {-0.71f, 1.2f, -0.49f}, {-0.53f, 0.0f, 0.09f},
+    //      {-0.53f, 1.2f, 0.09f}, {-0.71f, 1.2f, -0.49f}, {-0.71f, 0.0f, -0.49f},
+    //      {-0.71f, 0.0f, -0.49f}, {-0.71f, 1.2f, -0.49f}, {-0.14f, 1.2f, -0.67f},
+    //      {-0.14f, 0.0f, -0.67f}, {-0.14f, 0.0f, -0.67f}, {-0.14f, 1.2f, -0.67f},
+    //      {0.04f, 1.2f, -0.09f}, {0.04f, 0.0f, -0.09f}, {0.04f, 0.0f, -0.09f},
+    //      {0.04f, 1.2f, -0.09f}, {-0.53f, 1.2f, 0.09f}, {-0.53f, 0.0f, 0.09f},
+    //      {-0.53f, 0.0f, 0.09f}, {0.04f, 0.0f, -0.09f}, {-0.14f, 0.0f, -0.67f},
+    //      {-0.71f, 0.0f, -0.49f}};
+    // TallBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
+    //      {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
+    //      {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
+    // Scene->Materials.emplace_back();                 
+    // auto& TallBoxMaterial   = Scene->Materials.back();
+    // TallBoxMaterial.Colour = {0.8, 0.8, 0.8};
+    // Scene->Instances.emplace_back();
+    // auto& TallBoxInstance    = Scene->Instances.back();
+    // TallBoxInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    // TallBoxInstance.Material = (int)Scene->Materials.size() - 1;    
+    // Scene->ShapeNames.push_back("TallBox");
+    // Scene->InstanceNames.push_back("TallBox");
+    // Scene->MaterialNames.push_back("TallBox");
 
     // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\MetalRoughSpheres\\glTF\\MetalRoughSpheres.gltf", Scene);
-    // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\ToyCar\\glTF\\ToyCar.gltf", Scene);
+    LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\ToyCar\\glTF\\ToyCar.gltf", Scene);
 
 
     Scene->Shapes.emplace_back();

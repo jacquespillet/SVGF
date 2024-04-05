@@ -5,12 +5,71 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <tinygltf/tiny_gltf.h>
+#include "stb_image_resize.h"
+
+#include <iostream>
 
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 
 namespace gpupt
 {
+
+void LoadTextures(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene)
+{
+    std::vector<texture> &Textures = Scene->Textures;
+    std::vector<std::string> &TextureNames = Scene->TextureNames;
+
+    uint32_t BaseIndex = Textures.size();
+    Textures.resize(Textures.size() + GLTFModel.textures.size());
+    TextureNames.resize(TextureNames.size() + GLTFModel.textures.size());
+
+    for (size_t i = 0; i < GLTFModel.textures.size(); i++)
+    {
+        tinygltf::Texture& GLTFTex = GLTFModel.textures[i];
+        tinygltf::Image GLTFImage = GLTFModel.images[GLTFTex.source];
+        std::string TexName = GLTFTex.name;
+        if(strcmp(GLTFTex.name.c_str(), "") == 0)
+        {
+            TexName = GLTFImage.uri;
+        }
+        
+        assert(GLTFImage.component==4);
+        assert(GLTFImage.bits==8);
+        texture &Texture = Textures[BaseIndex + i];
+        Texture.NumChannels = GLTFImage.component;
+        Texture.Width = Scene->TextureWidth;
+        Texture.Height = Scene->TextureHeight;
+
+        // If the target size is not the scene texture size, resize the image
+        if(Scene->TextureWidth != GLTFImage.width || Scene->TextureHeight != GLTFImage.height)
+        {
+            // Resize the image using stbir_resize (part of stb_image_resize.h)
+            stbi_uc* ResizedImage = new stbi_uc[Scene->TextureWidth * Scene->TextureHeight * 4]; // Assuming RGBA format
+
+            int result = stbir_resize_uint8(GLTFImage.image.data(), GLTFImage.width, GLTFImage.height, 0, ResizedImage, Scene->TextureWidth, Scene->TextureHeight, 0, 4);
+            
+            if (!result) {
+                // Handle resize error
+                std::cout << "Failed to resize GLTF image" << std::endl;
+                delete[] ResizedImage;
+                return;
+            }
+
+            // Resize the pixel data, and copy to it
+            Texture.Pixels.resize(Scene->TextureWidth * Scene->TextureHeight * 4);
+            memcpy(Texture.Pixels.data(), ResizedImage, Texture.Pixels.size());
+            delete[] ResizedImage;
+        }        
+        else
+        {
+            Texture.Pixels.resize(GLTFImage.image.size());
+            memcpy(Texture.Pixels.data(), GLTFImage.image.data(), GLTFImage.image.size());
+        }
+
+    
+    }    
+}
 
 void LoadGeometry(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std::vector<std::vector<uint32_t>> &InstanceMapping)
 {
@@ -46,10 +105,16 @@ void LoadGeometry(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std:
             int IndicesIndex = GLTFPrimitive.indices;
             int PositionIndex = -1;
             int NormalIndex = -1;
+            int UVIndex=-1;
+            int TangentIndex = -1;
             if(GLTFPrimitive.attributes.count("POSITION") >0)
                 PositionIndex = GLTFPrimitive.attributes["POSITION"];
             if(GLTFPrimitive.attributes.count("NORMAL") >0)
                 NormalIndex = GLTFPrimitive.attributes["NORMAL"];
+            if(GLTFPrimitive.attributes.count("TANGENT") >0)
+                TangentIndex = GLTFPrimitive.attributes["TANGENT"];
+            if(GLTFPrimitive.attributes.count("TEXCOORD_0") >0)
+                UVIndex = GLTFPrimitive.attributes["TEXCOORD_0"];
 
             //Positions
             tinygltf::Accessor PositionAccessor = GLTFModel.accessors[PositionIndex];
@@ -76,15 +141,50 @@ void LoadGeometry(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std:
                 if(NormalBufferView.byteStride > 0) NormalStride =(int) NormalBufferView.byteStride;
             }
 
+            //Tangents
+            tinygltf::Accessor TangentAccessor;
+            tinygltf::BufferView TangentBufferView;
+            const uint8_t *TangentBufferAddress=0;
+            int TangentStride=0;
+            if(TangentIndex >= 0)
+            {
+                TangentAccessor = GLTFModel.accessors[TangentIndex];
+                TangentBufferView = GLTFModel.bufferViews[TangentAccessor.bufferView];
+                const tinygltf::Buffer &TangentBuffer = GLTFModel.buffers[TangentBufferView.buffer];
+                TangentBufferAddress = TangentBuffer.data.data();
+                //3 * float
+                TangentStride = tinygltf::GetComponentSizeInBytes(TangentAccessor.componentType) * tinygltf::GetNumComponentsInType(TangentAccessor.type);
+                if(TangentBufferView.byteStride > 0) TangentStride =(int) TangentBufferView.byteStride;
+            }
+    
+            //UV
+            tinygltf::Accessor UVAccessor;
+            tinygltf::BufferView UVBufferView;
+            const uint8_t *UVBufferAddress=0;
+            int UVStride=0;
+            if(UVIndex >= 0)
+            {
+                UVAccessor = GLTFModel.accessors[UVIndex];
+                UVBufferView = GLTFModel.bufferViews[UVAccessor.bufferView];
+                const tinygltf::Buffer &uvBuffer = GLTFModel.buffers[UVBufferView.buffer];
+                UVBufferAddress = uvBuffer.data.data();
+                //2 * float
+                UVStride = tinygltf::GetComponentSizeInBytes(UVAccessor.componentType) * tinygltf::GetNumComponentsInType(UVAccessor.type);
+                if(UVBufferView.byteStride > 0) UVStride = (int)UVBufferView.byteStride;
+            }            
+
 
             Shape.Positions.resize(PositionAccessor.count);
             Shape.Normals.resize(PositionAccessor.count);
+            if (TangentIndex>0) Shape.Tangents.resize(PositionAccessor.count);
+            if(UVIndex>0) Shape.TexCoords.resize(PositionAccessor.count);
             for (size_t k = 0; k < PositionAccessor.count; k++)
             {
                 glm::vec3 Position;
                 {
                     const uint8_t *Address = PositionBufferAddress + PositionBufferView.byteOffset + PositionAccessor.byteOffset + (k * PositionStride);
                     memcpy(&Position, Address, 12);
+                    Shape.Positions[k] = glm::vec3(Position.x, Position.y, Position.z);
                 }
 
                 glm::vec3 Normal;
@@ -92,10 +192,24 @@ void LoadGeometry(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std:
                 {
                     const uint8_t *Address = NormalBufferAddress + NormalBufferView.byteOffset + NormalAccessor.byteOffset + (k * NormalStride);
                     memcpy(&Normal, Address, 12);
+                    Shape.Normals[k] = glm::vec3(Normal.x, Normal.y, Normal.z);
                 }
 
-                Shape.Positions[k] = glm::vec3(Position.x, Position.y, Position.z);
-                Shape.Normals[k] = glm::vec3(Normal.x, Normal.y, Normal.z);
+                glm::vec4 Tangent;
+                if(TangentIndex>=0)
+                {
+                    const uint8_t *address = TangentBufferAddress + TangentBufferView.byteOffset + TangentAccessor.byteOffset + (k * TangentStride);
+                    memcpy(&Tangent, address, 16);
+                    Shape.Tangents[k] = Tangent;
+                }
+
+                glm::vec2 UV;
+                if(UVIndex>=0)
+                {
+                    const uint8_t *address = UVBufferAddress + UVBufferView.byteOffset + UVAccessor.byteOffset + (k * UVStride);
+                    memcpy(&UV, address, 8);
+                    Shape.TexCoords[k] = UV;
+                }                
             }
 
 
@@ -156,6 +270,9 @@ void LoadMaterials(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene)
     uint32_t BaseInx = Materials.size();
     Materials.resize(Materials.size() + GLTFModel.materials.size());
     MaterialNames.resize(MaterialNames.size() + GLTFModel.materials.size());
+    
+    uint32_t BaseTextureIndex = Scene->Textures.size();
+
     for (size_t i = 0; i < GLTFModel.materials.size(); i++)
     {
         uint32_t Inx = BaseInx + i;
@@ -181,7 +298,10 @@ void LoadMaterials(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene)
         Material.Metallic = PBR.metallicFactor;
         // Material.Emission = glm::vec3(GLTFMaterial.emissiveFactor[0], GLTFMaterial.emissiveFactor[1], GLTFMaterial.emissiveFactor[2]);
 
-        // TODO: Textures
+        Material.ColourTexture = BaseTextureIndex + PBR.baseColorTexture.index;
+        Material.RoughnessTexture = BaseTextureIndex + PBR.metallicRoughnessTexture.index;
+        Material.NormalTexture = BaseTextureIndex + GLTFMaterial.normalTexture.index;
+        Material.EmissionTexture = BaseTextureIndex + GLTFMaterial.emissiveTexture.index;
     }
 }    
 
@@ -301,5 +421,6 @@ void LoadGLTF(std::string FileName, std::shared_ptr<scene> Scene)
     LoadGeometry(GLTFModel, Scene, InstanceMapping);
     LoadInstances(GLTFModel, Scene, InstanceMapping);
     LoadMaterials(GLTFModel, Scene);
+    LoadTextures(GLTFModel, Scene);
 }    
 }
