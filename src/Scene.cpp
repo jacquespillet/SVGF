@@ -27,7 +27,6 @@ std::shared_ptr<scene> CreateCornellBox()
 
     Scene->Cameras.emplace_back();
     camera &Camera = Scene->Cameras.back();
-    Camera.Frame = glm::translate(glm::mat4(1), glm::vec3(0, 1, 3.9f));
     Camera.Lens = 0.035f;
     Camera.Aperture = 0.0f;
     Camera.Focus = 3.9f;

@@ -666,7 +666,7 @@ void gui::GUI()
     int RenderWindowWidth = ImGui::GetWindowSize().x;
     int RenderWindowHeight = ImGui::GetWindowSize().y;
 
-    ImGui::Image((ImTextureID)App->TonemapTexture->TextureID, ImVec2(App->Window->Width, App->Window->Height));
+    ImGui::Image((ImTextureID)App->TonemapTexture->TextureID, ImVec2(RenderWindowWidth, RenderWindowHeight));
     ImGui::End();
 }
 }

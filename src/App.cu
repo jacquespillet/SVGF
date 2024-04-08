@@ -20,7 +20,6 @@
 #include "TextureArrayCu.cuh"
 #endif
 
-
 namespace gpupt
 {
 
@@ -40,8 +39,8 @@ application *application::Get()
 glm::uvec2 application::GetSize()
 {
     return glm::uvec2(
-        Singleton->Window->Width,
-        Singleton->Window->Height
+        Singleton->RenderWidth,
+        Singleton->RenderHeight
     );
 }
 
@@ -207,6 +206,7 @@ void application::ResizeRenderTextures()
     RenderTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
     TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);    
 #elif API==API_CU
+    cudaDeviceSynchronize();
     TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
     RenderBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
     TonemapBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
@@ -232,6 +232,7 @@ void application::CalculateWindowSizes()
 
     // Set the render width accordingly
     uint32_t NewRenderWidth, NewRenderHeight;
+
     if(RenderAspectRatio > 1)
     {
         NewRenderWidth = RenderResolution * RenderAspectRatio;
