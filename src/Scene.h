@@ -7,6 +7,8 @@
 #define MATERIAL_TYPE_MATTE 0
 #define MATERIAL_TYPE_PBR   1
 #define MATERIAL_TYPE_VOLUMETRIC   2
+#define MATERIAL_TYPE_GLASS   3
+#define MATERIAL_TYPE_SUBSURFACE   4
 
 namespace gpupt
 {

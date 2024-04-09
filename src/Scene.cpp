@@ -139,8 +139,9 @@ std::shared_ptr<scene> CreateCornellBox()
     Scene->Materials.back();
     auto& ShortBoxMaterial    = Scene->Materials.back();
     ShortBoxMaterial.Colour = {0.8, 0.8, 0.8};
-    ShortBoxMaterial.MaterialType = MATERIAL_TYPE_VOLUMETRIC;
+    ShortBoxMaterial.MaterialType = MATERIAL_TYPE_GLASS;
     ShortBoxMaterial.ScatteringColour = {0.9, 0.2, 0.4};
+    ShortBoxMaterial.Roughness = 0.1f;
     Scene->Instances.emplace_back();
     auto& ShortBoxInstance    = Scene->Instances.back();
     ShortBoxInstance.Shape    = (int)Scene->Shapes.size() - 1;
@@ -175,8 +176,21 @@ std::shared_ptr<scene> CreateCornellBox()
     // Scene->MaterialNames.push_back("TallBox");
 
     // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\MetalRoughSpheres\\glTF\\MetalRoughSpheres.gltf", Scene);
-    // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\ToyCar\\glTF\\ToyCar.gltf", Scene, true);
-
+    LoadGLTFShapeOnly("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\Suzanne\\glTF\\Suzanne.gltf", Scene, 0);
+    Scene->Materials.emplace_back();        
+    Scene->Materials.back();
+    auto& DuckMaterial    = Scene->Materials.back();
+    DuckMaterial.Colour = {0.8, 0.8, 0.8};
+    DuckMaterial.MaterialType = MATERIAL_TYPE_GLASS;
+    DuckMaterial.ScatteringColour = {0.9, 0.2, 0.4};
+    DuckMaterial.Roughness = 0.1f;
+    Scene->Instances.emplace_back();
+    auto& DuckInstance    = Scene->Instances.back();
+    DuckInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    DuckInstance.Material = (int)Scene->Materials.size() - 1;    
+    DuckInstance.ModelMatrix = glm::scale(glm::vec3(0.25));
+    Scene->InstanceNames.push_back("Duck");
+    Scene->MaterialNames.push_back("Duck");
 
     Scene->Shapes.emplace_back();
     shape &LightShape = Scene->Shapes.back();

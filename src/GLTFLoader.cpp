@@ -380,7 +380,10 @@ void TraverseNodes(tinygltf::Model &GLTFModel, uint32_t nodeIndex, glm::mat4 Par
 
 void LoadInstances(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std::vector<std::vector<uint32_t>> &InstanceMapping)
 {
-    glm::mat4 Scale = glm::scale(glm::mat4(1), glm::vec3(25));
+    // glm::mat4 Scale = glm::scale(glm::mat4(1), glm::vec3(25));
+    // glm::mat4 Translate = glm::translate(glm::mat4(1), glm::vec3(0, 0.4, 0));
+    // glm::mat4 RootTransform =  Translate * Scale;
+    glm::mat4 Scale = glm::scale(glm::mat4(1), glm::vec3(0.5));
     glm::mat4 Translate = glm::translate(glm::mat4(1), glm::vec3(0, 0.4, 0));
     glm::mat4 RootTransform =  Translate * Scale;
     // glm::mat4 RootTransform(0.3f);
@@ -422,5 +425,212 @@ void LoadGLTF(std::string FileName, std::shared_ptr<scene> Scene, bool AddInstan
     if(AddInstances) LoadInstances(GLTFModel, Scene, InstanceMapping);
     LoadMaterials(GLTFModel, Scene);
     LoadTextures(GLTFModel, Scene);
+}    
+
+void LoadGLTFShapeOnly(std::string FileName, std::shared_ptr<scene> Scene, int ShapeInx)
+{
+    tinygltf::Model GLTFModel;
+    tinygltf::TinyGLTF ModelLoader;
+
+    std::string Error, Warning;
+
+    std::string Extension = FileName.substr(FileName.find_last_of(".") + 1);
+    bool OK = false;
+    if(Extension == "gltf")
+    {
+        OK = ModelLoader.LoadASCIIFromFile(&GLTFModel, &Error, &Warning, FileName);
+    }
+    else if(Extension == "glb")
+    {
+        OK = ModelLoader.LoadBinaryFromFile(&GLTFModel, &Error, &Warning, FileName);
+    }
+    else OK=false;
+        
+    if(!OK) 
+    {
+        printf("Could not load model %s \n",FileName);
+        return;
+    }
+
+    uint32_t GIndexBase=0;
+    tinygltf::Mesh gltfMesh = GLTFModel.meshes[ShapeInx];
+    std::vector<shape> &Shapes = Scene->Shapes;
+    std::vector<std::string> &ShapeNames = Scene->ShapeNames;
+
+    uint32_t MeshBaseIndex = Shapes.size();
+
+    Shapes.resize(MeshBaseIndex + gltfMesh.primitives.size());
+    ShapeNames.resize(MeshBaseIndex + gltfMesh.primitives.size());
+
+    for(int j=0; j<gltfMesh.primitives.size(); j++)
+    {
+        int Inx = MeshBaseIndex + j;
+
+        tinygltf::Primitive GLTFPrimitive = gltfMesh.primitives[j];
+        
+        ShapeNames[Inx] = gltfMesh.name;
+        shape &Shape = Scene->Shapes[Inx];
+
+        if(GLTFPrimitive.mode != TINYGLTF_MODE_TRIANGLES)
+            continue;
+        
+        //Get the index of each needed attribute
+        int IndicesIndex = GLTFPrimitive.indices;
+        int PositionIndex = -1;
+        int NormalIndex = -1;
+        int UVIndex=-1;
+        int TangentIndex = -1;
+        if(GLTFPrimitive.attributes.count("POSITION") >0)
+            PositionIndex = GLTFPrimitive.attributes["POSITION"];
+        if(GLTFPrimitive.attributes.count("NORMAL") >0)
+            NormalIndex = GLTFPrimitive.attributes["NORMAL"];
+        if(GLTFPrimitive.attributes.count("TANGENT") >0)
+            TangentIndex = GLTFPrimitive.attributes["TANGENT"];
+        if(GLTFPrimitive.attributes.count("TEXCOORD_0") >0)
+            UVIndex = GLTFPrimitive.attributes["TEXCOORD_0"];
+
+        //Positions
+        tinygltf::Accessor PositionAccessor = GLTFModel.accessors[PositionIndex];
+        tinygltf::BufferView PositionBufferView = GLTFModel.bufferViews[PositionAccessor.bufferView];
+        const tinygltf::Buffer &PositionBuffer = GLTFModel.buffers[PositionBufferView.buffer];
+        const uint8_t *PositionBufferAddress = PositionBuffer.data.data();
+        //3 * float
+        int PositionStride = tinygltf::GetComponentSizeInBytes(PositionAccessor.componentType) * tinygltf::GetNumComponentsInType(PositionAccessor.type);
+        if(PositionBufferView.byteStride > 0) PositionStride = (int)PositionBufferView.byteStride;
+
+        //Normals
+        tinygltf::Accessor NormalAccessor;
+        tinygltf::BufferView NormalBufferView;
+        const uint8_t *NormalBufferAddress=0;
+        int NormalStride=0;
+        if(NormalIndex >= 0)
+        {
+            NormalAccessor = GLTFModel.accessors[NormalIndex];
+            NormalBufferView = GLTFModel.bufferViews[NormalAccessor.bufferView];
+            const tinygltf::Buffer &normalBuffer = GLTFModel.buffers[NormalBufferView.buffer];
+            NormalBufferAddress = normalBuffer.data.data();
+            //3 * float
+            NormalStride = tinygltf::GetComponentSizeInBytes(NormalAccessor.componentType) * tinygltf::GetNumComponentsInType(NormalAccessor.type);
+            if(NormalBufferView.byteStride > 0) NormalStride =(int) NormalBufferView.byteStride;
+        }
+
+        //Tangents
+        tinygltf::Accessor TangentAccessor;
+        tinygltf::BufferView TangentBufferView;
+        const uint8_t *TangentBufferAddress=0;
+        int TangentStride=0;
+        if(TangentIndex >= 0)
+        {
+            TangentAccessor = GLTFModel.accessors[TangentIndex];
+            TangentBufferView = GLTFModel.bufferViews[TangentAccessor.bufferView];
+            const tinygltf::Buffer &TangentBuffer = GLTFModel.buffers[TangentBufferView.buffer];
+            TangentBufferAddress = TangentBuffer.data.data();
+            //3 * float
+            TangentStride = tinygltf::GetComponentSizeInBytes(TangentAccessor.componentType) * tinygltf::GetNumComponentsInType(TangentAccessor.type);
+            if(TangentBufferView.byteStride > 0) TangentStride =(int) TangentBufferView.byteStride;
+        }
+
+        //UV
+        tinygltf::Accessor UVAccessor;
+        tinygltf::BufferView UVBufferView;
+        const uint8_t *UVBufferAddress=0;
+        int UVStride=0;
+        if(UVIndex >= 0)
+        {
+            UVAccessor = GLTFModel.accessors[UVIndex];
+            UVBufferView = GLTFModel.bufferViews[UVAccessor.bufferView];
+            const tinygltf::Buffer &uvBuffer = GLTFModel.buffers[UVBufferView.buffer];
+            UVBufferAddress = uvBuffer.data.data();
+            //2 * float
+            UVStride = tinygltf::GetComponentSizeInBytes(UVAccessor.componentType) * tinygltf::GetNumComponentsInType(UVAccessor.type);
+            if(UVBufferView.byteStride > 0) UVStride = (int)UVBufferView.byteStride;
+        }            
+
+
+        Shape.Positions.resize(PositionAccessor.count);
+        Shape.Normals.resize(PositionAccessor.count);
+        if (TangentIndex>0) Shape.Tangents.resize(PositionAccessor.count);
+        if(UVIndex>0) Shape.TexCoords.resize(PositionAccessor.count);
+        for (size_t k = 0; k < PositionAccessor.count; k++)
+        {
+            glm::vec3 Position;
+            {
+                const uint8_t *Address = PositionBufferAddress + PositionBufferView.byteOffset + PositionAccessor.byteOffset + (k * PositionStride);
+                memcpy(&Position, Address, 12);
+                Shape.Positions[k] = glm::vec3(Position.x, Position.y, Position.z);
+            }
+
+            glm::vec3 Normal;
+            if(NormalIndex>=0)
+            {
+                const uint8_t *Address = NormalBufferAddress + NormalBufferView.byteOffset + NormalAccessor.byteOffset + (k * NormalStride);
+                memcpy(&Normal, Address, 12);
+                Shape.Normals[k] = glm::vec3(Normal.x, Normal.y, Normal.z);
+            }
+
+            glm::vec4 Tangent;
+            if(TangentIndex>=0)
+            {
+                const uint8_t *address = TangentBufferAddress + TangentBufferView.byteOffset + TangentAccessor.byteOffset + (k * TangentStride);
+                memcpy(&Tangent, address, 16);
+                Shape.Tangents[k] = Tangent;
+            }
+
+            glm::vec2 UV;
+            if(UVIndex>=0)
+            {
+                const uint8_t *address = UVBufferAddress + UVBufferView.byteOffset + UVAccessor.byteOffset + (k * UVStride);
+                memcpy(&UV, address, 8);
+                Shape.TexCoords[k] = UV;
+            }                
+        }
+
+
+        //Fill indices buffer
+        tinygltf::Accessor IndicesAccessor = GLTFModel.accessors[IndicesIndex];
+        tinygltf::BufferView IndicesBufferView = GLTFModel.bufferViews[IndicesAccessor.bufferView];
+        const tinygltf::Buffer &IndicesBuffer = GLTFModel.buffers[IndicesBufferView.buffer];
+        const uint8_t *IndicesBufferAddress = IndicesBuffer.data.data();
+        int IndicesStride = tinygltf::GetComponentSizeInBytes(IndicesAccessor.componentType) * tinygltf::GetNumComponentsInType(IndicesAccessor.type); 
+        
+        Shape.Triangles.resize(IndicesAccessor.count/3);
+        const uint8_t *baseAddress = IndicesBufferAddress + IndicesBufferView.byteOffset + IndicesAccessor.byteOffset;
+        if(IndicesStride == 1)
+        {
+            std::vector<uint8_t> Quarter;
+            Quarter.resize(IndicesAccessor.count);
+            memcpy(Quarter.data(), baseAddress, (IndicesAccessor.count) * IndicesStride);
+            for(size_t i=0, j=0; i<IndicesAccessor.count; i+=3, j++)
+            {
+                Shape.Triangles[j].x = Quarter[i+0];
+                Shape.Triangles[j].y = Quarter[i+1];
+                Shape.Triangles[j].z = Quarter[i+2];
+            }
+        }
+        else if(IndicesStride == 2)
+        {
+            std::vector<uint16_t> Half;
+            Half.resize(IndicesAccessor.count);
+            memcpy(Half.data(), baseAddress, (IndicesAccessor.count) * IndicesStride);
+            for(size_t i=0, j=0; i<IndicesAccessor.count; i+=3, j++)
+            {
+                Shape.Triangles[j].x = Half[i+0];
+                Shape.Triangles[j].y = Half[i+1];
+                Shape.Triangles[j].z = Half[i+2];
+            }
+        }
+        else
+        {
+            std::vector<uint32_t> Uint;
+            Uint.resize(IndicesAccessor.count);
+            memcpy(Uint.data(), baseAddress, (IndicesAccessor.count) * IndicesStride);
+            for(size_t i=0, j=0; i<IndicesAccessor.count; i+=3, j++)
+            {
+                Shape.Triangles[j].x = Uint[i+0];
+                Shape.Triangles[j].y = Uint[i+1];
+                Shape.Triangles[j].z = Uint[i+2];
+            }                
+        }
+    }
 }    
 }

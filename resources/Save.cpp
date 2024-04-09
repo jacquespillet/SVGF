@@ -444,7 +444,7 @@ FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
     Point.Anisotropy = Material.Anisotropy;
     Point.Density = vec3(0,0,0);
 
-    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC || Material.MaterialType == MATERIAL_TYPE_GLASS || Material.MaterialType == MATERIAL_TYPE_SUBSURFACE)
+    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC || Material.MaterialType == MATERIAL_TYPE_GLASS)
     {
         Point.Density = -log(clamp(Point.Colour, 0.0001f, 1.0f)) / Point.TransmissionDepth;
     }
@@ -455,9 +455,7 @@ FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
 FN_DECL bool IsVolumetric(INOUT(materialPoint) Material)
 {
     return ( (Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC) ||     
-             (Material.MaterialType == MATERIAL_TYPE_GLASS) ||
-             (Material.MaterialType == MATERIAL_TYPE_SUBSURFACE)
-             );
+             (Material.MaterialType == MATERIAL_TYPE_GLASS));
 }
 
 
@@ -660,9 +658,7 @@ FN_DECL float MicrofacetShadowing1(float Roughness, vec3 Normal, vec3 Halfway, v
 
 FN_DECL float MicrofacetShadowing(float Roughness, vec3 Normal, vec3 Halfway, vec3 Outgoing, vec3 Incoming)
 {
-    return MicrofacetShadowing1(Roughness, Normal, Halfway, Outgoing) * MicrofacetShadowing1(Roughness, Normal, Halfway, Incoming);
-    // Height Correlated shadowing doesn't really work with SSS for some reason ?
-    // return 1.0f / (1.0f + MicrofacetShadowing1(Roughness, Normal, Halfway, Outgoing) + MicrofacetShadowing1(Roughness, Normal, Halfway, Incoming));
+    return 1.0f / (1.0f + MicrofacetShadowing1(Roughness, Normal, Halfway, Outgoing) + MicrofacetShadowing1(Roughness, Normal, Halfway, Incoming));
 }
 
 FN_DECL float SampleMicrofacetPDF(float Roughness, vec3 Normal, vec3 Halfway)
@@ -825,7 +821,6 @@ FN_DECL vec3 EvalGlass(vec3 Colour, float IOR, float Roughness, vec3 Normal, vec
     bool Entering = dot(Normal, Outgoing) >= 0;
     vec3 UpNormal = Entering ? Normal : -Normal;
     float RelIOR = Entering ? IOR : 1 / IOR;
-    
     if(dot(Normal, Incoming) * dot(Normal, Outgoing) >=0)
     {
         vec3 Halfway = normalize(Incoming + Outgoing);
@@ -923,11 +918,10 @@ FN_DECL vec3 SamplePhase(INOUT(materialPoint) Material, vec3 Outgoing, float RNL
 FN_DECL vec3 EvalPhase(INOUT(materialPoint) Material, vec3 Outgoing, vec3 Incoming)
 {
     if(Material.Density == vec3(0)) return vec3(0);
-    
+
     float Cosine = -dot(Outgoing, Incoming);
     float Denom = pow(1 + Material.Anisotropy * Material.Anisotropy - 2 * Material.Anisotropy * Cosine, 1.5f);
-    float PhaseFunction = (1 - Material.Anisotropy * Material.Anisotropy) 
-        / (4 * PI_F * Denom * sqrt(Denom));
+    float PhaseFunction = (1 - Material.Anisotropy * Material.Anisotropy) / (4 * PI_F * Denom * sqrt(Denom));
 
     return Material.ScatteringColour * Material.Density * PhaseFunction;
 }
@@ -959,15 +953,11 @@ FN_DECL vec3 EvalBSDFCos(INOUT(materialPoint) Material, vec3 Normal, vec3 Outgoi
     {
         return EvalPbr(Material.Colour, 1.5, Material.Roughness, Material.Metallic, Normal, OutgoingDir, Incoming);
     }
-    else if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
     {
         return EvalVolumetric(Material.Colour, Normal, OutgoingDir, Incoming);
     }    
-    else if(Material.MaterialType == MATERIAL_TYPE_GLASS)
-    {
-        return EvalGlass(Material.Colour, 1.5, Material.Roughness, Normal, OutgoingDir, Incoming);
-    }    
-    else if(Material.MaterialType == MATERIAL_TYPE_SUBSURFACE)
+    if(Material.MaterialType == MATERIAL_TYPE_GLASS)
     {
         return EvalGlass(Material.Colour, 1.5, Material.Roughness, Normal, OutgoingDir, Incoming);
     }    
@@ -983,15 +973,11 @@ FN_DECL float SampleBSDFCosPDF(INOUT(materialPoint) Material, INOUT(vec3) Normal
     {
         return SamplePbrPDF(Material.Colour, 1.5, Material.Roughness, Material.Metallic, Normal, OutgoingDir, Incoming);
     }
-    else if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
     {
         return SampleVolumetricPDF(Material.Colour, Normal, OutgoingDir, Incoming);
     }    
-    else if(Material.MaterialType == MATERIAL_TYPE_GLASS)
-    {
-        return SampleGlassPDF(Material.Colour, 1.5, Material.Roughness, Normal, OutgoingDir, Incoming);
-    }    
-    else if(Material.MaterialType == MATERIAL_TYPE_SUBSURFACE)
+    if(Material.MaterialType == MATERIAL_TYPE_GLASS)
     {
         return SampleGlassPDF(Material.Colour, 1.5, Material.Roughness, Normal, OutgoingDir, Incoming);
     }    
@@ -1012,10 +998,6 @@ FN_DECL vec3 SampleBSDFCos(INOUT(materialPoint) Material, INOUT(vec3) Normal, IN
         return SampleVolumetric(OutgoingDir);
     }    
     else if(Material.MaterialType == MATERIAL_TYPE_GLASS)
-    {
-        return SampleGlass(Material.Colour, 1.5, Material.Roughness, Normal, OutgoingDir, RNL, RN);
-    }    
-    else if(Material.MaterialType == MATERIAL_TYPE_SUBSURFACE)
     {
         return SampleGlass(Material.Colour, 1.5, Material.Roughness, Normal, OutgoingDir, RNL, RN);
     }    
@@ -1235,6 +1217,8 @@ MAIN()
                             0.5f * SamplePhasePDF(VolumeMaterial, Outgoing, Incoming) + 
                             0.5f * SampleLightsPDF(Position, Incoming)
                             );
+                    // Weight *= EvalPhase(VolumeMaterial, Outgoing, Incoming) / 
+                    //         .5f * SamplePhasePDF(VolumeMaterial, Outgoing, Incoming) + 
                             
                     Ray.Origin = Position;
                     Ray.Direction = Incoming;

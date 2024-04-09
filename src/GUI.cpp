@@ -274,7 +274,7 @@ bool gui::MaterialGUI(int MaterialInx)
     material &Mat = App->Scene->Materials[MaterialInx];
 
     int MaterialTypeInt = (int)Mat.MaterialType;
-    Changed |= ImGui::Combo("Type", &MaterialTypeInt, "Matte\0PBR\0Volumetric\0\0");
+    Changed |= ImGui::Combo("Type", &MaterialTypeInt, "Matte\0PBR\0Volumetric\0Glass\0Subsurface\0\0");
     Mat.MaterialType = (float)MaterialTypeInt;
 
     glm::vec3 PrevEmission = Mat.Emission;
@@ -282,10 +282,11 @@ bool gui::MaterialGUI(int MaterialInx)
     Changed |= ImGui::ColorEdit3("Colour", &Mat.Colour[0]);
     Changed |= ImGui::DragFloat("Opacity", &Mat.Opacity, 0.01f, 0, 1);
 
-    if(Mat.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    if(Mat.MaterialType == MATERIAL_TYPE_VOLUMETRIC || Mat.MaterialType == MATERIAL_TYPE_GLASS)
     {
         ImGui::Separator();
         Changed |= ImGui::DragFloat("TrDepth", &Mat.TransmissionDepth, 0.001f, 0, 1);
+        Changed |= ImGui::DragFloat("Anisotropy", &Mat.Anisotropy, 0.01f, -1, 1);
         Changed |= ImGui::ColorEdit3("Scattering", &Mat.ScatteringColour[0]);
     }
 
