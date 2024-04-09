@@ -121,10 +121,13 @@ struct material
     vec3 Colour;
     float Metallic;
     
-    vec2 Padding;
-    float MaterialType = 0;
-    float Opacity = 1;
+    float Padding;
+    float Anisotropy;
+    float MaterialType;
+    float Opacity;
 
+    vec3 ScatteringColour;
+    float TransmissionDepth;
 
     int EmissionTexture;
     int ColourTexture;
@@ -137,9 +140,12 @@ struct materialPoint
     vec3 Emission;
     vec3 Colour;
     int MaterialType;
-    float Roughness;
-    float Metallic;
-    float Opacity;
+    float Roughness, Metallic, Opacity;
+    
+    vec3 ScatteringColour;
+    float TransmissionDepth;
+    vec3 Density;
+    float Anisotropy;
 };
 
 struct light

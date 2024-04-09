@@ -34,7 +34,7 @@ FN_DECL bool IsFinite(vec3 A)
     return IsFinite(A.x) && IsFinite(A.y) && IsFinite(A.z);
 }
 
-FN_DECL float Sum(INOUT(vec3) A) { 
+FN_DECL float Sum(vec3 A) { 
     return A.x + A.y + A.z; 
 }
 
@@ -429,7 +429,7 @@ FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
     vec4 ColourTexture = EvalTexture(Material.ColourTexture, TexCoords, true);
     vec4 RoughnessTexture = EvalTexture(Material.RoughnessTexture, TexCoords, false);
     
-    Point.MaterialType = Material.MaterialType;
+    Point.MaterialType = int(Material.MaterialType);
     Point.Colour = Material.Colour * vec3(ColourTexture);
     Point.Emission = Material.Emission * vec3(EmissionTexture);
     
