@@ -437,8 +437,24 @@ FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
     Point.Roughness = Point.Roughness * Point.Roughness;
 
     Point.Opacity = Material.Opacity * ColourTexture.w;
+    Point.TransmissionDepth = Material.TransmissionDepth;
+    Point.ScatteringColour = Material.ScatteringColour;
+
+    Point.Anisotropy = Material.Anisotropy;
+    Point.Density = vec3(0,0,0);
+    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    {
+        Point.Density = -log(clamp(Point.Colour, 0.0001f, 1.0f)) / Point.TransmissionDepth;
+    }
+
     return Point;
 }
+
+FN_DECL bool IsVolumetric(INOUT(materialPoint) Material)
+{
+    return Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC;
+}
+
 
 // Region lights
 
@@ -488,39 +504,44 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
         if(Lights[i].Instance != INVALID_ID)
         {
             float LightPDF = 0.0f;
-            // Check if the ray intersects the light. If it doesn't, we break. 
-            ray Ray;
-            Ray.Origin = Position;
-            Ray.Direction = Direction;
-            
-            sceneIntersection Isect;
-            Isect.Distance = 1e30f;
-            IntersectInstance(Ray, Isect, Lights[i].Instance);
-            
-            if(Isect.Distance == 1e30f) continue;
+            vec3 NextPosition = Position;
+            for(int Bounce=0; Bounce<100; Bounce++)
+            {
+                // Check if the ray intersects the light. If it doesn't, we break. 
+                ray Ray;
+                Ray.Origin = NextPosition;
+                Ray.Direction = Direction;
+                
+                sceneIntersection Isect;
+                Isect.Distance = 1e30f;
+                IntersectInstance(Ray, Isect, Lights[i].Instance);
+                
+                if(Isect.Distance == 1e30f) break;
 
-            mat4 InstanceTransform = TLASInstancesBuffer[Lights[i].Instance].Transform;
-            //Get the point on the light
-            triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];
-            vec3 LightPos = 
-                Tri.v1 * Isect.U + 
-                Tri.v2 * Isect.V +
-                Tri.v0 * (1 - Isect.U - Isect.V);     
-            LightPos = TransformPoint(InstanceTransform, LightPos);
-            
-            triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];
-            vec3 LightNormal = 
-                ExtraData.Normal1 * Isect.U + 
-                ExtraData.Normal2 * Isect.V +
-                ExtraData.Normal0 * (1 - Isect.U - Isect.V);                    
-            LightNormal = TransformDirection(InstanceTransform, LightNormal);
+                mat4 InstanceTransform = TLASInstancesBuffer[Lights[i].Instance].Transform;
+                //Get the point on the light
+                triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];
+                vec3 LightPos = 
+                    Tri.v1 * Isect.U + 
+                    Tri.v2 * Isect.V +
+                    Tri.v0 * (1 - Isect.U - Isect.V);     
+                LightPos = TransformPoint(InstanceTransform, LightPos);
+                
+                triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];
+                vec3 LightNormal = 
+                    ExtraData.Normal1 * Isect.U + 
+                    ExtraData.Normal2 * Isect.V +
+                    ExtraData.Normal0 * (1 - Isect.U - Isect.V);                    
+                LightNormal = TransformDirection(InstanceTransform, LightNormal);
 
-            //Find the probability that this point was sampled
-            float Area = Lights[i].CDF[Lights[i].CDFCount-1];
-            LightPDF += DistanceSquared(LightPos, Position) / 
-                        (abs(dot(LightNormal, Direction)) * Area);
+                //Find the probability that this point was sampled
+                float Area = Lights[i].CDF[Lights[i].CDFCount-1];
+                LightPDF += DistanceSquared(LightPos, Position) / 
+                            (abs(dot(LightNormal, Direction)) * Area);
 
-            //Continue for the next ray
+                //Continue for the next ray
+                NextPosition = LightPos + Direction * 1e-3f;
+            }
             PDF += LightPDF;
         }
     }
@@ -699,7 +720,128 @@ FN_DECL float SampleMattePDF(INOUT(vec3) Colour, INOUT(vec3) Normal, INOUT(vec3)
     return SampleHemisphereCosinePDF(UpNormal, Incoming);
 }
 
+// Volumetric
+
+FN_DECL vec3 EvalVolumetric(vec3 Colour, vec3 Normal, vec3 Outgoing, vec3 Incoming)
+{
+    // If Incoming and outgoing are in the same direction, return 0
+    // For a volume that's not the case. 
+    if(dot(Normal, Incoming) * dot(Normal, Outgoing) >= 0)
+    {
+        return vec3(0);
+    }
+    else
+    {
+        return vec3(1);
+    }
+}
+
+FN_DECL float SampleVolumetricPDF(vec3 Colour, vec3 Normal, vec3 Outgoing, vec3 Incoming)
+{
+    if(dot(Normal, Incoming) * dot(Normal, Outgoing) >= 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
+}
+
+FN_DECL vec3 SampleVolumetric(vec3 OutgoingDir)
+{
+    return -OutgoingDir;
+}
+
+// Transmittance
+FN_DECL float SampleTransmittance(vec3 Density, float MaxDistance, float RL, float RD)
+{
+    // Choose a random channel to use
+    int Channel = clamp(int(RL * 3), 0, 2);
+    
+    // Here we calculate the distance that a ray traverses inside a medium. We sample this distance using the exponential function, 
+    //using the density as the mean free path (=average distance a photon can travel through a medium before an interaction, absorbtion or scattering, happens.)
+    //Here, the mean free path is simply 1 / density
+
+    // Calculate the distance we travel, using the inverse of the CDF of the exponential function * mean free path.
+    float Distance = (Density[Channel] == 0) ? 1e30f : -log(1 - RD) / Density[Channel];
+    
+    return min(Distance, MaxDistance);
+}
+
+FN_DECL vec3 EvalTransmittance(vec3 Density, float Distance)
+{
+    // Beer-Lambert law : attenuation of light as it passes through a medium, as a function of the extinction coefficient and of the distance travelled inside the medium.
+    return exp(-Density * Distance);
+}
+
+FN_DECL float SampleTransmittancePDF(vec3 Density, float Distance, float MaxDistance)
+{
+    // We use the pdf of the exponential distribution, because we're sampling distances with the exponential distribution.
+    // the pdf is pdf(x, delta) = delta * exp(-delta * x)
+    //Here, x = distance and delta = rate parameter, inverse of the mean free path, which is (1 / density), so delta = density.
+
+    if(Distance < MaxDistance)
+    {
+        return Sum(Density * exp(-Density * Distance)) / 3;
+    }
+    else
+    {
+        return Sum(exp(-Density * MaxDistance)) / 3;
+    }
+}
+
+// Phase
+
+FN_DECL vec3 SamplePhase(INOUT(materialPoint) Material, vec3 Outgoing, float RNL, vec2 RN)
+{
+    if(Material.Density == vec3(0)) return vec3(0);
+    float CosTheta = 0;
+    if(abs(Material.Anisotropy) < 1e-3f)
+    {
+        CosTheta = 1 - 2 * RN.y;
+    }
+    else
+    {
+        float Square = (1 - Material.Anisotropy * Material.Anisotropy) / 
+                       (1 + Material.Anisotropy - 2 * Material.Anisotropy * RN.y);
+        CosTheta = (1 + Material.Anisotropy * Material.Anisotropy - Square * Square) / 
+                   (2 * Material.Anisotropy);
+    }
+
+    float SinTheta = sqrt(max(0.0f, 1- CosTheta * CosTheta));
+    float Phi = 2 * PI_F * RN.x;
+    vec3 LocalIncoming = vec3(SinTheta * cos(Phi), SinTheta * sin(Phi), CosTheta);
+    return BasisFromZ(-Outgoing) * LocalIncoming;
+}
+
+FN_DECL vec3 EvalPhase(INOUT(materialPoint) Material, vec3 Outgoing, vec3 Incoming)
+{
+    if(Material.Density == vec3(0)) return vec3(0);
+
+    float Cosine = -dot(Outgoing, Incoming);
+    float Denom = pow(1 + Material.Anisotropy * Material.Anisotropy - 2 * Material.Anisotropy * Cosine, 1.5f);
+    float PhaseFunction = (1 - Material.Anisotropy * Material.Anisotropy) / (4 * PI_F * Denom * sqrt(Denom));
+
+    return Material.ScatteringColour * Material.Density * PhaseFunction;
+}
+
+FN_DECL float SamplePhasePDF(INOUT(materialPoint) Material, vec3 Outgoing, vec3 Incoming)
+{
+    if(Material.Density == vec3(0)) return 0;
+
+    float Cosine = -dot(Outgoing, Incoming);
+    float Denom = pow(1 + Material.Anisotropy * Material.Anisotropy - 2 * Material.Anisotropy * Cosine, 1.5f);
+
+    return (1 - Material.Anisotropy * Material.Anisotropy) / (4 * PI_F * Denom * sqrt(Denom));
+}
+
 // BSDF
+
+FN_DECL bool IsDelta(INOUT(materialPoint) Material)
+{
+    return Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC;
+}
 
 FN_DECL vec3 EvalBSDFCos(INOUT(materialPoint) Material, vec3 Normal, vec3 OutgoingDir, vec3 Incoming)
 {
@@ -711,6 +853,10 @@ FN_DECL vec3 EvalBSDFCos(INOUT(materialPoint) Material, vec3 Normal, vec3 Outgoi
     {
         return EvalPbr(Material.Colour, 1.5, Material.Roughness, Material.Metallic, Normal, OutgoingDir, Incoming);
     }
+    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    {
+        return EvalVolumetric(Material.Colour, Normal, OutgoingDir, Incoming);
+    }    
 }
 
 FN_DECL float SampleBSDFCosPDF(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) OutgoingDir, INOUT(vec3) Incoming)
@@ -723,6 +869,10 @@ FN_DECL float SampleBSDFCosPDF(INOUT(materialPoint) Material, INOUT(vec3) Normal
     {
         return SamplePbrPDF(Material.Colour, 1.5, Material.Roughness, Material.Metallic, Normal, OutgoingDir, Incoming);
     }
+    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    {
+        return SampleVolumetricPDF(Material.Colour, Normal, OutgoingDir, Incoming);
+    }    
 }
 
 FN_DECL vec3 SampleBSDFCos(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) OutgoingDir, float RNL, vec2 RN)
@@ -735,6 +885,35 @@ FN_DECL vec3 SampleBSDFCos(INOUT(materialPoint) Material, INOUT(vec3) Normal, IN
     {
         return SamplePbr(Material.Colour, 1.5, Material.Roughness, Material.Metallic, Normal, OutgoingDir, RNL, RN);
     }
+    else if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    {
+        return SampleVolumetric(OutgoingDir);
+    }    
+}
+
+// Delta
+FN_DECL vec3 EvalDelta(INOUT(materialPoint) Material, vec3 Normal, vec3 OutgoingDir, vec3 Incoming)
+{
+    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    {
+        return EvalVolumetric(Material.Colour, Normal, OutgoingDir, Incoming);
+    }    
+}
+
+FN_DECL float SampleDeltaPDF(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) OutgoingDir, INOUT(vec3) Incoming)
+{
+    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    {
+        return SampleVolumetricPDF(Material.Colour, Normal, OutgoingDir, Incoming);
+    }    
+}
+
+FN_DECL vec3 SampleDelta(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) OutgoingDir, float RNL)
+{
+    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    {
+        return SampleVolumetric(OutgoingDir);
+    }    
 }
 
 
@@ -803,6 +982,9 @@ MAIN()
 
             vec3 Radiance = vec3(0,0,0);
             vec3 Weight = vec3(1,1,1);
+            uint OpacityBounces=0;
+            materialPoint VolumeMaterial;
+            bool HasVolumeMaterial=false;
 
             for(int Bounce=0; Bounce < GET_ATTR(Parameters, Bounces); Bounce++)
             {
@@ -827,42 +1009,106 @@ MAIN()
                 Isect.Tangent = TransformDirection(NormalTransform, vec3(Tangent));
                 Isect.Bitangent = TransformDirection(NormalTransform, normalize(cross(Isect.Normal, vec3(Tangent)) * Tangent.w));    
 
-                vec3 OutgoingDir = -Ray.Direction;
-                vec3 Position = EvalShadingPosition(OutgoingDir, Isect);
-                vec3 Normal = EvalShadingNormal(OutgoingDir, Isect);
-                
-                // Material evaluation
-                materialPoint Material = EvalMaterial(Isect);
-                
-                // Opacity
-                uint OpacityBound=0;
-                if(Material.Opacity < 1 && RandomUnilateral(Isect.RandomState) >= Material.Opacity)
+                bool StayInVolume=false;
+                if(HasVolumeMaterial)
                 {
-                    if(OpacityBound++ > 128) break;
-                    Ray.Origin = Position + Ray.Direction * 1e-2f;
-                    Bounce--;
-                    continue;
-                }
-                
+                    // If we're in a volume, we sample the distance that the ray's gonna intersect.
+                    // The transmittance is based on the colour of the object. The higher, the thicker.
+                    float Distance = SampleTransmittance(VolumeMaterial.Density, Isect.Distance, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState));
+                    // float Distance = 0.1f;
+                    Weight *= EvalTransmittance(VolumeMaterial.Density, Distance) / 
+                            SampleTransmittancePDF(VolumeMaterial.Density, Distance, Isect.Distance);
+                    
+                    
+                    //If the distance is higher than the next intersection, it means that we're stepping out of the volume
+                    StayInVolume = Distance < Isect.Distance;
 
-                Radiance += Weight * Material.Emission;
-                
-                vec3 Incoming = vec3(0);
-                if(RandomUnilateral(Isect.RandomState) < 0.5f)
+                    Isect.Distance = Distance;
+                }
+
+                if(!StayInVolume)
                 {
-                    Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+
+                    vec3 OutgoingDir = -Ray.Direction;
+                    vec3 Position = EvalShadingPosition(OutgoingDir, Isect);
+                    vec3 Normal = EvalShadingNormal(OutgoingDir, Isect);
+                    
+                    // Material evaluation
+                    materialPoint Material = EvalMaterial(Isect);
+                    
+                    // Opacity
+                    if(Material.Opacity < 1 && RandomUnilateral(Isect.RandomState) >= Material.Opacity)
+                    {
+                        if(OpacityBounces++ > 128) break;
+                        Ray.Origin = Position + Ray.Direction * 1e-2f;
+                        Bounce--;
+                        continue;
+                    }
+                    
+
+                    Radiance += Weight * Material.Emission;
+                    vec3 Incoming = vec3(0);
+                    if(!IsDelta(Material))
+                    {
+                        if(RandomUnilateral(Isect.RandomState) < 0.5f)
+                        {
+                            Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                        }
+                        else
+                        {
+                            Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                        }
+                        if(Incoming == vec3(0,0,0)) break;
+                        Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                                vec3(0.5 * SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming) + 0.5f * SampleLightsPDF(Position, Incoming));
+                    }
+                    else
+                    {
+                        Incoming = SampleDelta(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState));
+                        Weight *= EvalDelta(Material, Normal, OutgoingDir, Incoming) / 
+                                SampleDeltaPDF(Material, Normal, OutgoingDir, Incoming);                        
+                    }
+
+                    
+                    //If the hit material is volumetric
+                    // And the ray keeps going in the same direction (It always does for volumetric materials)
+                    // we add the volume material into the stack 
+                    if(IsVolumetric(Material)   && dot(Normal, OutgoingDir) * dot(Normal, Incoming) < 0)
+                    {
+                        VolumeMaterial = Material;
+                        HasVolumeMaterial = !HasVolumeMaterial;
+                    }
+
+                    Ray.Origin = Position;
+                    Ray.Direction = Incoming;
                 }
                 else
                 {
-                    Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                }
-                if(Incoming == vec3(0,0,0)) break;
-                Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
-                          vec3(0.5 * SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming) + 0.5f * SampleLightsPDF(Position, Incoming));
+                    vec3 Outgoing = -Ray.Direction;
+                    vec3 Position = Ray.Origin + Ray.Direction * Isect.Distance;
 
+                    vec3 Incoming = vec3(0);
+                    if(RandomUnilateral(Isect.RandomState) < 0.5f)
+                    {
+                        // Sample a scattering direction inside the volume using the phase function
+                        Incoming = SamplePhase(VolumeMaterial, Outgoing, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                    }
+                    else
+                    {
+                        Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));                
+                    }
+
+                    if(Incoming == vec3(0)) break;
                 
-                Ray.Origin = Position;
-                Ray.Direction = Incoming;
+                    Weight *= EvalPhase(VolumeMaterial, Outgoing, Incoming) / 
+                            ( 
+                            0.5f * SamplePhasePDF(VolumeMaterial, Outgoing, Incoming) + 
+                            0.5f * SampleLightsPDF(Position, Incoming)
+                            );
+                            
+                    Ray.Origin = Position;
+                    Ray.Direction = Incoming;
+                }
 
                 if(Weight == vec3(0,0,0) || !IsFinite(Weight)) break;
 

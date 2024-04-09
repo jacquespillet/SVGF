@@ -6,6 +6,7 @@
 
 #define MATERIAL_TYPE_MATTE 0
 #define MATERIAL_TYPE_PBR   1
+#define MATERIAL_TYPE_VOLUMETRIC   2
 
 namespace gpupt
 {
@@ -52,9 +53,13 @@ struct material
     glm::vec3 Colour = {};
     float Metallic = 0;
     
-    glm::vec2 Padding;
+    float Padding;
+    float Anisotropy = 0.0f;
     float MaterialType = 0;
     float Opacity = 1;
+
+    glm::vec3 ScatteringColour = {};
+    float TransmissionDepth = 0.01f;
 
     int EmissionTexture = InvalidID;
     int ColourTexture = InvalidID;

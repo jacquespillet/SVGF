@@ -38,6 +38,11 @@ struct materialPoint
     glm::vec3 Colour;
     int MaterialType;
     float Roughness, Metallic, Opacity;
+    
+    glm::vec3 ScatteringColour = {};
+    float TransmissionDepth = 0.01f;
+    glm::vec3 Density;
+    float Anisotropy;
 };
 
 struct light 
