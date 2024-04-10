@@ -19,6 +19,7 @@
 #include "PathTrace.cu"
 #include "TextureArrayCu.cuh"
 #endif
+#include "GLTexToCuBuffer.cu"
 
 #include <iostream>
 #define CUDA_CHECK_ERROR(err) \
@@ -69,11 +70,19 @@ void application::InitGpuObjects()
 #if API==API_GL
     PathTracingShader = std::make_shared<shaderGL>("resources/shaders/PathTrace.glsl");
     TonemapShader = std::make_shared<shaderGL>("resources/shaders/Tonemap.glsl");
-    RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
-    TonemapTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);    
+
+    TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);    
+    RenderTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
+    DenoisedTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);    
+
+    DenoiseMapping = CreateMapping(DenoisedTexture, true);    
+    RenderMapping = CreateMapping(RenderTexture);    
+
     TracingParamsBuffer = std::make_shared<uniformBufferGL>(sizeof(tracingParameters), &Params);
     MaterialBuffer = std::make_shared<bufferGL>(sizeof(material) * Scene->Materials.size(), Scene->Materials.data());
     LightsBuffer = std::make_shared<bufferGL>(sizeof(lights), &Lights);
+    
+
 #elif API==API_CU
     TonemapTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
     RenderBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * 4 * sizeof(float));
@@ -95,11 +104,15 @@ void application::CreateOIDNFilter()
     const char* errorMessage;
     if (Device.getError(errorMessage) != oidn::Error::None)
         std::cout << "Error: " << errorMessage << std::endl;
-    
-    // Allocate cuda buffer for denoise
+
     Filter = Device.newFilter("RT");
+#if API==API_CU
     Filter.setImage("color",  RenderBuffer->Data,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
     Filter.setImage("output", DenoisedBuffer->Data, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
+#else
+    Filter.setImage("color",  RenderMapping->CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
+    Filter.setImage("output", DenoisedBuffer->Data, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
+#endif
     Filter.set("hdr", true);        
     Filter.set("cleanAux", true);           
     Filter.set("quality", OIDN_QUALITY_BALANCED);        
@@ -149,12 +162,22 @@ void application::EndFrame()
 
 void application::Denoise()
 {
+#if API==API_GL 
+    GLTexToCuBuffer(RenderMapping->CudaBuffer, RenderMapping->TexObj, RenderWidth, RenderHeight);
     Filter.execute();
+    cudaMemcpyToArray(DenoiseMapping->CudaTextureArray, 0, 0, DenoisedBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+#else
+    Filter.execute();
+#endif
     Denoised = true;
 }
 
 void application::Trace()
 {
+    const char* errorMessage;
+    if (Device.getError(errorMessage) != oidn::Error::None)
+        std::cout << "Error: " << errorMessage << std::endl;
+
     if(ResetRender) 
     {
         Params.CurrentSample=0;
@@ -200,7 +223,7 @@ void application::Trace()
 
 #if API==API_GL
     TonemapShader->Use();
-    TonemapShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
+    TonemapShader->SetTexture(0, Denoised ? DenoisedTexture->TextureID : RenderTexture->TextureID, GL_READ_WRITE);
     TonemapShader->SetTexture(1, TonemapTexture->TextureID, GL_READ_WRITE);
     TonemapShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 + 1, 1);
 #elif API==API_CU
@@ -247,8 +270,20 @@ void application::ResizeRenderTextures()
 {
     if(!Inited) return;
 #if API==API_GL
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+
     RenderTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
     TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);    
+    DenoisedTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);    
+    
+    RenderMapping = CreateMapping(RenderTexture);    
+    DenoiseMapping = CreateMapping(DenoisedTexture, true);    
+
+    DenoisedBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    // Allocate cuda buffer for denoise
+    Filter.setImage("color",  RenderMapping->CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
+    Filter.setImage("output", DenoisedBuffer->Data, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
+    Filter.commit();
 #elif API==API_CU
     cudaDeviceSynchronize();
     TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
@@ -259,9 +294,6 @@ void application::ResizeRenderTextures()
     DenoisedBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
     Filter.setImage("color",  RenderBuffer->Data,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
     Filter.setImage("output", DenoisedBuffer->Data, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-    Filter.set("hdr", true);        
-    Filter.set("cleanAux", true);           
-    Filter.set("quality", OIDN_QUALITY_BALANCED);        
     Filter.commit();
 #endif
 

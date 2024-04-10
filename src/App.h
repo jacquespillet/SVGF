@@ -73,6 +73,10 @@ private:
     std::shared_ptr<uniformBufferGL> TracingParamsBuffer;
     std::shared_ptr<bufferGL> MaterialBuffer;
     std::shared_ptr<bufferGL> LightsBuffer;
+    std::shared_ptr<textureGL> DenoisedTexture;
+    std::shared_ptr<cudaTextureMapping> RenderMapping;
+    std::shared_ptr<cudaTextureMapping> DenoiseMapping;
+
 #elif API==API_CU
     std::shared_ptr<bufferCu> TracingParamsBuffer;
     std::shared_ptr<bufferCu> RenderBuffer;
