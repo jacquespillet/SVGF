@@ -395,6 +395,16 @@ FN_DECL vec4 EvalTexture(int Texture, vec2 UV, bool Linear)
     return Colour;
 }
 
+FN_DECL vec4 EvalEnvTexture(int Texture, vec2 UV, bool Linear)
+{
+    if(Texture == INVALID_ID) return vec4(1, 1, 1, 1);
+    vec3 texCoord3D = vec3(UV, Texture);
+    vec4 Colour = textureSampleEnv(EnvTextures, texCoord3D); 
+    // vec4 Colour = vec4(1);
+    if(Linear) Colour = ToLinear(Colour);
+    return Colour;
+}
+
 FN_DECL vec3 EvalNormalMap(vec3 Normal, INOUT(sceneIntersection) Isect)
 {
     // TODO: Optimize
@@ -463,7 +473,14 @@ FN_DECL bool IsVolumetric(INOUT(materialPoint) Material)
 // region environment
 FN_DECL vec3 EvalEnvironment(INOUT(environment) Env, vec3 Direction)
 {
-    return Env.Emission;
+    vec2 TexCoord = vec2(
+        atan(Direction.x, Direction.z) / (2 * PI_F), 
+        acos(clamp(Direction.y, -1.0f, 1.0f)) / PI_F
+    );
+    if(TexCoord.x < 0) TexCoord.x += 1.0f; 
+
+    return Env.Emission * vec3(EvalEnvTexture(Env.EmissionTexture, TexCoord, false));
+    
 }
 
 FN_DECL vec3 EvalEnvironment(vec3 Direction)
@@ -1142,6 +1159,7 @@ MAIN()
                 if(Isect.Distance == 1e30f)
                 {
                     Radiance += Weight * EvalEnvironment(Ray.Direction);
+                    break;
                 }
 
                 // get all the necessary geometry information

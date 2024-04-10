@@ -101,10 +101,6 @@ void application::CreateOIDNFilter()
     Device.commit();
     DenoisedBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
 
-    const char* errorMessage;
-    if (Device.getError(errorMessage) != oidn::Error::None)
-        std::cout << "Error: " << errorMessage << std::endl;
-
     Filter = Device.newFilter("RT");
 #if API==API_CU
     Filter.setImage("color",  RenderBuffer->Data,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
@@ -207,13 +203,15 @@ void application::Trace()
         PathTracingShader->SetUBO(TracingParamsBuffer, 9);
         PathTracingShader->SetSSBO(LightsBuffer, 10);
         PathTracingShader->SetTextureArray(Scene->TexArray, 13, "SceneTextures");
+        PathTracingShader->SetTextureArray(Scene->EnvTexArray, 14, "EnvTextures");
         PathTracingShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 +1, 1);
 #elif API==API_CU
         dim3 blockSize(16, 16);
         dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
         TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, RenderWidth, RenderHeight,
                                             (triangle*)BVH->TrianglesBuffer->Data, (triangleExtraData*) BVH->TrianglesExBuffer->Data, (bvhNode*) BVH->BVHBuffer->Data, (uint32_t*) BVH->IndicesBuffer->Data, (indexData*) BVH->IndexDataBuffer->Data, (bvhInstance*)BVH->TLASInstancesBuffer->Data, (tlasNode*) BVH->TLASNodeBuffer->Data,
-                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data, Scene->TexArray->TexObject, (lights*)LightsBuffer->Data, (environment*)Scene->EnvironmentsBuffer->Data, Scene->Environments.size());
+                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (lights*)LightsBuffer->Data, 
+                                            (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight);
 #endif
         Params.CurrentSample+= Params.Batch;
     }

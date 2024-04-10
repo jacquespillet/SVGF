@@ -41,6 +41,7 @@ struct texture
     int Height = 0;
     int NumChannels = 0;
     std::vector<uint8_t> Pixels = {};
+    std::vector<float> PixelsF = {};
 
     void SetFromFile(const std::string &FileName, int Width = -1, int Height = -1);
     void SetFromPixels(const std::vector<uint8_t> &PixelData, int Width = -1, int Height = -1);
@@ -108,6 +109,7 @@ struct scene
     std::vector<shape> Shapes = {};
     std::vector<material> Materials = {};
     std::vector<texture> Textures = {};
+    std::vector<texture> EnvTextures = {};
     std::vector<environment> Environments = {};
 
     
@@ -116,21 +118,27 @@ struct scene
     std::vector<std::string> ShapeNames = {};
     std::vector<std::string> MaterialNames = {};
     std::vector<std::string> TextureNames = {};
+    std::vector<std::string> EnvTextureNames = {};
     std::vector<std::string> EnvironmentNames = {};
 
 
     int TextureWidth = 512;
     int TextureHeight = 512;
+
+    int EnvTextureWidth = 2048;
+    int EnvTextureHeight = 1024;
     void ReloadTextureArray();
 
 #if API==API_GL
     std::shared_ptr<bufferGL> CamerasBuffer;
     std::shared_ptr<bufferGL> EnvironmentsBuffer;
     std::shared_ptr<textureArrayGL> TexArray;
+    std::shared_ptr<textureArrayGL> EnvTexArray;
 #elif API==API_CU
     std::shared_ptr<bufferCu> EnvironmentsBuffer;
     std::shared_ptr<bufferCu> CamerasBuffer;
     std::shared_ptr<textureArrayCu> TexArray;
+    std::shared_ptr<textureArrayCu> EnvTexArray;
 #endif    
 };
 

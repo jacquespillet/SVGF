@@ -64,3 +64,4 @@ layout(std430, binding = 11) buffer EnvironmentsBuffer {
   environment Environments[];
 };
 uniform int EnvironmentsCount;
+layout(binding=14) uniform sampler2DArray EnvTextures;

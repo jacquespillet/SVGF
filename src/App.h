@@ -61,7 +61,7 @@ private:
     cudaStream_t Stream;
     std::shared_ptr<bufferCu> DenoisedBuffer;
     bool Denoised=false;
-    bool DoDenoise=true;
+    bool DoDenoise=false;
 
 
     std::shared_ptr<textureGL> TonemapTexture;

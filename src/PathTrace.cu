@@ -24,14 +24,22 @@ __device__ camera *Cameras;
 __device__ tracingParameters *Parameters;
 __device__ material *Materials;
 __device__ cudaTextureObject_t SceneTextures;
+__device__ cudaTextureObject_t EnvTextures;
 __device__ int LightsCount;
+__device__ int EnvironmentsCount;
+__device__ int TexturesWidth;
+__device__ int TexturesHeight;
 __device__ light *Lights;
+__device__ environment *Environments;
+__device__ int EnvTexturesWidth;
+__device__ int EnvTexturesHeight;
 
 
 #define MAIN() \
 __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
                             triangle *_AllTriangles, triangleExtraData *_AllTrianglesEx, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, bvhInstance *_Instances, tlasNode *_TLASNodes,\
-                            camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures, lights *_Lights)
+                            camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures, int _TexturesWidth, int _TexturesHeight, lights *_Lights, \
+                            environment *_Environments, int _EnvironmentsCount, cudaTextureObject_t _EnvTextures, int _EnvTexturesWidth, int _EnvTexturesHeight)
 
 #define INIT() \
     Width = _Width; \
@@ -47,8 +55,15 @@ __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
     Parameters = _TracingParams; \
     Materials = _Materials; \
     SceneTextures = _SceneTextures; \
+    EnvTextures = _EnvTextures; \
     LightsCount = _Lights->LightsCount; \
     Lights = _Lights->Lights; \
+    EnvironmentsCount = _EnvironmentsCount; \
+    Environments = _Environments; \
+    TexturesWidth = _TexturesWidth; \
+    TexturesHeight = _TexturesHeight; \
+    EnvTexturesWidth = _EnvTexturesWidth; \
+    EnvTexturesHeight = _EnvTexturesHeight; \
 
 
 #define IMAGE_SIZE(Img) \
@@ -77,20 +92,39 @@ __device__ vec4 imageLoad(vec4 *Image, ivec2 p)
 
 __device__ vec4 textureSample(cudaTextureObject_t _SceneTextures, glm::vec3 Coords)
 {
-    static int NumLayersX = 8192 / 512;
+    int NumLayersX = 8192 / TexturesWidth;
     int LayerInx = Coords.z;
     
-    int LocalCoordX = Coords.x * 512;
-    int LocalCoordY = Coords.y * 512;
+    int LocalCoordX = Coords.x * TexturesWidth;
+    int LocalCoordY = Coords.y * TexturesHeight;
 
-    int XOffset = (LayerInx % NumLayersX) * 512;
-    int YOffset = (LayerInx / NumLayersX) * 512;
+    int XOffset = (LayerInx % NumLayersX) * TexturesWidth;
+    int YOffset = (LayerInx / NumLayersX) * TexturesHeight;
 
     int CoordX = XOffset + LocalCoordX;
     int CoordY = YOffset + LocalCoordY;
 
     uchar4 TexValue = tex2D<uchar4>(_SceneTextures, CoordX, CoordY);
     vec4 TexValueF = vec4((float)TexValue.x / 255.0f, (float)TexValue.y / 255.0f, (float)TexValue.z / 255.0f, (float)TexValue.w / 255.0f);
+    return TexValueF;
+}
+
+__device__ vec4 textureSampleEnv(cudaTextureObject_t _EnvTextures, glm::vec3 Coords)
+{
+    int NumLayersX = 8192 / EnvTexturesWidth;
+    int LayerInx = Coords.z;
+    
+    int LocalCoordX = Coords.x * EnvTexturesWidth;
+    int LocalCoordY = Coords.y * EnvTexturesHeight;
+
+    int XOffset = (LayerInx % NumLayersX) * EnvTexturesWidth;
+    int YOffset = (LayerInx / NumLayersX) * EnvTexturesHeight;
+
+    int CoordX = XOffset + LocalCoordX;
+    int CoordY = YOffset + LocalCoordY;
+
+    float4 TexValue = tex2D<float4>(_EnvTextures, CoordX, CoordY);
+    vec4 TexValueF = vec4(TexValue.x, TexValue.y, TexValue.z, TexValue.w);
     return TexValueF;
 }
 

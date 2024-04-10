@@ -10,7 +10,9 @@ namespace gpupt
         }
     }
 
-    void textureArrayGL::CreateTextureArray(int Width, int Height, int Layers) {
+    void textureArrayGL::CreateTextureArray(int Width, int Height, int Layers, bool _IsFloat) {
+        this->IsFloat = IsFloat;
+
         glGenTextures(1, &TextureID);
         glBindTexture(GL_TEXTURE_2D_ARRAY, TextureID);
 
@@ -21,13 +23,35 @@ namespace gpupt
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
         // Allocate storage for the texture array
-        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA, Width, Height, Layers, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        GLint InternalFormat;
+        GLenum Format;
+        GLenum Type;
+        if(IsFloat)
+        {
+            InternalFormat = GL_RGBA32F;
+            Format = GL_RGBA;
+            Type = GL_FLOAT;
+        }
+        else
+        {
+            InternalFormat = GL_RGBA;
+            Format = GL_RGBA;
+            Type = GL_UNSIGNED_BYTE;
+        }
+
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, InternalFormat, Width, Height, Layers, 0, Format, Type, nullptr);
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
     }
 
     void textureArrayGL::LoadTextureLayer(int layerIndex, const std::vector<uint8_t>& imageData, int Width, int Height) {
         glBindTexture(GL_TEXTURE_2D_ARRAY, TextureID);
         glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, layerIndex, Width, Height, 1, GL_RGBA, GL_UNSIGNED_BYTE, imageData.data());
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    }
+
+    void textureArrayGL::LoadTextureLayer(int layerIndex, const std::vector<float>& imageData, int Width, int Height) {
+        glBindTexture(GL_TEXTURE_2D_ARRAY, TextureID);
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, layerIndex, Width, Height, 1, GL_RGBA, GL_FLOAT, imageData.data());
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
     }
 

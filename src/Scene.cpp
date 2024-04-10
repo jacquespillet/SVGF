@@ -206,11 +206,18 @@ std::shared_ptr<scene> CreateCornellBox()
     Scene->ShapeNames.push_back("Light");
     Scene->InstanceNames.push_back("Light");
     Scene->MaterialNames.push_back("Light");
+
+    
+    Scene->EnvTextures.emplace_back();
+    texture &SkyTex = Scene->EnvTextures.back();
+    SkyTex.SetFromFile("resources/textures/Sky.hdr", Scene->EnvTextureWidth, Scene->EnvTextureHeight);
+    Scene->EnvTextureNames.push_back("Sky");    
     
     Scene->Environments.emplace_back();
     Scene->EnvironmentNames.push_back("Sky");
     environment &Sky = Scene->Environments.back();
-    Sky.Emission = {2,2,2};
+    Sky.Emission = {1,1,1};
+    Sky.EmissionTexture = 0;
 
     Scene->Textures.emplace_back();
     texture &Texture = Scene->Textures.back();
@@ -322,10 +329,17 @@ void CalculateTangents(shape &Shape)
 
 void scene::ReloadTextureArray()
 {
+    assert(8192 % TextureWidth==0);
+    assert(8192 % TextureHeight==0);
+    assert(8192 % EnvTextureWidth==0);
+    assert(8192 % EnvTextureHeight==0);
+
 #if API==API_GL
     TexArray = std::make_shared<textureArrayGL>();
+    EnvTexArray = std::make_shared<textureArrayGL>();
 #elif API==API_CU
     TexArray = std::make_shared<textureArrayCu>();
+    EnvTexArray = std::make_shared<textureArrayCu>();
 #endif
 
     TexArray->CreateTextureArray(TextureWidth, TextureHeight, Textures.size());
@@ -333,15 +347,32 @@ void scene::ReloadTextureArray()
     {
         TexArray->LoadTextureLayer(i, Textures[i].Pixels, TextureWidth, TextureHeight);
     }
+
+    EnvTexArray->CreateTextureArray(EnvTextureWidth, EnvTextureHeight, EnvTextures.size(), true);
+    for (size_t i = 0; i < EnvTextures.size(); i++)
+    {
+        EnvTexArray->LoadTextureLayer(i, EnvTextures[i].PixelsF, EnvTextureWidth, EnvTextureHeight);
+    }
 }
 
 void texture::SetFromFile(const std::string &FileName, int Width, int Height)
 {
-    int NumChannels=4;
-    ImageFromFile(FileName, this->Pixels, Width, Height, NumChannels);
-    this->NumChannels = this->Pixels.size() / (Width * Height);
-    this->Width = Width;
-    this->Height = Height;
+    if(IsHDR(FileName))
+    {
+        int NumChannels=4;
+        ImageFromFile(FileName, this->PixelsF, Width, Height, NumChannels);
+        this->NumChannels = this->Pixels.size() / (Width * Height);
+        this->Width = Width;
+        this->Height = Height;
+    }
+    else
+    {
+        int NumChannels=4;
+        ImageFromFile(FileName, this->Pixels, Width, Height, NumChannels);
+        this->NumChannels = this->Pixels.size() / (Width * Height);
+        this->Width = Width;
+        this->Height = Height;
+    }
 }
 
 void texture::SetFromPixels(const std::vector<uint8_t> &PixelData, int Width, int Height)

@@ -29,3 +29,4 @@
     Obj.Attr
 
 #define textureSample texture
+#define textureSampleEnv texture
