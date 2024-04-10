@@ -156,3 +156,12 @@ struct light
 
     float CDF[MAX_CDF];
 };
+
+struct environment
+{
+    vec3 Emission;
+    float pad0;
+
+    ivec3 pad1;
+    int EmissionTexture;
+};

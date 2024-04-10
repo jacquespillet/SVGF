@@ -91,7 +91,14 @@ struct shape
     std::vector<glm::ivec3> Triangles;
 };
 
+struct environment
+{
+    glm::vec3 Emission;
+    float pad0;
 
+    glm::ivec3 pad1;
+    int EmissionTexture = InvalidID;
+};
 
 struct scene
 {
@@ -101,6 +108,7 @@ struct scene
     std::vector<shape> Shapes = {};
     std::vector<material> Materials = {};
     std::vector<texture> Textures = {};
+    std::vector<environment> Environments = {};
 
     
     std::vector<std::string> CameraNames = {};
@@ -108,6 +116,7 @@ struct scene
     std::vector<std::string> ShapeNames = {};
     std::vector<std::string> MaterialNames = {};
     std::vector<std::string> TextureNames = {};
+    std::vector<std::string> EnvironmentNames = {};
 
 
     int TextureWidth = 512;
@@ -116,8 +125,10 @@ struct scene
 
 #if API==API_GL
     std::shared_ptr<bufferGL> CamerasBuffer;
+    std::shared_ptr<bufferGL> EnvironmentsBuffer;
     std::shared_ptr<textureArrayGL> TexArray;
 #elif API==API_CU
+    std::shared_ptr<bufferCu> EnvironmentsBuffer;
     std::shared_ptr<bufferCu> CamerasBuffer;
     std::shared_ptr<textureArrayCu> TexArray;
 #endif    

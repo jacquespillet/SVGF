@@ -206,6 +206,11 @@ std::shared_ptr<scene> CreateCornellBox()
     Scene->ShapeNames.push_back("Light");
     Scene->InstanceNames.push_back("Light");
     Scene->MaterialNames.push_back("Light");
+    
+    Scene->Environments.emplace_back();
+    Scene->EnvironmentNames.push_back("Sky");
+    environment &Sky = Scene->Environments.back();
+    Sky.Emission = {2,2,2};
 
     Scene->Textures.emplace_back();
     texture &Texture = Scene->Textures.back();
@@ -254,8 +259,10 @@ std::shared_ptr<scene> CreateCornellBox()
 
 #if API==API_GL
     Scene->CamerasBuffer = std::make_shared<bufferGL>(Scene->Cameras.size() * sizeof(camera), Scene->Cameras.data());
+    Scene->EnvironmentsBuffer = std::make_shared<bufferGL>(Scene->Environments.size() * sizeof(camera), Scene->Environments.data());
 #elif API==API_CU
     Scene->CamerasBuffer = std::make_shared<bufferCu>(Scene->Cameras.size() * sizeof(camera), Scene->Cameras.data());
+    Scene->EnvironmentsBuffer = std::make_shared<bufferCu>(Scene->Environments.size() * sizeof(camera), Scene->Environments.data());
 #endif    
     return Scene;
 }

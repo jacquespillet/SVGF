@@ -460,6 +460,22 @@ FN_DECL bool IsVolumetric(INOUT(materialPoint) Material)
              );
 }
 
+// region environment
+FN_DECL vec3 EvalEnvironment(INOUT(environment) Env, vec3 Direction)
+{
+    return Env.Emission;
+}
+
+FN_DECL vec3 EvalEnvironment(vec3 Direction)
+{
+    vec3 Emission = vec3(0,0,0);
+    for(int i=0; i< EnvironmentsCount; i++)
+    {
+        Emission += EvalEnvironment(Environments[i], Direction);
+    }
+    return Emission;
+}
+
 
 // Region lights
 
@@ -1121,12 +1137,11 @@ MAIN()
                 sceneIntersection Isect;
                 Isect.Distance = 1e30f;
                 Isect.RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(Bounce + GET_ATTR(Parameters,CurrentSample) + Sample) * uint(117191)) | uint(1), 371213); 
-
+                
                 IntersectTLAS(Ray, Isect);
                 if(Isect.Distance == 1e30f)
                 {
-                    // Radiance += vec3(1,1,1);
-                    break;
+                    Radiance += Weight * EvalEnvironment(Ray.Direction);
                 }
 
                 // get all the necessary geometry information

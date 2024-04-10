@@ -59,3 +59,8 @@ layout(std430, binding = 10) buffer LightsUBO {
     uint LightsCount;
     light Lights[];
 };
+
+layout(std430, binding = 11) buffer EnvironmentsBuffer {
+  environment Environments[];
+};
+uniform int EnvironmentsCount;

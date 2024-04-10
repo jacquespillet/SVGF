@@ -202,6 +202,8 @@ void application::Trace()
         PathTracingShader->SetSSBO(BVH->TLASNodeBuffer, 7);        
         PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
         PathTracingShader->SetSSBO(MaterialBuffer, 12);
+        PathTracingShader->SetSSBO(Scene->EnvironmentsBuffer, 11);
+        PathTracingShader->SetInt("EnvironmentsCount", Scene->Environments.size());
         PathTracingShader->SetUBO(TracingParamsBuffer, 9);
         PathTracingShader->SetSSBO(LightsBuffer, 10);
         PathTracingShader->SetTextureArray(Scene->TexArray, 13, "SceneTextures");
@@ -211,7 +213,7 @@ void application::Trace()
         dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
         TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, RenderWidth, RenderHeight,
                                             (triangle*)BVH->TrianglesBuffer->Data, (triangleExtraData*) BVH->TrianglesExBuffer->Data, (bvhNode*) BVH->BVHBuffer->Data, (uint32_t*) BVH->IndicesBuffer->Data, (indexData*) BVH->IndexDataBuffer->Data, (bvhInstance*)BVH->TLASInstancesBuffer->Data, (tlasNode*) BVH->TLASNodeBuffer->Data,
-                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data, Scene->TexArray->TexObject, (lights*)LightsBuffer->Data);
+                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data, Scene->TexArray->TexObject, (lights*)LightsBuffer->Data, (environment*)Scene->EnvironmentsBuffer->Data, Scene->Environments.size());
 #endif
         Params.CurrentSample+= Params.Batch;
     }
