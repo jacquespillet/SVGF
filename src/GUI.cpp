@@ -601,7 +601,7 @@ bool gui::TracingGUI()
     Changed |= ImGui::SliderInt("Batches", &App->Params.Batch, 0, 32);
     Changed |= ImGui::SliderInt("Bounces", &App->Params.Bounces, 0, 32);
     Changed |= ImGui::DragFloat("Clamp", &App->Params.Clamp, 0.1f, 0.0f, 32.0f);    
-
+    Changed |= ImGui::Checkbox("Denoise", &App->DoDenoise);
 
     return Changed;
 }

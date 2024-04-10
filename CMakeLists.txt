@@ -2,7 +2,7 @@ project(gpuPathTracing)
 
 set(API_GL 0)
 set(API_CU 1)
-set(API ${API_GL})
+set(API ${API_CU})
 
 add_definitions(-DAPI_GL=${API_GL})
 add_definitions(-DAPI_CU=${API_CU})
@@ -53,6 +53,14 @@ set(FILEDIALOG_SOURCE ${FILEDIALOG_SOURCE} ${CMAKE_CURRENT_SOURCE_DIR}/vendor/fi
 include_directories(${FILEDIALOG_INC_DIR})
 link_directories(${FILEDIALOG_LIB_DIR})
 
+# # OIDN
+set(OIDN_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/oidn/include)
+set(OIDN_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/oidn/lib)
+set(OIDN_DLL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/oidn/bin)
+include_directories(${OIDN_INC_DIR})
+link_directories(${OIDN_LIB_DIR})
+
+
 
 find_package(CUDA REQUIRED)
 enable_language(CUDA)
@@ -84,9 +92,12 @@ set (sourceFiles
 )
 
 cuda_add_executable(PathTracer ${sourceFiles})
-target_link_libraries(PathTracer glfw3 glew32 opengl32)
+target_link_libraries(PathTracer glfw3 glew32 opengl32 OpenImageDenoise)
 target_link_libraries(PathTracer ${CUDA_LIBRARIES})
 
 install(TARGETS PathTracer RUNTIME)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/resources/ DESTINATION bin/resources)
+install(FILES ${OIDN_DLL_DIR}/OpenImageDenoise.dll DESTINATION bin)
+install(FILES ${OIDN_DLL_DIR}/OpenImageDenoise_core.dll DESTINATION bin)
+install(FILES ${OIDN_DLL_DIR}/OpenImageDenoise_device_cuda.dll DESTINATION bin)
 install(FILES ${GLEW_DLL_DIR}/glew32.dll DESTINATION bin)

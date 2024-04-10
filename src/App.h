@@ -2,6 +2,7 @@
 #include <memory>
 #include "Tracing.h"
 #include "CameraController.h"
+#include <OpenImageDenoise/oidn.hpp>
 
 namespace gpupt
 {
@@ -54,11 +55,20 @@ private:
     uint32_t  RenderWindowHeight;
     float RenderAspectRatio = 1;
 
+    // Denoiser
+    oidn::DeviceRef Device;
+    oidn::FilterRef Filter;
+    cudaStream_t Stream;
+    std::shared_ptr<bufferCu> DenoisedBuffer;
+    bool Denoised=false;
+    bool DoDenoise=true;
+
+
     std::shared_ptr<textureGL> TonemapTexture;
+
 #if API==API_GL
     std::shared_ptr<shaderGL> PathTracingShader;
     std::shared_ptr<shaderGL> TonemapShader;
-
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<uniformBufferGL> TracingParamsBuffer;
     std::shared_ptr<bufferGL> MaterialBuffer;
@@ -71,8 +81,8 @@ private:
     std::shared_ptr<cudaTextureMapping> RenderTextureMapping;
     std::shared_ptr<bufferCu> MaterialBuffer;
     std::shared_ptr<bufferCu> LightsBuffer;
-
 #endif
+
     void Trace();
 
     void InitGpuObjects();
@@ -81,6 +91,8 @@ private:
     void ResizeRenderTextures();
     void CalculateWindowSizes();
     void StartFrame();
+    void Denoise();
+    void CreateOIDNFilter();
     void EndFrame();
 };
 
