@@ -80,7 +80,8 @@ void application::InitGpuObjects()
 
     TracingParamsBuffer = std::make_shared<uniformBufferGL>(sizeof(tracingParameters), &Params);
     MaterialBuffer = std::make_shared<bufferGL>(sizeof(material) * Scene->Materials.size(), Scene->Materials.data());
-    LightsBuffer = std::make_shared<bufferGL>(sizeof(lights), &Lights);
+    LightsBuffer = std::make_shared<bufferGL>(sizeof(light) * Lights.Lights.size(), Lights.Lights.data());
+    LightsCDFBuffer = std::make_shared<bufferGL>(sizeof(float) * Lights.LightsCDF.size(), Lights.LightsCDF.data());
     
 
 #elif API==API_CU
@@ -90,7 +91,8 @@ void application::InitGpuObjects()
     RenderTextureMapping = CreateMapping(TonemapTexture);    
     TracingParamsBuffer = std::make_shared<bufferCu>(sizeof(tracingParameters), &Params);
     MaterialBuffer = std::make_shared<bufferCu>(sizeof(material) * Scene->Materials.size(), Scene->Materials.data());
-    LightsBuffer = std::make_shared<bufferCu>(sizeof(lights), &Lights);
+    LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * Lights.Lights.size(), Lights.Lights.data());
+    LightsCDFBuffer = std::make_shared<bufferCu>(sizeof(float) * Lights.LightsCDF.size(), Lights.LightsCDF.data());
 #endif
 }
 
@@ -197,20 +199,21 @@ void application::Trace()
         PathTracingShader->SetSSBO(BVH->TLASInstancesBuffer, 6);
         PathTracingShader->SetSSBO(BVH->TLASNodeBuffer, 7);        
         PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
-        PathTracingShader->SetSSBO(MaterialBuffer, 12);
-        PathTracingShader->SetSSBO(Scene->EnvironmentsBuffer, 11);
-        PathTracingShader->SetInt("EnvironmentsCount", Scene->Environments.size());
         PathTracingShader->SetUBO(TracingParamsBuffer, 9);
         PathTracingShader->SetSSBO(LightsBuffer, 10);
+        PathTracingShader->SetSSBO(Scene->EnvironmentsBuffer, 11);
+        PathTracingShader->SetSSBO(MaterialBuffer, 12);
         PathTracingShader->SetTextureArray(Scene->TexArray, 13, "SceneTextures");
         PathTracingShader->SetTextureArray(Scene->EnvTexArray, 14, "EnvTextures");
+        PathTracingShader->SetSSBO(LightsCDFBuffer, 15);
+        PathTracingShader->SetInt("EnvironmentsCount", Scene->Environments.size());
         PathTracingShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 +1, 1);
 #elif API==API_CU
         dim3 blockSize(16, 16);
         dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
         TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, RenderWidth, RenderHeight,
                                             (triangle*)BVH->TrianglesBuffer->Data, (triangleExtraData*) BVH->TrianglesExBuffer->Data, (bvhNode*) BVH->BVHBuffer->Data, (uint32_t*) BVH->IndicesBuffer->Data, (indexData*) BVH->IndexDataBuffer->Data, (bvhInstance*)BVH->TLASInstancesBuffer->Data, (tlasNode*) BVH->TLASNodeBuffer->Data,
-                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (lights*)LightsBuffer->Data, 
+                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)LightsBuffer->Data, (float*)LightsCDFBuffer->Data, (int)Lights.Lights.size(), 
                                             (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight);
 #endif
         Params.CurrentSample+= Params.Batch;

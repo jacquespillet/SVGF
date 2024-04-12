@@ -8,7 +8,6 @@
 
 #define PI_F 3.141592653589
 #define INVALID_ID -1
-#define MAX_CDF 512
 
 #define INIT()
 

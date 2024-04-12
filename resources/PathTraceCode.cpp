@@ -82,23 +82,45 @@ FN_DECL int SampleUniform(int Size, float Rand)
     // returns a random number inside the range (0 - Size)
     return clamp(int(Rand * Size), 0, Size-1);
 }
+
+FN_DECL int UpperBound(int CDFStart, int CDFCount, int X)
+{
+    int Mid;
+    int Low = CDFStart;
+    int High = CDFStart + CDFCount;
+ 
+    while (Low < High) {
+        Mid = Low + (High - Low) / 2;
+        if (X >= LightsCDF[Mid]) {
+            Low = Mid + 1;
+        }
+        else {
+            High = Mid;
+        }
+    }
+   
+    // if X is greater than arr[n-1]
+    if(Low < CDFStart + CDFCount && LightsCDF[Low] <= X) {
+       Low++;
+    }
+ 
+    // Return the upper_bound index
+    return Low;
+}
+ 
+
 FN_DECL int SampleDiscrete(int LightInx, float R)
 {
     //Remap R from 0 to the size of the distribution
-    float LastValue = Lights[LightInx].CDF[Lights[LightInx].CDFCount-1];
+    int CDFStart = Lights[LightInx].CDFStart;
+    int CDFCount = Lights[LightInx].CDFCount;
+
+    float LastValue = LightsCDF[CDFStart + CDFCount-1];
 
     R = clamp(R * LastValue, 0.0f, LastValue - 0.00001f);
     // Returns the first element in the array that's greater than R.#
-    int Inx=0;
-    for(int i=0; i<Lights[LightInx].CDFCount; i++)
-    {
-        if(Lights[LightInx].CDF[i] > R) 
-        {
-            Inx = i;
-            break;
-        }
-    }
-    return clamp(Inx, 0, Lights[LightInx].CDFCount-1);
+    int Inx= UpperBound(CDFStart, CDFCount, R);
+    return clamp(Inx, 0, CDFCount-1);
 }
 
 FN_DECL float DistanceSquared(vec3 A, vec3 B)
@@ -111,6 +133,18 @@ FN_DECL float SampleUniformPDF(int Size)
     return 1.0f / float(Size);
 }
 
+FN_DECL vec3 SampleSphere(vec2 UV)
+{
+  float Z   = 2 * UV.y - 1;
+  float R   = sqrt(clamp(1 - Z * Z, 0.0f, 1.0f));
+  float Phi = 2 * PI_F * UV.x;
+  return vec3(R * cos(Phi), R * sin(Phi), Z);
+}
+
+FN_DECL float SampleDiscretePDF(int CDFStart, int CDFCount, int Inx) {
+  if (Inx == 0) return LightsCDF[CDFStart];
+  return LightsCDF[CDFStart + Inx]- LightsCDF[CDFStart + Inx - 1];
+}
 
 
 // BVH
@@ -473,9 +507,12 @@ FN_DECL bool IsVolumetric(INOUT(materialPoint) Material)
 // region environment
 FN_DECL vec3 EvalEnvironment(INOUT(environment) Env, vec3 Direction)
 {
+    
+    vec3 WorldDir = TransformDirection(inverse(Env.Transform), Direction);
+
     vec2 TexCoord = vec2(
-        atan(Direction.x, Direction.z) / (2 * PI_F), 
-        acos(clamp(Direction.y, -1.0f, 1.0f)) / PI_F
+        atan(WorldDir.x, WorldDir.z) / (2 * PI_F), 
+        acos(clamp(WorldDir.y, -1.0f, 1.0f)) / PI_F
     );
     if(TexCoord.x < 0) TexCoord.x += 1.0f; 
 
@@ -501,7 +538,6 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
 {
     // Take a random light index
     int LightID = SampleUniform(int(LightsCount), RandL);
-    LightID = 0;
     // Returns a vector that points to a light in the scene.
     if(Lights[LightID].Instance != INVALID_ID)
     {
@@ -520,9 +556,26 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
             Tri.v1 * UV.x + 
             Tri.v2 * UV.y +
             Tri.v0 * (1 - UV.x - UV.y);
+        LightPos = TransformPoint(Instance.Transform, LightPos);
 
         // return the normalized direction
         return normalize(LightPos - Position);
+    }
+    else if(Lights[LightID].Environment != INVALID_ID)
+    {
+        environment Env = Environments[Lights[LightID].Environment];
+        if (Env.EmissionTexture != INVALID_ID) {
+            // auto& emission_tex = scene.textures[environment.emission_tex];
+            int SampleInx = SampleDiscrete(LightID, RandEl);
+            vec2 UV = vec2(((SampleInx % EnvTexturesWidth) + 0.5f) / EnvTexturesWidth,
+                ((SampleInx / EnvTexturesWidth) + 0.5f) / EnvTexturesHeight);
+            
+            return TransformDirection(Env.Transform, vec3(cos(UV.x * 2 * PI_F) * sin(UV.y * PI_F), 
+                        cos(UV.y * PI_F),
+                        sin(UV.x * 2 * PI_F) * sin(UV.y * PI_F)));
+        } else {
+            return SampleSphere(RandUV);
+        }      
     }
     else
     {
@@ -573,7 +626,7 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
                 LightNormal = TransformDirection(InstanceTransform, LightNormal);
 
                 //Find the probability that this point was sampled
-                float Area = Lights[i].CDF[Lights[i].CDFCount-1];
+                float Area = LightsCDF[Lights[i].CDFStart + Lights[i].CDFCount-1];
                 LightPDF += DistanceSquared(LightPos, Position) / 
                             (abs(dot(LightNormal, Direction)) * Area);
 
@@ -581,6 +634,31 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
                 NextPosition = LightPos + Direction * 1e-3f;
             }
             PDF += LightPDF;
+        }
+        else if(Lights[i].Environment != INVALID_ID)
+        {
+            environment Env = Environments[Lights[i].Environment];
+            if (Env.EmissionTexture != INVALID_ID) {
+                vec3 WorldDir = TransformDirection(inverse(Env.Transform), Direction);
+
+                vec2 TexCoord = vec2(atan2(WorldDir.z, WorldDir.x) / (2 * PI_F),
+                                     acos(clamp(WorldDir.y, -1.0f, 1.0f)) / PI_F);
+                if (TexCoord.x < 0) TexCoord.x += 1;
+                
+                int u = clamp(
+                    (int)(TexCoord.x * EnvTexturesWidth), 0, EnvTexturesWidth - 1);
+                int v    = clamp((int)(TexCoord.y * EnvTexturesHeight), 0,
+                    EnvTexturesHeight - 1);
+                float Probability = SampleDiscretePDF(
+                                Lights[i].CDFStart, Lights[i].CDFCount, v * EnvTexturesWidth + u) /
+                            LightsCDF[Lights[i].CDFStart + Lights[i].CDFCount -1];
+                float Angle = (2 * PI_F / EnvTexturesWidth) *
+                            (PI_F / EnvTexturesHeight) *
+                            sin(PI_F * (v + 0.5f) / EnvTexturesHeight);
+                PDF += Probability / Angle;
+            } else {
+                PDF += 1 / (4 * PI_F);
+            }            
         }
     }
 
@@ -1221,6 +1299,7 @@ MAIN()
                         {
                             Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
                         }
+
                         if(Incoming == vec3(0,0,0)) break;
                         Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
                                 vec3(0.5 * SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming) + 0.5f * SampleLightsPDF(Position, Incoming));

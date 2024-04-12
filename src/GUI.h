@@ -19,7 +19,8 @@ public:
     bool CamerasGUI();
     void TextureGUI(int TextureInx);
     void TexturesGUI();
-    void EnvironmentsGUI();
+    bool EnvironmentGUI(int EnvironmentInx);
+    bool EnvironmentsGUI();
     bool TracingGUI();
     void GUI();
 
@@ -31,6 +32,7 @@ public:
     int SelectedShape = -1;
     int SelectedInstance = -1;
     int SelectedTexture = -1;
+    int SelectedEnvironment = -1;
     int SelectedCamera = -1;
 };
 }

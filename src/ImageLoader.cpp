@@ -2,6 +2,7 @@
 #include <stb_image.h>
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize.h"
+#include "stb_image_write.h"
 #include <iostream>
 
 namespace gpupt
@@ -66,11 +67,11 @@ void ImageFromFile(const std::string &FileName, std::vector<uint8_t> &Data, int 
 void ImageFromFile(const std::string &FileName, std::vector<float> &Data, int &Width, int &Height, int &NumChannels)
 {
     int ImgWidth, ImgHeight;
-    int channels;
+    int Channels;
 
     // Load the image
-    float* Image = stbi_loadf(FileName.c_str(), &ImgWidth, &ImgHeight, &channels, NumChannels);
-    
+    float* Image = stbi_loadf(FileName.c_str(), &ImgWidth, &ImgHeight, &Channels, NumChannels);
+
     if (Image == nullptr) {
         // Handle error (file not found, invalid format, etc.)
         std::cout << "Failed to load image: " << FileName << std::endl;
@@ -84,6 +85,12 @@ void ImageFromFile(const std::string &FileName, std::vector<float> &Data, int &W
     // If the target size is not the current size, resize the image
     if(TargetWidth != ImgWidth || TargetHeight != ImgHeight)
     {
+        // Check for too high value that will break when resized
+        for(size_t i=0; i<ImgWidth * ImgHeight * NumChannels; i++)
+        {
+            Image[i] = std::min(10000.0f, Image[i]);
+        }
+
         // Resize the image using stbir_resize (part of stb_image_resize.h)
         float* ResizedImage = new float[Width * Height * 4]; // Assuming RGBA format
 
@@ -110,7 +117,21 @@ void ImageFromFile(const std::string &FileName, std::vector<float> &Data, int &W
         memcpy(Data.data(), Image, TargetWidth * TargetHeight * 4 * sizeof(float));
         delete[] Image;
     }
+
+    for(size_t i=0; i<Data.size(); i++)
+    {
+        if(std::isnan(Data[i]) || std::isinf(Data[i]))
+        {
+            Data[i] = 0;
+        }
+    }
 } 
+
+void ImageToFile(const std::string &FileName, std::vector<float> &Data, int Width, int Height, int NumChannels)
+{
+    stbi_write_hdr(FileName.c_str(), Width, Height, NumChannels,Data.data());
+    
+}
 
 
 

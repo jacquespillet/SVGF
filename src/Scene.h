@@ -9,6 +9,8 @@
 #define MATERIAL_TYPE_VOLUMETRIC   2
 #define MATERIAL_TYPE_GLASS   3
 #define MATERIAL_TYPE_SUBSURFACE   4
+#define ENV_TEX_WIDTH 2048
+
 
 namespace gpupt
 {
@@ -30,7 +32,7 @@ struct camera
     
     glm::vec3 Padding0;
     float Aperture = 0;
-    
+      
     int Orthographic = 0;
     glm::ivec3 Padding;
 };
@@ -45,6 +47,8 @@ struct texture
 
     void SetFromFile(const std::string &FileName, int Width = -1, int Height = -1);
     void SetFromPixels(const std::vector<uint8_t> &PixelData, int Width = -1, int Height = -1);
+    glm::vec4 Sample(glm::ivec2 Coords);
+    glm::vec4 SampleF(glm::ivec2 Coords);
 };
 
 
@@ -94,6 +98,8 @@ struct shape
 
 struct environment
 {
+    glm::mat4 Transform;
+
     glm::vec3 Emission;
     float pad0;
 
@@ -125,8 +131,8 @@ struct scene
     int TextureWidth = 512;
     int TextureHeight = 512;
 
-    int EnvTextureWidth = 2048;
-    int EnvTextureHeight = 1024;
+    int EnvTextureWidth = ENV_TEX_WIDTH;
+    int EnvTextureHeight = ENV_TEX_WIDTH/2;
     void ReloadTextureArray();
 
 #if API==API_GL

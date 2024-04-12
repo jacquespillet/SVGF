@@ -2,9 +2,8 @@
 #include <glm/vec3.hpp>
 #include <glm/vec2.hpp>
 #include <memory>
+#include "Scene.h"
 
-#define MAX_LIGHTS 32
-#define MAX_CDF 512
 
 namespace gpupt
 {
@@ -49,17 +48,14 @@ struct light
 {
     int Instance = -1;
     int CDFCount = 0;
-    glm::ivec2 Pad0;
-
-    float CDF[MAX_CDF];
+    int Environment = -1;
+    int CDFStart = 0;
 };
 
 struct lights
 {
-    glm::uvec3 Pad0;
-    uint32_t LightsCount = 0;
-    
-    light Lights[MAX_LIGHTS];
+    std::vector<light> Lights;
+    std::vector<float> LightsCDF;
 };
 
 lights GetLights(std::shared_ptr<scene> Scene, tracingParameters &Parameters);

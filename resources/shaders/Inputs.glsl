@@ -54,10 +54,12 @@ layout(std430, binding = 12) buffer MaterialsBuffer {
 layout(binding=13) uniform sampler2DArray SceneTextures;
 
 
-layout(std430, binding = 10) buffer LightsUBO {
-    uvec3 Pad0;
-    uint LightsCount;
+layout(std430, binding = 10) buffer LightsBuffer {
     light Lights[];
+};
+
+layout(std430, binding = 15) buffer LightsCDFBuffer {
+    float LightsCDF[];
 };
 
 layout(std430, binding = 11) buffer EnvironmentsBuffer {

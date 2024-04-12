@@ -588,6 +588,72 @@ void gui::TexturesGUI()
 
 }
 
+bool gui::EnvironmentGUI(int EnvironmentInx)
+{
+    bool Changed=false;
+
+    glm::vec3 Scale;
+    glm::vec3 Rotation;
+    glm::vec3 Translation;
+    DecomposeMatrixToComponents(App->Scene->Environments[EnvironmentInx].Transform, &Translation[0], &Rotation[0], &Scale[0]);
+
+    Changed |= ImGui::DragFloat3("Rotation", &Rotation[0], 1);
+
+    static bool UniformEmission = true;
+    ImGui::Checkbox("Uniform Emission", &UniformEmission);
+
+    if(UniformEmission)
+    {
+        float Scale = (App->Scene->Environments[EnvironmentInx].Emission.x + App->Scene->Environments[EnvironmentInx].Emission.y + App->Scene->Environments[EnvironmentInx].Emission.z) / 3.0f;
+        Changed |= ImGui::DragFloat("Emission", &Scale, 0.5f, 0, 100000);
+        App->Scene->Environments[EnvironmentInx].Emission = glm::vec3(Scale, Scale, Scale);
+    }
+    else
+    {
+        Changed |= ImGui::DragFloat3("Emission", &Scale[0], 0.5f, 0, 100000);
+    }
+
+    if(Changed)
+    {
+        RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], App->Scene->Environments[EnvironmentInx].Transform);
+    }
+
+    return Changed;
+}
+
+bool gui::EnvironmentsGUI()
+{
+    bool Changed = false;
+
+    for (int i = 0; i < App->Scene->Environments.size(); i++)
+    {
+        if (ImGui::Selectable(App->Scene->EnvironmentNames[i].c_str(), SelectedEnvironment == i))
+            SelectedEnvironment = i;
+    }
+
+    // if(ImGui::Button("Add"))
+    // {
+    //     nfdchar_t *ImagePath = NULL;
+    //     nfdresult_t Result = NFD_OpenDialog( NULL, NULL, &ImagePath );
+    //     if ( Result == NFD_OKAY ) 
+    //     {
+    //         App->Scene->Environments.emplace_back();
+    //         texture &Texture = App->Scene->Environments.back(); 
+    //         Texture.SetFromFile(ImagePath, App->Scene->TextureWidth, App->Scene->TextureHeight);
+    //         App->Scene->TextureNames.push_back(ExtractFilename(ImagePath));
+    //         App->Scene->ReloadTextureArray();
+    //     }             
+    // }
+    ImGui::Separator();
+
+    if(SelectedEnvironment != -1)
+    {
+        Changed |= EnvironmentGUI(SelectedEnvironment);
+    }
+
+    return Changed;
+}
+
 bool gui::TracingGUI()
 {
     bool Changed = false;
@@ -651,6 +717,15 @@ void gui::GUI()
         if (ImGui::BeginTabItem("Textures"))
         {
             TexturesGUI();
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Environments"))
+        {
+            if(EnvironmentsGUI())
+            {
+                App->Scene->EnvironmentsBuffer->updateData(App->Scene->Environments.data(), App->Scene->Environments.size() * sizeof(environment));
+                App->ResetRender=true;
+            }
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Tracing Params"))
