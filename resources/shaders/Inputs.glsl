@@ -61,6 +61,9 @@ layout(std430, binding = 10) buffer LightsBuffer {
 layout(std430, binding = 15) buffer LightsCDFBuffer {
     float LightsCDF[];
 };
+uniform int LightsCount;
+uniform int EnvTexturesWidth;
+uniform int EnvTexturesHeight;
 
 layout(std430, binding = 11) buffer EnvironmentsBuffer {
   environment Environments[];

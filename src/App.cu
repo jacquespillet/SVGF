@@ -207,6 +207,10 @@ void application::Trace()
         PathTracingShader->SetTextureArray(Scene->EnvTexArray, 14, "EnvTextures");
         PathTracingShader->SetSSBO(LightsCDFBuffer, 15);
         PathTracingShader->SetInt("EnvironmentsCount", Scene->Environments.size());
+        PathTracingShader->SetInt("LightsCount", Lights.Lights.size());
+        PathTracingShader->SetInt("EnvTexturesWidth", Scene->EnvTextureWidth);
+        PathTracingShader->SetInt("EnvTexturesHeight", Scene->EnvTextureHeight);
+  
         PathTracingShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 +1, 1);
 #elif API==API_CU
         dim3 blockSize(16, 16);

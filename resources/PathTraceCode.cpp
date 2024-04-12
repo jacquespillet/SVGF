@@ -119,7 +119,7 @@ FN_DECL int SampleDiscrete(int LightInx, float R)
 
     R = clamp(R * LastValue, 0.0f, LastValue - 0.00001f);
     // Returns the first element in the array that's greater than R.#
-    int Inx= UpperBound(CDFStart, CDFCount, R);
+    int Inx= UpperBound(CDFStart, CDFCount, int(R));
     return clamp(Inx, 0, CDFCount-1);
 }
 
@@ -646,8 +646,8 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
                 if (TexCoord.x < 0) TexCoord.x += 1;
                 
                 int u = clamp(
-                    (int)(TexCoord.x * EnvTexturesWidth), 0, EnvTexturesWidth - 1);
-                int v    = clamp((int)(TexCoord.y * EnvTexturesHeight), 0,
+                    int(TexCoord.x * EnvTexturesWidth), 0, EnvTexturesWidth - 1);
+                int v    = clamp(int(TexCoord.y * EnvTexturesHeight), 0,
                     EnvTexturesHeight - 1);
                 float Probability = SampleDiscretePDF(
                                 Lights[i].CDFStart, Lights[i].CDFCount, v * EnvTexturesWidth + u) /
@@ -1285,6 +1285,7 @@ MAIN()
                         Bounce--;
                         continue;
                     }
+
                     
 
                     Radiance += Weight * Material.Emission;
@@ -1301,8 +1302,9 @@ MAIN()
                         }
 
                         if(Incoming == vec3(0,0,0)) break;
-                        Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
-                                vec3(0.5 * SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming) + 0.5f * SampleLightsPDF(Position, Incoming));
+                        // Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                        //         vec3(0.5 * SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming) + 0.5f * SampleLightsPDF(Position, Incoming));
+                        Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
                     }
                     else
                     {

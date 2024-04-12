@@ -29,3 +29,4 @@
 
 #define textureSample texture
 #define textureSampleEnv texture
+#define atan2 atan

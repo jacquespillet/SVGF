@@ -94,6 +94,14 @@ __device__ vec4 imageLoad(vec4 *Image, ivec2 p)
 
 __device__ vec4 textureSample(cudaTextureObject_t _SceneTextures, glm::vec3 Coords)
 {
+    // Coords.x = Coordx.x % 1.0f;
+    float W;
+    if(Coords.x < 0) Coords.x = 1 - Coords.x;
+    if(Coords.y < 0) Coords.y = 1 - Coords.y;
+
+    Coords.x = std::modf(Coords.x, &W);
+    Coords.y = std::modf(Coords.y, &W);
+
     int NumLayersX = 8192 / TexturesWidth;
     int LayerInx = Coords.z;
     
