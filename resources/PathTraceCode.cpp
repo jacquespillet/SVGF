@@ -1,7 +1,6 @@
 struct randomState
 {
     uint64_t State;
-    uint64_t Inc;
 };
 
 
@@ -143,7 +142,8 @@ FN_DECL vec3 SampleSphere(vec2 UV)
 
 FN_DECL float SampleDiscretePDF(int CDFStart, int CDFCount, int Inx) {
   if (Inx == 0) return LightsCDF[CDFStart];
-  return LightsCDF[CDFStart + Inx]- LightsCDF[CDFStart + Inx - 1];
+  return( LightsCDF[CDFStart + Inx]- LightsCDF[CDFStart + Inx - 1]) /
+         LightsCDF[CDFStart + CDFCount -1];
 }
 
 
@@ -158,7 +158,7 @@ FN_DECL float RayAABBIntersection(ray Ray, vec3 AABBMin, vec3 AABBMax, INOUT(sce
     float tz1 = (AABBMin.z - Ray.Origin.z) * Ray.InverseDirection.z, tz2 = (AABBMax.z - Ray.Origin.z) * Ray.InverseDirection.z;
     tmin = max( tmin, min( tz1, tz2 ) ), tmax = min( tmax, max( tz1, tz2 ) );
     if(tmax >= tmin && tmin < Isect.Distance && tmax > 0) return tmin;
-    else return 1e30f;    
+    else return MAX_LENGTH;    
 }
 
 FN_DECL void RayTriangleInteresection(ray Ray, INOUT(triangle) Triangle, INOUT(sceneIntersection) Isect, uint InstanceIndex, uint PrimitiveIndex, uint MaterialIndex)
@@ -244,7 +244,7 @@ FN_DECL void IntersectBVH(ray Ray, INOUT(sceneIntersection) Isect, uint Instance
             Child1 = tmpChild;
         }
 
-        if(Dist1 == 1e30f)
+        if(Dist1 == MAX_LENGTH)
         {
             // If we didn't hit any of the 2 child, we can go up the stack
             if(StackPointer==0) break;
@@ -254,7 +254,7 @@ FN_DECL void IntersectBVH(ray Ray, INOUT(sceneIntersection) Isect, uint Instance
         {
             // If we did hit, add this child to the stack.
             NodeInx = Child1;
-            if(Dist2 != 1e30f)
+            if(Dist2 != MAX_LENGTH)
             {
                 Stack[StackPointer++] = Child2;
             }   
@@ -306,7 +306,7 @@ FN_DECL void IntersectTLAS(ray Ray, INOUT(sceneIntersection) Isect)
             Child1 = tmpChild;            
         }
         
-        if(Dist1 == 1e30f) //We didn't hit a child
+        if(Dist1 == MAX_LENGTH) //We didn't hit a child
         {
             if(StackPtr == 0) break; //There's no node left to explore
             else NodeInx = Stack[--StackPtr]; //Go to the next node in the stack
@@ -314,7 +314,7 @@ FN_DECL void IntersectTLAS(ray Ray, INOUT(sceneIntersection) Isect)
         else //We hit a child
         {
             NodeInx = Child1; //Set the current node to the first child
-            if(Dist2 != 1e30f) Stack[StackPtr++] = Child2; //If we also hit the other node, add it in the stack
+            if(Dist2 != MAX_LENGTH) Stack[StackPtr++] = Child2; //If we also hit the other node, add it in the stack
         }
 
     }
@@ -606,10 +606,10 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
                 Ray.Direction = Direction;
                 
                 sceneIntersection Isect;
-                Isect.Distance = 1e30f;
+                Isect.Distance = MAX_LENGTH;
                 IntersectInstance(Ray, Isect, Lights[i].Instance);
                 
-                if(Isect.Distance == 1e30f) break;
+                if(Isect.Distance == MAX_LENGTH) break;
 
                 mat4 InstanceTransform = TLASInstancesBuffer[Lights[i].Instance].Transform;
                 //Get the point on the light
@@ -652,8 +652,7 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
                 int v    = clamp(int(TexCoord.y * EnvTexturesHeight), 0,
                     EnvTexturesHeight - 1);
                 float Probability = SampleDiscretePDF(
-                                Lights[i].CDFStart, Lights[i].CDFCount, v * EnvTexturesWidth + u) /
-                            LightsCDF[Lights[i].CDFStart + Lights[i].CDFCount -1];
+                                Lights[i].CDFStart, Lights[i].CDFCount, v * EnvTexturesWidth + u);
                 float Angle = (2 * PI_F / EnvTexturesWidth) *
                             (PI_F / EnvTexturesHeight) *
                             sin(PI_F * (v + 0.5f) / EnvTexturesHeight);
@@ -905,7 +904,7 @@ FN_DECL float SampleTransmittance(vec3 Density, float MaxDistance, float RL, flo
     //Here, the mean free path is simply 1 / density
 
     // Calculate the distance we travel, using the inverse of the CDF of the exponential function * mean free path.
-    float Distance = (Density[Channel] == 0) ? 1e30f : -log(1 - RD) / Density[Channel];
+    float Distance = (Density[Channel] == 0) ? MAX_LENGTH : -log(1 - RD) / Density[Channel];
     
     return min(Distance, MaxDistance);
 }
@@ -1161,26 +1160,19 @@ FN_DECL vec3 SampleDelta(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOU
 
 
 // Random
+// Random
 FN_DECL uint AdvanceState(INOUT(randomState) RNG)
 {
-    uint64_t OldState = RNG.State;
-    RNG.State = OldState * 6364136223846793005ul + RNG.Inc;
-    uint XorShifted = uint(((OldState >> uint(18)) ^ OldState) >> uint(27));
-    uint Rot = uint(OldState >> uint(59));
-
-    return (XorShifted >> Rot) | (XorShifted << ((~Rot + 1u) & 31));
+    RNG.State ^= RNG.State << 13u;
+    RNG.State ^= RNG.State >> 17u;
+    RNG.State ^= RNG.State << 5u;
+    return RNG.State;    
 }
 
-FN_DECL randomState CreateRNG(uint64_t Seed, uint64_t Sequence)
+FN_DECL randomState CreateRNG(uint64_t Seed)
 {
     randomState State;
-
-    State.State = 0U;
-    State.Inc = (Sequence << 1u) | 1u;
-    AdvanceState(State);
-    State.State += Seed;
-    AdvanceState(State);
-
+    State.State = Seed;
     return State;
 }
 
@@ -1219,7 +1211,7 @@ MAIN()
         vec4 NewCol;
         for(int Sample=0; Sample < GET_ATTR(Parameters, Batch); Sample++)
         {
-            randomState RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277) + uint(GET_ATTR(Parameters,CurrentSample) + Sample) * uint(26699)) | uint(1), 371213); 
+            randomState RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277) + uint(GET_ATTR(Parameters,CurrentSample) + Sample) * uint(26699)) | uint(1) ); 
             ray Ray = GetRay(UV, Random2F(RandomState));
             
 
@@ -1232,11 +1224,11 @@ MAIN()
             for(int Bounce=0; Bounce < GET_ATTR(Parameters, Bounces); Bounce++)
             {
                 sceneIntersection Isect;
-                Isect.Distance = 1e30f;
-                Isect.RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(Bounce + GET_ATTR(Parameters,CurrentSample) + Sample) * uint(117191)) | uint(1), 371213); 
+                Isect.Distance = MAX_LENGTH;
+                Isect.RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(Bounce + GET_ATTR(Parameters,CurrentSample) + Sample) * uint(117191)) | uint(1)); 
                 
                 IntersectTLAS(Ray, Isect);
-                if(Isect.Distance == 1e30f)
+                if(Isect.Distance == MAX_LENGTH)
                 {
                     Radiance += Weight * EvalEnvironment(Ray.Direction);
                     break;
@@ -1294,7 +1286,8 @@ MAIN()
                     vec3 Incoming = vec3(0);
                     if(!IsDelta(Material))
                     {
-                        if(RandomUnilateral(Isect.RandomState) < 0.5f)
+                        
+                        if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
                         {
                             Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
                         }
@@ -1306,7 +1299,11 @@ MAIN()
                         if(Incoming == vec3(0,0,0)) break;
                         // Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
                         //         vec3(0.5 * SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming) + 0.5f * SampleLightsPDF(Position, Incoming));
-                        Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
+                        // Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                        //         vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
+                        Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                                vec3(SampleLightsPDF(Position, Incoming));
+                        // Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
                     }
                     else
                     {
@@ -1334,7 +1331,7 @@ MAIN()
                     vec3 Position = Ray.Origin + Ray.Direction * Isect.Distance;
 
                     vec3 Incoming = vec3(0);
-                    if(RandomUnilateral(Isect.RandomState) < 0.5f)
+                    if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
                     {
                         // Sample a scattering direction inside the volume using the phase function
                         Incoming = SamplePhase(VolumeMaterial, Outgoing, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));

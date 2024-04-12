@@ -17,9 +17,9 @@ orbitCameraController::orbitCameraController()
     this->Theta = std::acos(Position.y / this->Distance);
     this->Phi = std::atan2(Position.z, Position.x);
 
-    // this->Phi = 0.0624008;
-    // this->Theta = 1.30899;
-    // this->Distance =   4.66042; 
+    this->Phi = 0.0624008;
+    this->Theta = 1.30899;
+    this->Distance =   4.66042; 
 
     Recalculate();
 }
