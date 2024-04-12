@@ -3,6 +3,8 @@
 #include "Tracing.h"
 #include "CameraController.h"
 #include <OpenImageDenoise/oidn.hpp>
+#include "Timer.h"
+
 
 namespace gpupt
 {
@@ -63,8 +65,9 @@ private:
     bool Denoised=false;
     bool DoDenoise=false;
 
-
     std::shared_ptr<textureGL> TonemapTexture;
+
+    timer Timer;
 
 #if API==API_GL
     std::shared_ptr<shaderGL> PathTracingShader;

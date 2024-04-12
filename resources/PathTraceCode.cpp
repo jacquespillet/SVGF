@@ -161,17 +161,17 @@ FN_DECL float RayAABBIntersection(ray Ray, vec3 AABBMin, vec3 AABBMax, INOUT(sce
     else return 1e30f;    
 }
 
-FN_DECL void RayTriangleInteresection(ray Ray, triangle Triangle, INOUT(sceneIntersection) Isect, uint InstanceIndex, uint PrimitiveIndex, uint MaterialIndex)
+FN_DECL void RayTriangleInteresection(ray Ray, INOUT(triangle) Triangle, INOUT(sceneIntersection) Isect, uint InstanceIndex, uint PrimitiveIndex, uint MaterialIndex)
 {
-    vec3 Edge1 = Triangle.v1 - Triangle.v0;
-    vec3 Edge2 = Triangle.v2 - Triangle.v0;
+    vec3 Edge1 = vec3(Triangle.PositionUvX1) - vec3(Triangle.PositionUvX0);
+    vec3 Edge2 = vec3(Triangle.PositionUvX2) - vec3(Triangle.PositionUvX0);
 
     vec3 h = cross(Ray.Direction, Edge2);
     float a = dot(Edge1, h);
     if(a > -0.000001f && a < 0.000001f) return; //Ray is parallel to the triangle
     
     float f = 1 / a;
-    vec3 s = Ray.Origin - Triangle.v0;
+    vec3 s = Ray.Origin - vec3(Triangle.PositionUvX0);
     float u = f * dot(s, h);
     if(u < 0 || u > 1) return;
 
@@ -402,9 +402,9 @@ FN_DECL vec3 EvalShadingPosition(INOUT(vec3) OutgoingDir, INOUT(sceneIntersectio
     triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];
 
     vec3 Position = 
-        Tri.v1 * Isect.U + 
-        Tri.v2 * Isect.V +
-        Tri.v0 * (1 - Isect.U - Isect.V);
+        vec3(Tri.PositionUvX1) * Isect.U + 
+        vec3(Tri.PositionUvX2) * Isect.V +
+        vec3(Tri.PositionUvX0) * (1 - Isect.U - Isect.V);
     return TransformPoint(Isect.InstanceTransform, Position);
 }
 
@@ -413,10 +413,12 @@ FN_DECL vec2 EvalTexCoord(INOUT(sceneIntersection) Isect)
 {
     uint Element = Isect.PrimitiveIndex;
     triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];
+    triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];
+
     return
-        ExtraData.UV1 * Isect.U + 
-        ExtraData.UV2 * Isect.V +
-        ExtraData.UV0 * (1 - Isect.U - Isect.V);    
+        vec2(Tri.PositionUvX1.w, ExtraData.NormalUvY1.w) * Isect.U + 
+        vec2(Tri.PositionUvX2.w, ExtraData.NormalUvY2.w) * Isect.V +
+        vec2(Tri.PositionUvX0.w, ExtraData.NormalUvY0.w) * (1 - Isect.U - Isect.V);    
 }
 
 FN_DECL vec4 EvalTexture(int Texture, vec2 UV, bool Linear)
@@ -553,9 +555,9 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
         // // Calculate the position
         triangle Tri = TriangleBuffer[TriangleStartInx + Element];
         vec3 LightPos = 
-            Tri.v1 * UV.x + 
-            Tri.v2 * UV.y +
-            Tri.v0 * (1 - UV.x - UV.y);
+            vec3(Tri.PositionUvX1) * UV.x + 
+            vec3(Tri.PositionUvX2) * UV.y +
+            vec3(Tri.PositionUvX0) * (1 - UV.x - UV.y);
         LightPos = TransformPoint(Instance.Transform, LightPos);
 
         // return the normalized direction
@@ -613,16 +615,16 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
                 //Get the point on the light
                 triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];
                 vec3 LightPos = 
-                    Tri.v1 * Isect.U + 
-                    Tri.v2 * Isect.V +
-                    Tri.v0 * (1 - Isect.U - Isect.V);     
+                    vec3(Tri.PositionUvX1) * Isect.U + 
+                    vec3(Tri.PositionUvX2) * Isect.V +
+                    vec3(Tri.PositionUvX0) * (1 - Isect.U - Isect.V);     
                 LightPos = TransformPoint(InstanceTransform, LightPos);
                 
                 triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];
                 vec3 LightNormal = 
-                    ExtraData.Normal1 * Isect.U + 
-                    ExtraData.Normal2 * Isect.V +
-                    ExtraData.Normal0 * (1 - Isect.U - Isect.V);                    
+                    vec3(ExtraData.NormalUvY1) * Isect.U + 
+                    vec3(ExtraData.NormalUvY2) * Isect.V +
+                    vec3(ExtraData.NormalUvY0) * (1 - Isect.U - Isect.V);                    
                 LightNormal = TransformDirection(InstanceTransform, LightNormal);
 
                 //Find the probability that this point was sampled
@@ -1244,7 +1246,7 @@ MAIN()
                 triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];    
                 Isect.InstanceTransform = TLASInstancesBuffer[Isect.InstanceIndex].Transform;
                 mat4 NormalTransform = TLASInstancesBuffer[Isect.InstanceIndex].NormalTransform;
-                vec3 HitNormal = ExtraData.Normal1 * Isect.U + ExtraData.Normal2 * Isect.V +ExtraData.Normal0 * (1 - Isect.U - Isect.V);
+                vec3 HitNormal = vec3(ExtraData.NormalUvY1) * Isect.U + vec3(ExtraData.NormalUvY2) * Isect.V +vec3(ExtraData.NormalUvY0) * (1 - Isect.U - Isect.V);
                 vec4 Tangent = ExtraData.Tangent1 * Isect.U + ExtraData.Tangent2 * Isect.V + ExtraData.Tangent0 * (1 - Isect.U - Isect.V);
                 Isect.Normal = TransformDirection(NormalTransform, HitNormal);
                 Isect.Tangent = TransformDirection(NormalTransform, vec3(Tangent));

@@ -32,40 +32,23 @@ struct ray
 
 struct triangle
 {
-    glm::vec3 v0;
-    float padding0;
-    
-    glm::vec3 v1;
-    float padding1;
-    
-    glm::vec3 v2;
-    float padding2; 
-    
-    glm::vec3 Centroid;
-    float padding3; 
+    glm::vec4 PositionUvX0;
+    glm::vec4 PositionUvX1;
+    glm::vec4 PositionUvX2;
 };
 
 struct triangleExtraData
 {
-    glm::vec3 Normal0; 
-    float padding0;
-
-    glm::vec3 Normal1; 
-    float padding1;
-    
-    glm::vec3 Normal2; 
-    float padding2;
-    
-    glm::vec2 UV0, UV1, UV2; 
-    glm::vec2 padding3;
-
-    glm::vec4 Colour0;
-    glm::vec4 Colour1;  
-    glm::vec4 Colour2;
+    glm::vec4 NormalUvY0; 
+    glm::vec4 NormalUvY1; 
+    glm::vec4 NormalUvY2; 
     
     glm::vec4 Tangent0;
     glm::vec4 Tangent1;  
     glm::vec4 Tangent2;
+    
+    glm::vec3 Centroid;
+    float padding3; 
 };
 
 struct bvhNode

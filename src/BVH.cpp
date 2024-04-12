@@ -49,30 +49,22 @@ mesh::mesh(const shape &Shape)
         uint32_t i0 = Shape.Triangles[j].x;
         uint32_t i1 = Shape.Triangles[j].y;
         uint32_t i2 = Shape.Triangles[j].z;
-        glm::vec4 v0 = glm::vec4(Shape.Positions[i0], 0);
-        glm::vec4 v1 = glm::vec4(Shape.Positions[i1], 0);
-        glm::vec4 v2 = glm::vec4(Shape.Positions[i2], 0);
+        glm::vec3 v0 = glm::vec3(Shape.Positions[i0]);
+        glm::vec3 v1 = glm::vec3(Shape.Positions[i1]);
+        glm::vec3 v2 = glm::vec3(Shape.Positions[i2]);
 
-        glm::vec4 n0 = glm::vec4(Shape.Normals[i0], 0);
-        glm::vec4 n1 = glm::vec4(Shape.Normals[i1], 0);
-        glm::vec4 n2 = glm::vec4(Shape.Normals[i2], 0);
+        glm::vec3 n0 = glm::vec3(Shape.Normals[i0]);
+        glm::vec3 n1 = glm::vec3(Shape.Normals[i1]);
+        glm::vec3 n2 = glm::vec3(Shape.Normals[i2]);
         
-        Triangles[AddedTriangles].v0=v0;
-        Triangles[AddedTriangles].v1=v1;
-        Triangles[AddedTriangles].v2=v2;
+        Triangles[AddedTriangles].PositionUvX0=glm::vec4(v0, Shape.TexCoords[i0].x);
+        Triangles[AddedTriangles].PositionUvX1=glm::vec4(v1, Shape.TexCoords[i1].x);
+        Triangles[AddedTriangles].PositionUvX2=glm::vec4(v2, Shape.TexCoords[i2].x);
         
-        TrianglesExtraData[AddedTriangles].Normal0=n0;
-        TrianglesExtraData[AddedTriangles].Normal1=n1;
-        TrianglesExtraData[AddedTriangles].Normal2=n2;
+        TrianglesExtraData[AddedTriangles].NormalUvY0=glm::vec4(n0, Shape.TexCoords[i0].y);
+        TrianglesExtraData[AddedTriangles].NormalUvY1=glm::vec4(n1, Shape.TexCoords[i1].y);
+        TrianglesExtraData[AddedTriangles].NormalUvY2=glm::vec4(n2, Shape.TexCoords[i2].y);
 
-        TrianglesExtraData[AddedTriangles].UV0 = Shape.TexCoords[i0];
-        TrianglesExtraData[AddedTriangles].UV1 = Shape.TexCoords[i1];
-        TrianglesExtraData[AddedTriangles].UV2 = Shape.TexCoords[i2];
-        
-        TrianglesExtraData[AddedTriangles].Colour0 = Shape.Colours[i0];
-        TrianglesExtraData[AddedTriangles].Colour1 = Shape.Colours[i1];
-        TrianglesExtraData[AddedTriangles].Colour2 = Shape.Colours[i2];
-        
         TrianglesExtraData[AddedTriangles].Tangent0 = Shape.Tangents[i0];
         TrianglesExtraData[AddedTriangles].Tangent1 = Shape.Tangents[i1];
         TrianglesExtraData[AddedTriangles].Tangent2 = Shape.Tangents[i2];
@@ -100,7 +92,7 @@ void bvh::Build()
     // Calculate the centroid of each triangle
     for(size_t i=0; i<Mesh->Triangles.size(); i++)
     {
-        Mesh->Triangles[i].Centroid = (Mesh->Triangles[i].v0 + Mesh->Triangles[i].v1 + Mesh->Triangles[i].v2) * 0.33333f;
+        Mesh->TrianglesExtraData[i].Centroid = (glm::vec3(Mesh->Triangles[i].PositionUvX0) + glm::vec3(Mesh->Triangles[i].PositionUvX1) + glm::vec3(Mesh->Triangles[i].PositionUvX2)) * 0.33333f;
         TriangleIndices[i] = (uint32_t)i;
     }
 
@@ -122,19 +114,20 @@ float bvh::EvaluateSAH(bvhNode &Node, int Axis, float Position)
 	for (uint32_t i = 0; i < Node.TriangleCount; i++)
 	{
 		triangle& Triangle = Mesh->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
-		if (Triangle.Centroid[Axis] < Position)
+		triangleExtraData& TriangleEx = Mesh->TrianglesExtraData[TriangleIndices[Node.LeftChildOrFirst + i]];
+		if (TriangleEx.Centroid[Axis] < Position)
 		{
 			leftCount++;
-			leftBox.Grow( Triangle.v0 );
-			leftBox.Grow( Triangle.v1 );
-			leftBox.Grow( Triangle.v2 );
+			leftBox.Grow( glm::vec3(Triangle.PositionUvX0) );
+			leftBox.Grow( glm::vec3(Triangle.PositionUvX1) );
+			leftBox.Grow( glm::vec3(Triangle.PositionUvX2) );
 		}
 		else
 		{
 			rightCount++;
-			rightBox.Grow( Triangle.v0 );
-			rightBox.Grow( Triangle.v1 );
-			rightBox.Grow( Triangle.v2 );
+			rightBox.Grow( glm::vec3(Triangle.PositionUvX0) );
+			rightBox.Grow( glm::vec3(Triangle.PositionUvX1) );
+			rightBox.Grow( glm::vec3(Triangle.PositionUvX2) );
 		}
 	}
 	float cost = leftCount * leftBox.Area() + rightCount * rightBox.Area();
@@ -151,9 +144,9 @@ float bvh::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
         float BoundsMax = -1e30f;
         for(uint32_t i=0; i<Node.TriangleCount; i++)
         {
-            triangle &Triangle = Mesh->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
-            BoundsMin = std::min(BoundsMin, Triangle.Centroid[CurrentAxis]);
-            BoundsMax = std::max(BoundsMax, Triangle.Centroid[CurrentAxis]);
+            triangleExtraData &TriangleEx = Mesh->TrianglesExtraData[TriangleIndices[Node.LeftChildOrFirst + i]];
+            BoundsMin = std::min(BoundsMin, TriangleEx.Centroid[CurrentAxis]);
+            BoundsMax = std::max(BoundsMax, TriangleEx.Centroid[CurrentAxis]);
         }
         if(BoundsMin == BoundsMax) continue;
         
@@ -163,11 +156,12 @@ float bvh::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
         for(uint32_t i=0; i<Node.TriangleCount; i++)
         {
             triangle &Triangle = Mesh->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
-            int BinIndex = std::min(BINS - 1, (int)((Triangle.Centroid[CurrentAxis] - BoundsMin) * Scale));
+            triangleExtraData &TriangleEx = Mesh->TrianglesExtraData[TriangleIndices[Node.LeftChildOrFirst + i]];
+            int BinIndex = std::min(BINS - 1, (int)((TriangleEx.Centroid[CurrentAxis] - BoundsMin) * Scale));
             Bins[BinIndex].TrianglesCount++;
-            Bins[BinIndex].Bounds.Grow(Triangle.v0);
-            Bins[BinIndex].Bounds.Grow(Triangle.v1);
-            Bins[BinIndex].Bounds.Grow(Triangle.v2);
+            Bins[BinIndex].Bounds.Grow(glm::vec3(Triangle.PositionUvX0));
+            Bins[BinIndex].Bounds.Grow(glm::vec3(Triangle.PositionUvX1));
+            Bins[BinIndex].Bounds.Grow(glm::vec3(Triangle.PositionUvX2));
         }
 
         float LeftArea[BINS-1], RightArea[BINS-1];
@@ -223,7 +217,7 @@ void bvh::Subdivide(uint32_t NodeIndex)
     int j = i + Node.TriangleCount -1;
     while(i <= j)
     {
-        if(Mesh->Triangles[TriangleIndices[i]].Centroid[Axis] < SplitPosition)
+        if(Mesh->TrianglesExtraData[TriangleIndices[i]].Centroid[Axis] < SplitPosition)
         {
             i++;
         }
@@ -276,12 +270,12 @@ void bvh::UpdateNodeBounds(uint32_t NodeIndex)
     {
         uint32_t TriangleIndex = TriangleIndices[First + i];
         triangle &Triangle = Mesh->Triangles[TriangleIndex];
-        Node.AABBMin = glm::min(Node.AABBMin, Triangle.v0);
-        Node.AABBMin = glm::min(Node.AABBMin, Triangle.v1);
-        Node.AABBMin = glm::min(Node.AABBMin, Triangle.v2);
-        Node.AABBMax = glm::max(Node.AABBMax, Triangle.v0);
-        Node.AABBMax = glm::max(Node.AABBMax, Triangle.v1);
-        Node.AABBMax = glm::max(Node.AABBMax, Triangle.v2);
+        Node.AABBMin = glm::min(Node.AABBMin, glm::vec3(Triangle.PositionUvX0));
+        Node.AABBMin = glm::min(Node.AABBMin, glm::vec3(Triangle.PositionUvX1));
+        Node.AABBMin = glm::min(Node.AABBMin, glm::vec3(Triangle.PositionUvX2));
+        Node.AABBMax = glm::max(Node.AABBMax, glm::vec3(Triangle.PositionUvX0));
+        Node.AABBMax = glm::max(Node.AABBMax, glm::vec3(Triangle.PositionUvX1));
+        Node.AABBMax = glm::max(Node.AABBMax, glm::vec3(Triangle.PositionUvX2));
     }
 }
 

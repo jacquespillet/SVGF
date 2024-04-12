@@ -33,122 +33,121 @@ std::shared_ptr<scene> CreateCornellBox()
     Camera.Film = 0.024f;
     Camera.Aspect = (float)RenderSize.x / (float)RenderSize.y;
     Scene->CameraNames.push_back("Main Camera");
+    Scene->Shapes.emplace_back();
+    shape &Floor = Scene->Shapes.back();
+    Floor.Positions = { {-1, 0, 1}, {1, 0, 1}, {1, 0, -1}, {-1, 0, -1} };
+    Floor.Triangles = { {0, 1, 2}, {2, 3, 0} };
+    Floor.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Scene->Materials.emplace_back();
+    material &FloorMaterial = Scene->Materials.back(); 
+    FloorMaterial.Colour = {0.725f, 0.71f, 0.68f};
+    Scene->Instances.emplace_back();
+    instance &FloorInstance = Scene->Instances.back();
+    FloorInstance.Shape = (int)Scene->Shapes.size()-1;
+    FloorInstance.Material = (int)Scene->Materials.size()-1;
+    Scene->ShapeNames.push_back("Floor");
+    Scene->InstanceNames.push_back("Floor");
+    Scene->MaterialNames.push_back("Floor");
 
-    // Scene->Shapes.emplace_back();
-    // shape &Floor = Scene->Shapes.back();
-    // Floor.Positions = { {-1, 0, 1}, {1, 0, 1}, {1, 0, -1}, {-1, 0, -1} };
-    // Floor.Triangles = { {0, 1, 2}, {2, 3, 0} };
-    // Floor.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    // Scene->Materials.emplace_back();
-    // material &FloorMaterial = Scene->Materials.back(); 
-    // FloorMaterial.Colour = {0.725f, 0.71f, 0.68f};
-    // Scene->Instances.emplace_back();
-    // instance &FloorInstance = Scene->Instances.back();
-    // FloorInstance.Shape = (int)Scene->Shapes.size()-1;
-    // FloorInstance.Material = (int)Scene->Materials.size()-1;
-    // Scene->ShapeNames.push_back("Floor");
-    // Scene->InstanceNames.push_back("Floor");
-    // Scene->MaterialNames.push_back("Floor");
 
+    Scene->Shapes.emplace_back();
+    shape& CeilingShape       = Scene->Shapes.back();
+    CeilingShape.Positions   = {{-1, 2, 1}, {-1, 2, -1}, {1, 2, -1}, {1, 2, 1}};
+    CeilingShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
+    CeilingShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Scene->Materials.emplace_back();
+    auto& CeilingMaterial    = Scene->Materials.back();
+    CeilingMaterial.Colour    = {0.725f, 0.71f, 0.68f};    
+    Scene->Instances.emplace_back();
+    auto& CeilingInstance    = Scene->Instances.back();
+    CeilingInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    CeilingInstance.Material = (int)Scene->Materials.size()-1;
+    Scene->ShapeNames.push_back("Ceiling");
+    Scene->InstanceNames.push_back("Ceiling");
+    Scene->MaterialNames.push_back("Ceiling");
 
-    // Scene->Shapes.emplace_back();
-    // shape& CeilingShape       = Scene->Shapes.back();
-    // CeilingShape.Positions   = {{-1, 2, 1}, {-1, 2, -1}, {1, 2, -1}, {1, 2, 1}};
-    // CeilingShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
-    // CeilingShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    // Scene->Materials.emplace_back();
-    // auto& CeilingMaterial    = Scene->Materials.back();
-    // CeilingMaterial.Colour    = {0.725f, 0.71f, 0.68f};    
-    // Scene->Instances.emplace_back();
-    // auto& CeilingInstance    = Scene->Instances.back();
-    // CeilingInstance.Shape    = (int)Scene->Shapes.size() - 1;
-    // CeilingInstance.Material = (int)Scene->Materials.size()-1;
-    // Scene->ShapeNames.push_back("Ceiling");
-    // Scene->InstanceNames.push_back("Ceiling");
-    // Scene->MaterialNames.push_back("Ceiling");
+    Scene->Shapes.emplace_back();
+    shape& BackWallShape       = Scene->Shapes.back();
+    BackWallShape.Positions   = {{-1, 0, -1}, {1, 0, -1}, {1, 2, -1}, {-1, 2, -1}};
+    BackWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
+    BackWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Scene->Materials.emplace_back();
+    auto& BackWallMaterial    = Scene->Materials.back();
+    BackWallMaterial.Colour    = {0.725f, 0.71f, 0.68f};    
+    BackWallMaterial.Roughness = 0.1f;
+    BackWallMaterial.Metallic = 0.8f;
+    BackWallMaterial.MaterialType = MATERIAL_TYPE_PBR;    
+    Scene->Instances.emplace_back();
+    auto& BackWallInstance    = Scene->Instances.back();
+    BackWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    BackWallInstance.Material = (int)Scene->Materials.size() - 1;  
+    Scene->ShapeNames.push_back("BackWall");
+    Scene->InstanceNames.push_back("BackWall");
+    Scene->MaterialNames.push_back("BackWall");
 
-    // Scene->Shapes.emplace_back();
-    // shape& BackWallShape       = Scene->Shapes.back();
-    // BackWallShape.Positions   = {{-1, 0, -1}, {1, 0, -1}, {1, 2, -1}, {-1, 2, -1}};
-    // BackWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
-    // BackWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    // Scene->Materials.emplace_back();
-    // auto& BackWallMaterial    = Scene->Materials.back();
-    // BackWallMaterial.Colour    = {0.725f, 0.71f, 0.68f};    
-    // BackWallMaterial.Roughness = 0.1f;
-    // BackWallMaterial.Metallic = 0.8f;
-    // BackWallMaterial.MaterialType = MATERIAL_TYPE_PBR;    
-    // Scene->Instances.emplace_back();
-    // auto& BackWallInstance    = Scene->Instances.back();
-    // BackWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
-    // BackWallInstance.Material = (int)Scene->Materials.size() - 1;  
-    // Scene->ShapeNames.push_back("BackWall");
-    // Scene->InstanceNames.push_back("BackWall");
-    // Scene->MaterialNames.push_back("BackWall");
+    Scene->Shapes.emplace_back();
+    shape& RightWallShape       = Scene->Shapes.back();
+    RightWallShape.Positions   = {{1, 0, -1}, {1, 0, 1}, {1, 2, 1}, {1, 2, -1}};
+    RightWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
+    RightWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Scene->Materials.emplace_back();
+    auto& RightWallMaterial    = Scene->Materials.back();
+    RightWallMaterial.Colour    = {0.14f, 0.45f, 0.091f};    
+    Scene->Instances.emplace_back();
+    auto& RightWallInstance    = Scene->Instances.back();
+    RightWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    RightWallInstance.Material = (int)Scene->Materials.size() - 1;  
+    Scene->ShapeNames.push_back("RightWall");
+    Scene->InstanceNames.push_back("RightWall");
+    Scene->MaterialNames.push_back("RightWall");
 
-    // Scene->Shapes.emplace_back();
-    // shape& RightWallShape       = Scene->Shapes.back();
-    // RightWallShape.Positions   = {{1, 0, -1}, {1, 0, 1}, {1, 2, 1}, {1, 2, -1}};
-    // RightWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
-    // RightWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    // Scene->Materials.emplace_back();
-    // auto& RightWallMaterial    = Scene->Materials.back();
-    // RightWallMaterial.Colour    = {0.14f, 0.45f, 0.091f};    
-    // Scene->Instances.emplace_back();
-    // auto& RightWallInstance    = Scene->Instances.back();
-    // RightWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
-    // RightWallInstance.Material = (int)Scene->Materials.size() - 1;  
-    // Scene->ShapeNames.push_back("RightWall");
-    // Scene->InstanceNames.push_back("RightWall");
-    // Scene->MaterialNames.push_back("RightWall");
+    Scene->Shapes.emplace_back();
+    shape& LeftWallShape       = Scene->Shapes.back();
+    LeftWallShape.Positions   = {{-1, 0, 1}, {-1, 0, -1}, {-1, 2, -1}, {-1, 2, 1}};
+    LeftWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
+    LeftWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+    Scene->Materials.emplace_back();
+    auto& LeftWallMaterial    = Scene->Materials.back();
+    LeftWallMaterial.Colour    = {0.63, 0.065, 0.05f};    
+    LeftWallMaterial.Roughness = 1.0f;
+    LeftWallMaterial.Metallic = 0.5f;
+    LeftWallMaterial.MaterialType = MATERIAL_TYPE_PBR;   
+    Scene->Instances.emplace_back();
+    auto& LeftWallInstance    = Scene->Instances.back();
+    LeftWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    LeftWallInstance.Material = (int)Scene->Materials.size() - 1;
+    Scene->ShapeNames.push_back("LeftWall");
+    Scene->InstanceNames.push_back("LeftWall");
+    Scene->MaterialNames.push_back("LeftWall");
 
-    // Scene->Shapes.emplace_back();
-    // shape& LeftWallShape       = Scene->Shapes.back();
-    // LeftWallShape.Positions   = {{-1, 0, 1}, {-1, 0, -1}, {-1, 2, -1}, {-1, 2, 1}};
-    // LeftWallShape.Triangles   = {{0, 1, 2}, {2, 3, 0}};
-    // LeftWallShape.TexCoords = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    // Scene->Materials.emplace_back();
-    // auto& LeftWallMaterial    = Scene->Materials.back();
-    // LeftWallMaterial.Colour    = {0.63, 0.065, 0.05f};    
-    // LeftWallMaterial.Roughness = 1.0f;
-    // LeftWallMaterial.Metallic = 0.5f;
-    // LeftWallMaterial.MaterialType = MATERIAL_TYPE_PBR;   
-    // Scene->Instances.emplace_back();
-    // auto& LeftWallInstance    = Scene->Instances.back();
-    // LeftWallInstance.Shape    = (int)Scene->Shapes.size() - 1;
-    // LeftWallInstance.Material = (int)Scene->Materials.size() - 1;
-    // Scene->ShapeNames.push_back("LeftWall");
-    // Scene->InstanceNames.push_back("LeftWall");
-    // Scene->MaterialNames.push_back("LeftWall");
-
-    // Scene->Shapes.emplace_back();
-    // auto& ShortBoxShape       = Scene->Shapes.back();
-    // ShortBoxShape.Positions   = {{0.53f, 0.6f, 0.75f}, {0.7f, 0.6f, 0.17f},
-    //     {0.13f, 0.6f, 0.0f}, {-0.05f, 0.6f, 0.57f}, {-0.05f, 0.0f, 0.57f},
-    //     {-0.05f, 0.6f, 0.57f}, {0.13f, 0.6f, 0.0f}, {0.13f, 0.0f, 0.0f},
-    //     {0.53f, 0.0f, 0.75f}, {0.53f, 0.6f, 0.75f}, {-0.05f, 0.6f, 0.57f},
-    //     {-0.05f, 0.0f, 0.57f}, {0.7f, 0.0f, 0.17f}, {0.7f, 0.6f, 0.17f},
-    //     {0.53f, 0.6f, 0.75f}, {0.53f, 0.0f, 0.75f}, {0.13f, 0.0f, 0.0f},
-    //     {0.13f, 0.6f, 0.0f}, {0.7f, 0.6f, 0.17f}, {0.7f, 0.0f, 0.17f},
-    //     {0.53f, 0.0f, 0.75f}, {0.7f, 0.0f, 0.17f}, {0.13f, 0.0f, 0.0f},
-    //     {-0.05f, 0.0f, 0.57f}};
-    // ShortBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
-    //     {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
-    //     {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
-    // Scene->Materials.emplace_back();        
-    // Scene->Materials.back();
-    // auto& ShortBoxMaterial    = Scene->Materials.back();
-    // ShortBoxMaterial.Colour = {0.8, 0.8, 0.8};
-    // ShortBoxMaterial.MaterialType = MATERIAL_TYPE_MATTE;
-    // ShortBoxMaterial.ScatteringColour = {0.9, 0.2, 0.4};
-    // ShortBoxMaterial.Roughness = 0.1f;
-    // Scene->Instances.emplace_back();
-    // auto& ShortBoxInstance    = Scene->Instances.back();
-    // ShortBoxInstance.Shape    = (int)Scene->Shapes.size() - 1;
-    // ShortBoxInstance.Material = (int)Scene->Materials.size() - 1;    
-    // Scene->ShapeNames.push_back("ShortBox");
-    // Scene->InstanceNames.push_back("ShortBox");
-    // Scene->MaterialNames.push_back("ShortBox");
+    Scene->Shapes.emplace_back();
+    auto& ShortBoxShape       = Scene->Shapes.back();
+    ShortBoxShape.Positions   = {{0.53f, 0.6f, 0.75f}, {0.7f, 0.6f, 0.17f},
+        {0.13f, 0.6f, 0.0f}, {-0.05f, 0.6f, 0.57f}, {-0.05f, 0.0f, 0.57f},
+        {-0.05f, 0.6f, 0.57f}, {0.13f, 0.6f, 0.0f}, {0.13f, 0.0f, 0.0f},
+        {0.53f, 0.0f, 0.75f}, {0.53f, 0.6f, 0.75f}, {-0.05f, 0.6f, 0.57f},
+        {-0.05f, 0.0f, 0.57f}, {0.7f, 0.0f, 0.17f}, {0.7f, 0.6f, 0.17f},
+        {0.53f, 0.6f, 0.75f}, {0.53f, 0.0f, 0.75f}, {0.13f, 0.0f, 0.0f},
+        {0.13f, 0.6f, 0.0f}, {0.7f, 0.6f, 0.17f}, {0.7f, 0.0f, 0.17f},
+        {0.53f, 0.0f, 0.75f}, {0.7f, 0.0f, 0.17f}, {0.13f, 0.0f, 0.0f},
+        {-0.05f, 0.0f, 0.57f}};
+    ShortBoxShape.Triangles   = {{0, 1, 2}, {2, 3, 0}, {4, 5, 6}, {6, 7, 4},
+        {8, 9, 10}, {10, 11, 8}, {12, 13, 14}, {14, 15, 12}, {16, 17, 18},
+        {18, 19, 16}, {20, 21, 22}, {22, 23, 20}};
+    Scene->Materials.emplace_back();        
+    Scene->Materials.back();
+    auto& ShortBoxMaterial    = Scene->Materials.back();
+    ShortBoxMaterial.Colour = {0.8, 0.8, 0.8};
+    ShortBoxMaterial.MaterialType = MATERIAL_TYPE_GLASS;
+    ShortBoxMaterial.ScatteringColour = {0.9, 0.2, 0.4};
+    ShortBoxMaterial.Roughness = 0.1f;
+    Scene->Instances.emplace_back();
+    auto& ShortBoxInstance    = Scene->Instances.back();
+    ShortBoxInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    ShortBoxInstance.Material = (int)Scene->Materials.size() - 1;    
+    Scene->ShapeNames.push_back("ShortBox");
+    Scene->InstanceNames.push_back("ShortBox");
+    Scene->MaterialNames.push_back("ShortBox");
 
     // Scene->Shapes.emplace_back();
     // auto& TallBoxShape       = Scene->Shapes.back();
@@ -175,54 +174,53 @@ std::shared_ptr<scene> CreateCornellBox()
     // Scene->InstanceNames.push_back("TallBox");
     // Scene->MaterialNames.push_back("TallBox");
 
-    LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\Sponza\\glTF\\Sponza.gltf", Scene, true);
-    // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\FlightHelmet", Scene, true);
-    // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\ToyCar\\glTF\\ToyCar.gltf", Scene, true);
     // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\MetalRoughSpheres\\glTF\\MetalRoughSpheres.gltf", Scene);
-    // LoadGLTFShapeOnly("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\Suzanne\\glTF\\Suzanne.gltf", Scene, 0);
-    // Scene->Materials.emplace_back();        
-    // Scene->Materials.back();
-    // auto& DuckMaterial    = Scene->Materials.back();
-    // DuckMaterial.Colour = {0.8, 0.8, 0.8};
-    // DuckMaterial.MaterialType = MATERIAL_TYPE_MATTE;
-    // DuckMaterial.ScatteringColour = {0.9, 0.2, 0.4};
-    // DuckMaterial.Roughness = 0.1f;
-    // Scene->Instances.emplace_back();
-    // auto& DuckInstance    = Scene->Instances.back();
-    // DuckInstance.Shape    = (int)Scene->Shapes.size() - 1;
-    // DuckInstance.Material = (int)Scene->Materials.size() - 1;    
-    // DuckInstance.ModelMatrix = glm::scale(glm::vec3(0.25));
-    // Scene->InstanceNames.push_back("Duck");
-    // Scene->MaterialNames.push_back("Duck");
+    LoadGLTFShapeOnly("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\Suzanne\\glTF\\Suzanne.gltf", Scene, 0);
+    Scene->Materials.emplace_back();        
+    Scene->Materials.back();
+    auto& DuckMaterial    = Scene->Materials.back();
+    DuckMaterial.Colour = {0.8, 0.8, 0.8};
+    DuckMaterial.MaterialType = MATERIAL_TYPE_GLASS;
+    DuckMaterial.ScatteringColour = {0.9, 0.2, 0.4};
+    DuckMaterial.Roughness = 0.1f;
+    Scene->Instances.emplace_back();
+    auto& DuckInstance    = Scene->Instances.back();
+    DuckInstance.Shape    = (int)Scene->Shapes.size() - 1;
+    DuckInstance.Material = (int)Scene->Materials.size() - 1;    
+    DuckInstance.ModelMatrix = glm::scale(glm::vec3(0.25));
+    Scene->InstanceNames.push_back("Duck");
+    Scene->MaterialNames.push_back("Duck");
 
-    // Scene->Shapes.emplace_back();
-    // shape &LightShape = Scene->Shapes.back();
-    // LightShape.Positions = {{-0.25f, 1.99f, 0.25f}, {-0.25f, 1.99f, -0.25f}, {0.25f, 1.99f, -0.25f}, {0.25f, 1.99f, 0.25f}};
-    // LightShape.Triangles = { {0, 1, 2}, {2, 3, 0} };
-    // Scene->Materials.emplace_back();
-    // material &LightMaterial = Scene->Materials.back();
-    // LightMaterial.Emission = {40, 40, 40};    
-    // Scene->Instances.emplace_back();
-    // instance &LightInstance = Scene->Instances.back(); 
-    // LightInstance.Shape = (int)Scene->Shapes.size()-1;
-    // LightInstance.Material = (int)Scene->Materials.size()-1;
-    // Scene->ShapeNames.push_back("Light");
-    // Scene->InstanceNames.push_back("Light");
-    // Scene->MaterialNames.push_back("Light");
+    Scene->Shapes.emplace_back();
+    shape &LightShape = Scene->Shapes.back();
+    LightShape.Positions = {{-0.25f, 1.99f, 0.25f}, {-0.25f, 1.99f, -0.25f}, {0.25f, 1.99f, -0.25f}, {0.25f, 1.99f, 0.25f}};
+    LightShape.Triangles = { {0, 1, 2}, {2, 3, 0} };
+    Scene->Materials.emplace_back();
+    material &LightMaterial = Scene->Materials.back();
+    LightMaterial.Emission = {40, 40, 40};    
+    Scene->Instances.emplace_back();
+    instance &LightInstance = Scene->Instances.back(); 
+    LightInstance.Shape = (int)Scene->Shapes.size()-1;
+    LightInstance.Material = (int)Scene->Materials.size()-1;
+    Scene->ShapeNames.push_back("Light");
+    Scene->InstanceNames.push_back("Light");
+    Scene->MaterialNames.push_back("Light");
 
+    Scene->Textures.emplace_back();
+    texture &Texture = Scene->Textures.back();
+    Texture.SetFromFile("resources/textures/Debug.jpg", Scene->TextureWidth, Scene->TextureHeight);
+    Scene->TextureNames.push_back("Debug");
+
+    Scene->Textures.emplace_back();
+    texture &Normal = Scene->Textures.back();
+    Normal.SetFromFile("resources/textures/Normal.jpg", Scene->TextureWidth, Scene->TextureHeight);
+    Scene->TextureNames.push_back("Normal");
     
-    Scene->EnvTextures.emplace_back();
-    texture &SkyTex = Scene->EnvTextures.back();
-    SkyTex.SetFromFile("resources/textures/Sky.hdr", Scene->EnvTextureWidth, Scene->EnvTextureHeight);
-    Scene->EnvTextureNames.push_back("Sky");    
+    Scene->Textures.emplace_back();
+    texture &Roughness = Scene->Textures.back();
+    Roughness.SetFromFile("resources/textures/Roughness.jpg", Scene->TextureWidth, Scene->TextureHeight);
+    Scene->TextureNames.push_back("Roughness");
     
-    Scene->Environments.emplace_back();
-    Scene->EnvironmentNames.push_back("Sky");
-    environment &Sky = Scene->Environments.back();
-    Sky.Emission = {1,1,1};
-    Sky.EmissionTexture = 0;
-    Sky.Transform = glm::rotate(glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
     Scene->ReloadTextureArray();
 
     // Checkup

@@ -16,6 +16,11 @@ orbitCameraController::orbitCameraController()
     this->Distance = std::sqrt(Position.x * Position.x + Position.y * Position.y + Position.z * Position.z);
     this->Theta = std::acos(Position.y / this->Distance);
     this->Phi = std::atan2(Position.z, Position.x);
+
+    // this->Phi = 0.0624008;
+    // this->Theta = 1.30899;
+    // this->Distance =   4.66042; 
+
     Recalculate();
 }
 
@@ -28,7 +33,7 @@ void orbitCameraController::Recalculate()
     
     glm::mat4 LookAtMatrix = glm::lookAt(Position + this->Target, this->Target, glm::vec3(0,1,0));
     
-    this->ModelMatrix = (glm::inverse(LookAtMatrix));
+    this->ModelMatrix = (glm::inverse(LookAtMatrix));   
     this->ViewMatrix = LookAtMatrix;
 }
 
@@ -69,7 +74,7 @@ bool orbitCameraController::Update()
         ShouldRecalculate=true;
     }
 
-
+    // std::cout << this->Phi << " " << this->Theta << " " << this->Distance << std::endl;
   
     if(ShouldRecalculate)
     {

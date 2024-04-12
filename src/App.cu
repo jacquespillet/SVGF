@@ -21,6 +21,7 @@
 #endif
 #include "GLTexToCuBuffer.cu"
 
+
 #include <iostream>
 #define CUDA_CHECK_ERROR(err) \
     do { \
@@ -86,9 +87,10 @@ void application::InitGpuObjects()
 
 #elif API==API_CU
     TonemapTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
-    RenderBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * 4 * sizeof(float));
-    TonemapBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * 4 * sizeof(float));
-    RenderTextureMapping = CreateMapping(TonemapTexture);    
+    RenderBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * sizeof(glm::vec4));
+    TonemapBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * sizeof(glm::vec4));
+    RenderTextureMapping = CreateMapping(TonemapTexture);
+
     TracingParamsBuffer = std::make_shared<bufferCu>(sizeof(tracingParameters), &Params);
     MaterialBuffer = std::make_shared<bufferCu>(sizeof(material) * Scene->Materials.size(), Scene->Materials.data());
     LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * Lights.Lights.size(), Lights.Lights.data());
@@ -244,8 +246,14 @@ void application::Trace()
 
 void application::Run()
 {
+    uint64_t Frame=0;
     while(!Window->ShouldClose())
     {
+        if(Frame % 10==0)
+        {
+            Timer.Start();
+        }
+
         Window->PollEvents();
         StartFrame();
         ResetRender=false;
@@ -259,6 +267,13 @@ void application::Run()
         
 
         EndFrame();
+
+        if(Frame % 10==0)
+        {
+            double Time = Timer.Stop();
+            std::cout << "frame time " <<  Time << std::endl;
+        }
+        Frame++;
     }  
 }
 
