@@ -34,7 +34,7 @@ std::shared_ptr<scene> CreateCornellBox()
     Camera.Aspect = (float)RenderSize.x / (float)RenderSize.y;
     Scene->CameraNames.push_back("Main Camera");
 
-#if 0
+#if 1
     Scene->Shapes.emplace_back();
     shape &Floor = Scene->Shapes.back();
     Floor.Positions = { {-1, 0, 1}, {1, 0, 1}, {1, 0, -1}, {-1, 0, -1} };

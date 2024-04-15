@@ -1286,24 +1286,21 @@ MAIN()
                     vec3 Incoming = vec3(0);
                     if(!IsDelta(Material))
                     {
-                        
                         if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
                         {
                             Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                            if(Incoming == vec3(0,0,0)) break;
+                            Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                                    vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
                         }
                         else
                         {
                             Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                            if(Incoming == vec3(0,0,0)) break;
+                            Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) /
+                                        vec3(SampleLightsPDF(Position, Incoming));  
                         }
 
-                        if(Incoming == vec3(0,0,0)) break;
-                        // Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
-                        //         vec3(0.5 * SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming) + 0.5f * SampleLightsPDF(Position, Incoming));
-                        // Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
-                        //         vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
-                        Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
-                                vec3(SampleLightsPDF(Position, Incoming));
-                        // Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
                     }
                     else
                     {
