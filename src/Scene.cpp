@@ -32,6 +32,7 @@ std::shared_ptr<scene> CreateCornellBox()
     Camera.Focus = 3.9f;
     Camera.Film = 0.024f;
     Camera.Aspect = (float)RenderSize.x / (float)RenderSize.y;
+    Camera.Controlled = 1;  
     Scene->CameraNames.push_back("Main Camera");
 
 #if 0

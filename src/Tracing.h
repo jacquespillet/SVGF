@@ -16,7 +16,8 @@ struct tracingParameters
     int Batch;
     int Bounces;
 
-    glm::vec3 Pad;    
+    glm::vec2 Pad;
+    float CurrentCamera;    
     float Clamp;
 };
 
@@ -28,6 +29,7 @@ inline tracingParameters GetTracingParameters()
     Params.TotalSamples = 4096;
     Params.Bounces = 5;
     Params.Clamp = 10;
+    Params.CurrentCamera=0;
     return Params;
 }
 

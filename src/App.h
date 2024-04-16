@@ -50,7 +50,7 @@ private:
     std::shared_ptr<gui> GUI;
 
     
-    uint32_t  RenderResolution;
+    int32_t  RenderResolution;
     uint32_t  RenderWidth;
     uint32_t  RenderHeight;
     uint32_t  RenderWindowWidth;

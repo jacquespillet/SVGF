@@ -34,7 +34,8 @@ struct camera
     float Aperture = 0;
       
     int Orthographic = 0;
-    glm::ivec3 Padding;
+    int Controlled = true;
+    glm::ivec2 Padding;
 };
 
 struct texture

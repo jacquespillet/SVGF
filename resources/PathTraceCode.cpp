@@ -366,7 +366,7 @@ FN_DECL mat3 BasisFromZ(vec3 V)
 
 FN_DECL ray GetRay( vec2 ImageUV, vec2 LensUV)
 {
-    camera Camera = Cameras[0];
+    camera Camera = Cameras[int(GET_ATTR(Parameters, CurrentCamera))];
 
     vec2 Film = Camera.Aspect >= 1 ? 
                vec2(Camera.Film, Camera.Film / Camera.Aspect): 
@@ -442,7 +442,6 @@ FN_DECL vec4 EvalEnvTexture(int Texture, vec2 UV, bool Linear)
 
 FN_DECL vec3 EvalNormalMap(vec3 Normal, INOUT(sceneIntersection) Isect)
 {
-    // TODO: Optimize
     vec2 UV = EvalTexCoord(Isect);
     if(Materials[Isect.MaterialIndex].NormalTexture != INVALID_ID)
     {

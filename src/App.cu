@@ -257,8 +257,12 @@ void application::Run()
         StartFrame();
         ResetRender=false;
 
-        ResetRender |= Controller.Update();
-        Scene->Cameras[0].Frame = Controller.ModelMatrix;
+        
+        if(Scene->Cameras[int(Params.CurrentCamera)].Controlled)
+        {
+            ResetRender |= Controller.Update();        
+            Scene->Cameras[int(Params.CurrentCamera)].Frame = Controller.ModelMatrix;
+        }
 
 
         GUI->GUI();
@@ -320,7 +324,7 @@ void application::ResizeRenderTextures()
 
 
     Params.CurrentSample=0;
-    Scene->Cameras[0].Aspect = (float)RenderWidth / (float)RenderHeight;
+    Scene->Cameras[int(Params.CurrentCamera)].Aspect = (float)RenderWidth / (float)RenderHeight;
 
     ResetRender=true;
 }
@@ -350,9 +354,9 @@ void application::CalculateWindowSizes()
         NewRenderHeight = RenderResolution / RenderAspectRatio;
     }
 
-    if(Inited && Scene->Cameras[0].Aspect != RenderAspectRatio)
+    if(Inited && Scene->Cameras[int(Params.CurrentCamera)].Aspect != RenderAspectRatio)
     {
-        Scene->Cameras[0].Aspect = RenderAspectRatio;
+        Scene->Cameras[int(Params.CurrentCamera)].Aspect = RenderAspectRatio;
         ResetRender = true;
     }
 

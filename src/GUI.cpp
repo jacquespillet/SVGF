@@ -541,6 +541,28 @@ bool gui::CameraGUI(int CameraInx)
     Changed |= ImGui::DragFloat("Focus", &App->Scene->Cameras[CameraInx].Focus, 0.1f);
     Changed |= ImGui::DragFloat("Aperture", &App->Scene->Cameras[CameraInx].Aperture, 0.005f, 0.0001f, 0.5f);
     
+    if(ImGui::Button("Duplicate"))
+    {
+        App->Scene->Cameras.push_back(App->Scene->Cameras[CameraInx]);
+        App->Scene->CameraNames.push_back(App->Scene->CameraNames[CameraInx] + "_Duplicated");
+        App->Scene->Cameras.back().Controlled=false;
+#if API==API_GL
+        App->Scene->CamerasBuffer = std::make_shared<bufferGL>(App->Scene->Cameras.size() * sizeof(camera), App->Scene->Cameras.data());
+        App->Scene->EnvironmentsBuffer = std::make_shared<bufferGL>(App->Scene->Environments.size() * sizeof(camera), App->Scene->Environments.data());
+#elif API==API_CU
+        App->Scene->CamerasBuffer = std::make_shared<bufferCu>(App->Scene->Cameras.size() * sizeof(camera), App->Scene->Cameras.data());
+        App->Scene->EnvironmentsBuffer = std::make_shared<bufferCu>(App->Scene->Environments.size() * sizeof(environment), App->Scene->Environments.data());
+#endif    
+    }
+
+    if(ImGui::Button("Make Current"))
+    {
+        App->Params.CurrentCamera = CameraInx;
+        Changed = true;
+    }
+
+    ImGui::Checkbox("Controlled", (bool*)&App->Scene->Cameras[CameraInx].Controlled);
+    
     return Changed;
 }
 
@@ -688,6 +710,11 @@ bool gui::TracingGUI()
     Changed |= ImGui::SliderInt("Bounces", &App->Params.Bounces, 0, 32);
     Changed |= ImGui::DragFloat("Clamp", &App->Params.Clamp, 0.1f, 0.0f, 32.0f);    
     ImGui::Checkbox("Denoise", &App->DoDenoise);
+    
+    if(ImGui::DragInt("Resolution", &App->RenderResolution, 10, 128, 3840))
+    {
+        App->CalculateWindowSizes();
+    }
 
     return Changed;
 }
