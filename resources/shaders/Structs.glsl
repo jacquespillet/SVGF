@@ -8,45 +8,29 @@ struct ray
 
 struct triangle
 {
-    vec3 v0;
-    float padding0;
-    vec3 v1;
-    float padding1;
-    vec3 v2;
-    float padding2; 
-    vec3 Centroid;
-    float padding3;     
-};
-
-struct triangleExtraData
-{
-    vec3 Normal0; 
-    float padding0;
-    vec3 Normal1; 
-    float padding1;
-    vec3 Normal2; 
-    float padding2;
+    vec4 PositionUvX0;
+    vec4 PositionUvX1;
+    vec4 PositionUvX2;
     
-    vec2 UV0, UV1, UV2; 
-    vec2 padding3;
-
-    vec4 Colour0;
-    vec4 Colour1;
-    vec4 Colour2;
-
+    vec4 NormalUvY0; 
+    vec4 NormalUvY1; 
+    vec4 NormalUvY2;
+    
     vec4 Tangent0;
-    vec4 Tangent1;
+    vec4 Tangent1;  
     vec4 Tangent2;
+    
+    vec3 Centroid;
+    float padding3; 
 };
+
+
 struct bvhNode
 {
     vec3 AABBMin;
-    float padding0;
+    float LeftChildOrFirst;
     vec3 AABBMax;
-    float padding1;
-    uint LeftChildOrFirst;
-    uint TriangleCount;
-    uvec2 padding2;    
+    float TriangleCount; 
 };
 
 struct indexData
@@ -75,7 +59,7 @@ struct bvhInstance
     uint MeshIndex;
     uint Index;
     uint MaterialIndex;
-    uint Pad;
+    uint Selected;
 };
 
 struct tlasNode

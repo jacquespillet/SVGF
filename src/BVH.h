@@ -35,13 +35,10 @@ struct triangle
     glm::vec4 PositionUvX0;
     glm::vec4 PositionUvX1;
     glm::vec4 PositionUvX2;
-};
-
-struct triangleExtraData
-{
+    
     glm::vec4 NormalUvY0; 
     glm::vec4 NormalUvY1; 
-    glm::vec4 NormalUvY2; 
+    glm::vec4 NormalUvY2;
     
     glm::vec4 Tangent0;
     glm::vec4 Tangent1;  
@@ -54,12 +51,9 @@ struct triangleExtraData
 struct bvhNode
 {
     glm::vec3 AABBMin;
-    float padding0;
+    float LeftChildOrFirst;
     glm::vec3 AABBMax;
-    float padding1;
-    uint32_t LeftChildOrFirst;
-    uint32_t TriangleCount;
-    glm::uvec2 padding2;
+    float TriangleCount;
     bool IsLeaf();
 };
 
@@ -120,7 +114,6 @@ struct mesh
     mesh(const shape &Shape);
     bvh *BVH;
     std::vector<triangle> Triangles;
-    std::vector<triangleExtraData> TrianglesExtraData;
 };
 
 
@@ -151,7 +144,7 @@ struct bvhInstance
     uint32_t MeshIndex;
     uint32_t Index=0;
     uint32_t MaterialIndex;
-    uint32_t pad;
+    uint32_t Selected=0;
 };
 
 struct tlas
@@ -188,13 +181,11 @@ struct sceneBVH
     std::vector<bvhInstance> Instances;
     std::vector<indexData> IndexData;
     std::vector<triangle> AllTriangles;
-    std::vector<triangleExtraData> AllTrianglesEx;
     std::vector<uint32_t> AllTriangleIndices;
     std::vector<bvhNode> AllBVHNodes;
 
 #if API == API_GL
     std::shared_ptr<bufferGL> TrianglesBuffer;
-    std::shared_ptr<bufferGL> TrianglesExBuffer;
     std::shared_ptr<bufferGL> BVHBuffer;
     std::shared_ptr<bufferGL> IndicesBuffer;
     std::shared_ptr<bufferGL> IndexDataBuffer;
@@ -202,7 +193,6 @@ struct sceneBVH
     std::shared_ptr<bufferGL> TLASNodeBuffer;
 #elif API == API_CU
     std::shared_ptr<bufferCu> TrianglesBuffer;
-    std::shared_ptr<bufferCu> TrianglesExBuffer;
     std::shared_ptr<bufferCu> BVHBuffer;
     std::shared_ptr<bufferCu> IndicesBuffer;
     std::shared_ptr<bufferCu> IndexDataBuffer;
@@ -214,8 +204,10 @@ struct sceneBVH
     void UpdateMaterial(uint32_t InstanceInx, uint32_t MaterialInx);
     void UpdateTLAS(uint32_t InstanceInx);
     void AddInstance(uint32_t InstanceInx);
+    bool SetSelectedInstance(uint32_t instanceInx);
     void AddShape(uint32_t ShapeInx);
 
+    int SelectedInstance = -1;
     ~sceneBVH();
     void Destroy();
     std::shared_ptr<scene> Scene;

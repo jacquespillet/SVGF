@@ -34,7 +34,7 @@ std::shared_ptr<scene> CreateCornellBox()
     Camera.Aspect = (float)RenderSize.x / (float)RenderSize.y;
     Scene->CameraNames.push_back("Main Camera");
 
-#if 1
+#if 0
     Scene->Shapes.emplace_back();
     shape &Floor = Scene->Shapes.back();
     Floor.Positions = { {-1, 0, 1}, {1, 0, 1}, {1, 0, -1}, {-1, 0, -1} };
@@ -225,7 +225,10 @@ std::shared_ptr<scene> CreateCornellBox()
 
 #else
 
-    LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\Sponza\\glTF\\Sponza.gltf", Scene, true);
+    // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\Sponza\\glTF\\Sponza.gltf", Scene, true);
+    LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\gltf\\anime_class_room\\scene.gltf", Scene, true);
+    // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\gltf\\mech_drone\\scene.gltf", Scene, true);
+    // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\gltf\\spaceship_corridor\\scene.gltf", Scene, true);
     
     Scene->EnvTextures.emplace_back();
     texture &SkyTex = Scene->EnvTextures.back();
@@ -239,7 +242,7 @@ std::shared_ptr<scene> CreateCornellBox()
     Scene->Environments.emplace_back();
     Scene->EnvironmentNames.push_back("Sky");
     environment &Sky = Scene->Environments.back();
-    Sky.Emission = {250,250,250};
+    Sky.Emission = {1,1,1};
     Sky.EmissionTexture = 0;
     Sky.Transform = glm::rotate(glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 

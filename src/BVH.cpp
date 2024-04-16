@@ -43,7 +43,6 @@ mesh::mesh(const shape &Shape)
 {
     uint32_t AddedTriangles=0;
     Triangles.resize(Shape.Triangles.size());
-    TrianglesExtraData.resize(Shape.Triangles.size());
     for(size_t j=0; j<Shape.Triangles.size(); j++)
     {
         uint32_t i0 = Shape.Triangles[j].x;
@@ -61,13 +60,13 @@ mesh::mesh(const shape &Shape)
         Triangles[AddedTriangles].PositionUvX1=glm::vec4(v1, Shape.TexCoords[i1].x);
         Triangles[AddedTriangles].PositionUvX2=glm::vec4(v2, Shape.TexCoords[i2].x);
         
-        TrianglesExtraData[AddedTriangles].NormalUvY0=glm::vec4(n0, Shape.TexCoords[i0].y);
-        TrianglesExtraData[AddedTriangles].NormalUvY1=glm::vec4(n1, Shape.TexCoords[i1].y);
-        TrianglesExtraData[AddedTriangles].NormalUvY2=glm::vec4(n2, Shape.TexCoords[i2].y);
+        Triangles[AddedTriangles].NormalUvY0=glm::vec4(n0, Shape.TexCoords[i0].y);
+        Triangles[AddedTriangles].NormalUvY1=glm::vec4(n1, Shape.TexCoords[i1].y);
+        Triangles[AddedTriangles].NormalUvY2=glm::vec4(n2, Shape.TexCoords[i2].y);
 
-        TrianglesExtraData[AddedTriangles].Tangent0 = Shape.Tangents[i0];
-        TrianglesExtraData[AddedTriangles].Tangent1 = Shape.Tangents[i1];
-        TrianglesExtraData[AddedTriangles].Tangent2 = Shape.Tangents[i2];
+        Triangles[AddedTriangles].Tangent0 = Shape.Tangents[i0];
+        Triangles[AddedTriangles].Tangent1 = Shape.Tangents[i1];
+        Triangles[AddedTriangles].Tangent2 = Shape.Tangents[i2];
         
 
         AddedTriangles++;
@@ -92,7 +91,7 @@ void bvh::Build()
     // Calculate the centroid of each triangle
     for(size_t i=0; i<Mesh->Triangles.size(); i++)
     {
-        Mesh->TrianglesExtraData[i].Centroid = (glm::vec3(Mesh->Triangles[i].PositionUvX0) + glm::vec3(Mesh->Triangles[i].PositionUvX1) + glm::vec3(Mesh->Triangles[i].PositionUvX2)) * 0.33333f;
+        Mesh->Triangles[i].Centroid = (glm::vec3(Mesh->Triangles[i].PositionUvX0) + glm::vec3(Mesh->Triangles[i].PositionUvX1) + glm::vec3(Mesh->Triangles[i].PositionUvX2)) * 0.33333f;
         TriangleIndices[i] = (uint32_t)i;
     }
 
@@ -114,8 +113,7 @@ float bvh::EvaluateSAH(bvhNode &Node, int Axis, float Position)
 	for (uint32_t i = 0; i < Node.TriangleCount; i++)
 	{
 		triangle& Triangle = Mesh->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
-		triangleExtraData& TriangleEx = Mesh->TrianglesExtraData[TriangleIndices[Node.LeftChildOrFirst + i]];
-		if (TriangleEx.Centroid[Axis] < Position)
+		if (Triangle.Centroid[Axis] < Position)
 		{
 			leftCount++;
 			leftBox.Grow( glm::vec3(Triangle.PositionUvX0) );
@@ -144,9 +142,9 @@ float bvh::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
         float BoundsMax = -1e30f;
         for(uint32_t i=0; i<Node.TriangleCount; i++)
         {
-            triangleExtraData &TriangleEx = Mesh->TrianglesExtraData[TriangleIndices[Node.LeftChildOrFirst + i]];
-            BoundsMin = std::min(BoundsMin, TriangleEx.Centroid[CurrentAxis]);
-            BoundsMax = std::max(BoundsMax, TriangleEx.Centroid[CurrentAxis]);
+            triangle &Triangle = Mesh->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
+            BoundsMin = std::min(BoundsMin, Triangle.Centroid[CurrentAxis]);
+            BoundsMax = std::max(BoundsMax, Triangle.Centroid[CurrentAxis]);
         }
         if(BoundsMin == BoundsMax) continue;
         
@@ -156,8 +154,7 @@ float bvh::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
         for(uint32_t i=0; i<Node.TriangleCount; i++)
         {
             triangle &Triangle = Mesh->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
-            triangleExtraData &TriangleEx = Mesh->TrianglesExtraData[TriangleIndices[Node.LeftChildOrFirst + i]];
-            int BinIndex = std::min(BINS - 1, (int)((TriangleEx.Centroid[CurrentAxis] - BoundsMin) * Scale));
+            int BinIndex = std::min(BINS - 1, (int)((Triangle.Centroid[CurrentAxis] - BoundsMin) * Scale));
             Bins[BinIndex].TrianglesCount++;
             Bins[BinIndex].Bounds.Grow(glm::vec3(Triangle.PositionUvX0));
             Bins[BinIndex].Bounds.Grow(glm::vec3(Triangle.PositionUvX1));
@@ -217,7 +214,7 @@ void bvh::Subdivide(uint32_t NodeIndex)
     int j = i + Node.TriangleCount -1;
     while(i <= j)
     {
-        if(Mesh->TrianglesExtraData[TriangleIndices[i]].Centroid[Axis] < SplitPosition)
+        if(Mesh->Triangles[TriangleIndices[i]].Centroid[Axis] < SplitPosition)
         {
             i++;
         }
@@ -424,7 +421,6 @@ std::shared_ptr<sceneBVH> CreateBVH(std::shared_ptr<scene> Scene)
         TotalBVHNodes += Result->Meshes[i]->BVH->NodesUsed;
     }
     Result->AllTriangles = std::vector<triangle> (TotalTriangleCount);
-    Result->AllTrianglesEx = std::vector<triangleExtraData> (TotalTriangleCount);
     Result->AllTriangleIndices = std::vector<uint32_t> (TotalIndicesCount);
     Result->AllBVHNodes = std::vector<bvhNode> (TotalBVHNodes);
     Result->IndexData.resize(Result->Meshes.size());
@@ -437,7 +433,6 @@ std::shared_ptr<sceneBVH> CreateBVH(std::shared_ptr<scene> Scene)
     for(int i=0; i<Result->Meshes.size(); i++)
     {
         memcpy((void*)(Result->AllTriangles.data() + RunningTriangleCount), Result->Meshes[i]->Triangles.data(), Result->Meshes[i]->Triangles.size() * sizeof(triangle));
-        memcpy((void*)(Result->AllTrianglesEx.data() + RunningTriangleCount), Result->Meshes[i]->TrianglesExtraData.data(), Result->Meshes[i]->TrianglesExtraData.size() * sizeof(triangleExtraData));
         memcpy((void*)(Result->AllTriangleIndices.data() + RunningIndicesCount), Result->Meshes[i]->BVH->TriangleIndices.data(), Result->Meshes[i]->BVH->TriangleIndices.size() * sizeof(uint32_t));
         memcpy((void*)(Result->AllBVHNodes.data() + RunningBVHNodeCount), Result->Meshes[i]->BVH->BVHNodes.data(), Result->Meshes[i]->BVH->NodesUsed * sizeof(bvhNode));
 
@@ -458,7 +453,6 @@ std::shared_ptr<sceneBVH> CreateBVH(std::shared_ptr<scene> Scene)
 #if API==API_GL
     // BLAS
     Result->TrianglesBuffer =std::make_shared<bufferGL>(Result->AllTriangles.size() * sizeof(triangle), Result->AllTriangles.data());
-    Result->TrianglesExBuffer =std::make_shared<bufferGL>(Result->AllTrianglesEx.size() * sizeof(triangleExtraData), Result->AllTrianglesEx.data());
     Result->BVHBuffer =std::make_shared<bufferGL>(Result->AllBVHNodes.size() * sizeof(bvhNode), Result->AllBVHNodes.data());
     Result->IndicesBuffer =std::make_shared<bufferGL>(Result->AllTriangleIndices.size() * sizeof(uint32_t), Result->AllTriangleIndices.data());
     Result->IndexDataBuffer =std::make_shared<bufferGL>(Result->IndexData.size() * sizeof(indexData), Result->IndexData.data());
@@ -469,7 +463,6 @@ std::shared_ptr<sceneBVH> CreateBVH(std::shared_ptr<scene> Scene)
 #elif API==API_CU
     // BLAS
     Result->TrianglesBuffer =std::make_shared<bufferCu>(Result->AllTriangles.size() * sizeof(triangle), Result->AllTriangles.data());
-    Result->TrianglesExBuffer =std::make_shared<bufferCu>(Result->AllTrianglesEx.size() * sizeof(triangleExtraData), Result->AllTrianglesEx.data());
     Result->BVHBuffer =std::make_shared<bufferCu>(Result->AllBVHNodes.size() * sizeof(bvhNode), Result->AllBVHNodes.data());
     Result->IndicesBuffer =std::make_shared<bufferCu>(Result->AllTriangleIndices.size() * sizeof(uint32_t), Result->AllTriangleIndices.data());
     Result->IndexDataBuffer =std::make_shared<bufferCu>(Result->IndexData.size() * sizeof(indexData), Result->IndexData.data());
@@ -521,6 +514,29 @@ void sceneBVH::AddInstance(uint32_t InstanceInx)
 #endif
 }
 
+bool sceneBVH::SetSelectedInstance(uint32_t InstanceInx)
+{
+    if(InstanceInx != this->SelectedInstance)
+    {
+        // Update newly selected
+        if(InstanceInx != -1)
+        {
+            this->Instances[InstanceInx].Selected = 1;
+            this->TLASInstancesBuffer->updateData(InstanceInx * sizeof(bvhInstance), &this->Instances[InstanceInx], sizeof(bvhInstance));
+        }
+        
+        // Update previous selected
+        if(this->SelectedInstance >=0)
+        {
+            this->Instances[this->SelectedInstance].Selected=0;
+            this->TLASInstancesBuffer->updateData(SelectedInstance * sizeof(bvhInstance), &this->Instances[SelectedInstance], sizeof(bvhInstance));
+        }
+    
+        this->SelectedInstance = InstanceInx;
+        return true;
+    }
+    return false;
+}
 void sceneBVH::AddShape(uint32_t ShapeInx)
 {
     const shape &Shape = Scene->Shapes[ShapeInx];
@@ -533,14 +549,12 @@ void sceneBVH::AddShape(uint32_t ShapeInx)
     uint32_t Inx = Meshes.size()-1;
 
     AllTriangles.resize(AllTriangles.size() + Mesh->Triangles.size());
-    AllTrianglesEx.resize(AllTrianglesEx.size() + Mesh->TrianglesExtraData.size());
     AllTriangleIndices.resize(AllTriangleIndices.size() + Mesh->BVH->TriangleIndices.size());
     AllBVHNodes.resize(AllBVHNodes.size() + Mesh->BVH->NodesUsed);
     IndexData.resize(Meshes.size());
 
 
     memcpy((void*)(AllTriangles.data() + RunningTriangleCount), Meshes[Inx]->Triangles.data(), Meshes[Inx]->Triangles.size() * sizeof(triangle));
-    memcpy((void*)(AllTrianglesEx.data() + RunningTriangleCount), Meshes[Inx]->TrianglesExtraData.data(), Meshes[Inx]->TrianglesExtraData.size() * sizeof(triangleExtraData));
     memcpy((void*)(AllTriangleIndices.data() + RunningIndicesCount), Meshes[Inx]->BVH->TriangleIndices.data(), Meshes[Inx]->BVH->TriangleIndices.size() * sizeof(uint32_t));
     memcpy((void*)(AllBVHNodes.data() + RunningBVHNodeCount), Meshes[Inx]->BVH->BVHNodes.data(), Meshes[Inx]->BVH->NodesUsed * sizeof(bvhNode));
 
@@ -556,13 +570,11 @@ void sceneBVH::AddShape(uint32_t ShapeInx)
     // BLAS
 #if API==API_GL
     TrianglesBuffer =std::make_shared<bufferGL>(AllTriangles.size() * sizeof(triangle), AllTriangles.data());
-    TrianglesExBuffer =std::make_shared<bufferGL>(AllTrianglesEx.size() * sizeof(triangleExtraData), AllTrianglesEx.data());
     BVHBuffer =std::make_shared<bufferGL>(AllBVHNodes.size() * sizeof(bvhNode), AllBVHNodes.data());
     IndicesBuffer =std::make_shared<bufferGL>(AllTriangleIndices.size() * sizeof(uint32_t), AllTriangleIndices.data());
     IndexDataBuffer =std::make_shared<bufferGL>(IndexData.size() * sizeof(indexData), IndexData.data());
 #elif API==API_CU
     TrianglesBuffer =std::make_shared<bufferCu>(AllTriangles.size() * sizeof(triangle), AllTriangles.data());
-    TrianglesExBuffer =std::make_shared<bufferCu>(AllTrianglesEx.size() * sizeof(triangleExtraData), AllTrianglesEx.data());
     BVHBuffer =std::make_shared<bufferCu>(AllBVHNodes.size() * sizeof(bvhNode), AllBVHNodes.data());
     IndicesBuffer =std::make_shared<bufferCu>(AllTriangleIndices.size() * sizeof(uint32_t), AllTriangleIndices.data());
     IndexDataBuffer =std::make_shared<bufferCu>(IndexData.size() * sizeof(indexData), IndexData.data());

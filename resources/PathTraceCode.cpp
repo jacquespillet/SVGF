@@ -1,6 +1,6 @@
 struct randomState
 {
-    uint64_t State;
+    uint State;
 };
 
 
@@ -213,7 +213,7 @@ FN_DECL void IntersectBVH(ray Ray, INOUT(sceneIntersection) Isect, uint Instance
             // For each triangle in the leaf, intersect them
             for(uint i=0; i<BVHBuffer[NodeStartInx + NodeInx].TriangleCount; i++)
             {
-                uint Index = TriangleStartInx + IndicesBuffer[IndexStartInx + BVHBuffer[NodeStartInx + NodeInx].LeftChildOrFirst + i] ;
+                uint Index = TriangleStartInx + IndicesBuffer[IndexStartInx + int(BVHBuffer[NodeStartInx + NodeInx].LeftChildOrFirst) + i] ;
                 RayTriangleInteresection(Ray, 
                                          TriangleBuffer[Index], 
                                          Isect, 
@@ -228,8 +228,8 @@ FN_DECL void IntersectBVH(ray Ray, INOUT(sceneIntersection) Isect, uint Instance
         }
 
         // Get the 2 children of the current node
-        uint Child1 = BVHBuffer[NodeStartInx + NodeInx].LeftChildOrFirst;
-        uint Child2 = BVHBuffer[NodeStartInx + NodeInx].LeftChildOrFirst+1;
+        uint Child1 = uint(BVHBuffer[NodeStartInx + NodeInx].LeftChildOrFirst);
+        uint Child2 = uint(BVHBuffer[NodeStartInx + NodeInx].LeftChildOrFirst)+1;
 
         // Intersect with the 2 aabb boxes, and get the closest hit
         float Dist1 = RayAABBIntersection(Ray, BVHBuffer[Child1 + NodeStartInx].AABBMin, BVHBuffer[Child1 + NodeStartInx].AABBMax, Isect);
@@ -412,13 +412,12 @@ FN_DECL vec3 EvalShadingPosition(INOUT(vec3) OutgoingDir, INOUT(sceneIntersectio
 FN_DECL vec2 EvalTexCoord(INOUT(sceneIntersection) Isect)
 {
     uint Element = Isect.PrimitiveIndex;
-    triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];
     triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];
 
     return
-        vec2(Tri.PositionUvX1.w, ExtraData.NormalUvY1.w) * Isect.U + 
-        vec2(Tri.PositionUvX2.w, ExtraData.NormalUvY2.w) * Isect.V +
-        vec2(Tri.PositionUvX0.w, ExtraData.NormalUvY0.w) * (1 - Isect.U - Isect.V);    
+        vec2(Tri.PositionUvX1.w, Tri.NormalUvY1.w) * Isect.U + 
+        vec2(Tri.PositionUvX2.w, Tri.NormalUvY2.w) * Isect.V +
+        vec2(Tri.PositionUvX0.w, Tri.NormalUvY0.w) * (1 - Isect.U - Isect.V);    
 }
 
 FN_DECL vec4 EvalTexture(int Texture, vec2 UV, bool Linear)
@@ -589,10 +588,10 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
 FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
 {
     // Initialize the pdf to 0
-    float PDF = 0.0f;
+    float PDF = 0;
 
     // Loop through all the lights
-    for(int i=0; i<LightsCount; i++)
+    for(int i=0; i<1; i++)
     {
         if(Lights[i].Instance != INVALID_ID)
         {
@@ -620,18 +619,16 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
                     vec3(Tri.PositionUvX0) * (1 - Isect.U - Isect.V);     
                 LightPos = TransformPoint(InstanceTransform, LightPos);
                 
-                triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];
                 vec3 LightNormal = 
-                    vec3(ExtraData.NormalUvY1) * Isect.U + 
-                    vec3(ExtraData.NormalUvY2) * Isect.V +
-                    vec3(ExtraData.NormalUvY0) * (1 - Isect.U - Isect.V);                    
+                    vec3(Tri.NormalUvY1) * Isect.U + 
+                    vec3(Tri.NormalUvY2) * Isect.V +
+                    vec3(Tri.NormalUvY0) * (1 - Isect.U - Isect.V);                    
                 LightNormal = TransformDirection(InstanceTransform, LightNormal);
 
                 //Find the probability that this point was sampled
                 float Area = LightsCDF[Lights[i].CDFStart + Lights[i].CDFCount-1];
                 LightPDF += DistanceSquared(LightPos, Position) / 
                             (abs(dot(LightNormal, Direction)) * Area);
-
                 //Continue for the next ray
                 NextPosition = LightPos + Direction * 1e-3f;
             }
@@ -664,7 +661,7 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
     }
 
     // Multiply the PDF with the probability to pick one light in the scene.
-    PDF *= SampleUniformPDF(int(LightsCount));
+    // PDF *= SampleUniformPDF(int(LightsCount));
     
     return PDF;
 }
@@ -1169,7 +1166,7 @@ FN_DECL uint AdvanceState(INOUT(randomState) RNG)
     return RNG.State;    
 }
 
-FN_DECL randomState CreateRNG(uint64_t Seed)
+FN_DECL randomState CreateRNG(uint Seed)
 {
     randomState State;
     State.State = Seed;
@@ -1235,14 +1232,18 @@ MAIN()
                 }
 
                 // get all the necessary geometry information
-                triangleExtraData ExtraData = TriangleExBuffer[Isect.PrimitiveIndex];    
+                triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];    
                 Isect.InstanceTransform = TLASInstancesBuffer[Isect.InstanceIndex].Transform;
                 mat4 NormalTransform = TLASInstancesBuffer[Isect.InstanceIndex].NormalTransform;
-                vec3 HitNormal = vec3(ExtraData.NormalUvY1) * Isect.U + vec3(ExtraData.NormalUvY2) * Isect.V +vec3(ExtraData.NormalUvY0) * (1 - Isect.U - Isect.V);
-                vec4 Tangent = ExtraData.Tangent1 * Isect.U + ExtraData.Tangent2 * Isect.V + ExtraData.Tangent0 * (1 - Isect.U - Isect.V);
+                vec3 HitNormal = vec3(Tri.NormalUvY1) * Isect.U + vec3(Tri.NormalUvY2) * Isect.V +vec3(Tri.NormalUvY0) * (1 - Isect.U - Isect.V);
+                vec4 Tangent = Tri.Tangent1 * Isect.U + Tri.Tangent2 * Isect.V + Tri.Tangent0 * (1 - Isect.U - Isect.V);
                 Isect.Normal = TransformDirection(NormalTransform, HitNormal);
                 Isect.Tangent = TransformDirection(NormalTransform, vec3(Tangent));
                 Isect.Bitangent = TransformDirection(NormalTransform, normalize(cross(Isect.Normal, vec3(Tangent)) * Tangent.w));    
+
+                bool IsSelected = TLASInstancesBuffer[Isect.InstanceIndex].Selected>0;
+                if(IsSelected)
+                    Radiance += vec3(1, 1, 0);
 
                 bool StayInVolume=false;
                 if(HasVolumeMaterial)
@@ -1297,8 +1298,15 @@ MAIN()
                         {
                             Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
                             if(Incoming == vec3(0,0,0)) break;
-                            Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) /
-                                        vec3(SampleLightsPDF(Position, Incoming));  
+                            float PDF = SampleLightsPDF(Position, Incoming);
+                            if(PDF > 0)
+                            {
+                                Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / vec3(PDF);   
+                            }
+                            else
+                            {
+                                break;
+                            }
                         }
 
                     }

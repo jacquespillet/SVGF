@@ -179,7 +179,14 @@ void gui::InstanceGUI(int InstanceInx)
                 if(glm::length(App->Scene->Materials[SelectedMaterial].Emission) > 1e-3f || glm::length(App->Scene->Materials[PreviousMaterial].Emission) > 1e-3f)
                 {
                     App->Lights = GetLights(App->Scene, App->Params);
-                    App->LightsBuffer->updateData(&App->Lights, sizeof(lights));
+#if API==API_CU
+                    App->LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * App->Lights.Lights.size(), App->Lights.Lights.data());
+                    App->LightsCDFBuffer = std::make_shared<bufferCu>(sizeof(float) * App->Lights.LightsCDF.size(), App->Lights.LightsCDF.data());
+#else
+                    App->LightsBuffer = std::make_shared<bufferGL>(sizeof(light) * App->Lights.Lights.size(), App->Lights.Lights.data());
+                    App->LightsCDFBuffer = std::make_shared<bufferGL>(sizeof(float) * App->Lights.LightsCDF.size(), App->Lights.LightsCDF.data());
+#endif
+                    App->ResetRender=true;
                 }
 
                 ImGui::CloseCurrentPopup();
@@ -190,6 +197,8 @@ void gui::InstanceGUI(int InstanceInx)
     
     ImGui::Separator();
 
+    
+    
     if(MaterialGUI(App->Scene->Instances[InstanceInx].Material))
     {
         App->ResetRender=true;
@@ -203,7 +212,11 @@ bool gui::InstancesGUI()
     for (int i = 0; i < App->Scene->Instances.size(); i++)
     {
         if (ImGui::Selectable(App->Scene->InstanceNames[i].c_str(), SelectedInstance == i))
-            SelectedInstance = i;
+        {
+            if(SelectedInstance == i) SelectedInstance=-1;
+            else SelectedInstance = i;
+            Changed |= App->BVH->SetSelectedInstance(SelectedInstance);
+        }
     }
     
     if(ImGui::Button("Add"))
@@ -405,8 +418,15 @@ bool gui::MaterialGUI(int MaterialInx)
 
     if((glm::length(PrevEmission) <= 1e-3f && glm::length(Mat.Emission) > 1e-3f) || (glm::length(PrevEmission) > 1e-3f && glm::length(Mat.Emission)<= 1e-3f))
     {
+        // TODO: Do not recompute all lights
         App->Lights = GetLights(App->Scene, App->Params);
-        App->LightsBuffer->updateData(&App->Lights, sizeof(lights));
+#if API==API_CU
+        App->LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * App->Lights.Lights.size(), App->Lights.Lights.data());
+        App->LightsCDFBuffer = std::make_shared<bufferCu>(sizeof(float) * App->Lights.LightsCDF.size(), App->Lights.LightsCDF.data());
+#else
+        App->LightsBuffer = std::make_shared<bufferGL>(sizeof(light) * App->Lights.Lights.size(), App->Lights.Lights.data());
+        App->LightsCDFBuffer = std::make_shared<bufferGL>(sizeof(float) * App->Lights.LightsCDF.size(), App->Lights.LightsCDF.data());
+#endif
         App->ResetRender=true;
     }
 
@@ -664,10 +684,10 @@ bool gui::TracingGUI()
     ImGui::Text(SamplesStr.c_str());
     ImGui::DragInt("Total Samples", &App->Params.TotalSamples);
 
-    Changed |= ImGui::SliderInt("Batches", &App->Params.Batch, 0, 32);
+    ImGui::SliderInt("Batches", &App->Params.Batch, 0, 32);
     Changed |= ImGui::SliderInt("Bounces", &App->Params.Bounces, 0, 32);
     Changed |= ImGui::DragFloat("Clamp", &App->Params.Clamp, 0.1f, 0.0f, 32.0f);    
-    Changed |= ImGui::Checkbox("Denoise", &App->DoDenoise);
+    ImGui::Checkbox("Denoise", &App->DoDenoise);
 
     return Changed;
 }

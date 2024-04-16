@@ -9,6 +9,8 @@
 #define PI_F 3.141592653589
 #define INVALID_ID -1
 
+#define MAX_LENGTH 1e30f
+
 #define INIT()
 
 #define MAIN()  void main()

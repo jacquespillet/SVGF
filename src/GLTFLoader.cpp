@@ -318,7 +318,6 @@ void TraverseNodes(tinygltf::Model &GLTFModel, uint32_t nodeIndex, glm::mat4 Par
 
     std::vector<instance> &Instances = Scene->Instances;
     std::vector<std::string> &InstanceNames = Scene->InstanceNames;
-    InstanceNames.push_back(NodeName);
 
     glm::mat4 NodeTransform;
     if(GLTFNode.matrix.size() > 0)
@@ -362,13 +361,12 @@ void TraverseNodes(tinygltf::Model &GLTFModel, uint32_t nodeIndex, glm::mat4 Par
         tinygltf::Mesh GLTFMesh = GLTFModel.meshes[GLTFNode.mesh];
         for(int i=0; i<GLTFMesh.primitives.size(); i++)
         {
-            Scene->InstanceNames.push_back(GLTFNode.name);
-
             Scene->Instances.emplace_back();
             instance &Instance = Scene->Instances.back();
             Instance.ModelMatrix = Transform;
             Instance.Shape = InstanceMapping[GLTFNode.mesh][i];
             Instance.Material = Scene->Materials.size() + GLTFMesh.primitives[i].material; 
+            InstanceNames.push_back(NodeName);
         }   
     }
 

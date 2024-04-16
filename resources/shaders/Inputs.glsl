@@ -13,10 +13,6 @@ layout(std430, binding = 1)  buffer triangleBuffer
     triangle TriangleBuffer[];
 };
 
-layout(std430, binding = 2)  buffer triangleExBuffer
-{
-    triangleExtraData TriangleExBuffer[];
-};
 
 layout(std430, binding = 3)  buffer bvhBuffer
 {
