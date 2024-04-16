@@ -97,6 +97,7 @@ private:
     void InitGpuObjects();
     void InitImGui();
     void UploadMaterial(int MaterialInx);
+    void UpdateLights();
     void ResizeRenderTextures();
     void CalculateWindowSizes();
     void StartFrame();

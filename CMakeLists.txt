@@ -1,4 +1,5 @@
 project(gpuPathTracing)
+set(CMAKE_CXX_STANDARD 17)
 
 set(API_GL 0)
 set(API_CU 1)
@@ -60,6 +61,12 @@ set(OIDN_DLL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/oidn/bin)
 include_directories(${OIDN_INC_DIR})
 link_directories(${OIDN_LIB_DIR})
 
+# ASSIMP
+set(ASSIMP_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/assimp/include)
+set(ASSIMP_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/assimp/lib)
+set(ASSIMP_DLL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/assimp/bin)
+include_directories(${ASSIMP_INC_DIR})
+link_directories(${ASSIMP_LIB_DIR})
 
 
 find_package(CUDA REQUIRED)
@@ -80,6 +87,7 @@ set (sourceFiles
         src/BufferGL.cpp
         src/CameraController.cpp
         src/GLTFLoader.cpp
+        src/AssimpLoader.cpp
         src/ImageLoader.cpp
         src/TextureArrayGL.cpp
         src/TextureArrayCu.cu
@@ -92,7 +100,7 @@ set (sourceFiles
 )
 
 cuda_add_executable(PathTracer ${sourceFiles})
-target_link_libraries(PathTracer glfw3 glew32 opengl32 OpenImageDenoise)
+target_link_libraries(PathTracer glfw3 glew32 opengl32 OpenImageDenoise assimp-vc141-mt)
 target_link_libraries(PathTracer ${CUDA_LIBRARIES})
 
 install(TARGETS PathTracer RUNTIME)
@@ -101,3 +109,4 @@ install(FILES ${OIDN_DLL_DIR}/OpenImageDenoise.dll DESTINATION bin)
 install(FILES ${OIDN_DLL_DIR}/OpenImageDenoise_core.dll DESTINATION bin)
 install(FILES ${OIDN_DLL_DIR}/OpenImageDenoise_device_cuda.dll DESTINATION bin)
 install(FILES ${GLEW_DLL_DIR}/glew32.dll DESTINATION bin)
+install(FILES ${ASSIMP_DLL_DIR}/assimp-vc141-mt.dll DESTINATION bin)

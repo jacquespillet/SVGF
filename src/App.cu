@@ -118,6 +118,22 @@ void application::CreateOIDNFilter()
     Filter.set("quality", OIDN_QUALITY_BALANCED);        
     Filter.commit();
 }
+void application::UpdateLights()
+{
+    Lights = GetLights(Scene, Params);
+    if(Lights.Lights.size()>0)
+    {
+    // TODO: Only recreate the buffer if it's bigger.
+    #if API==API_CU
+        LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * Lights.Lights.size(), Lights.Lights.data());
+        LightsCDFBuffer = std::make_shared<bufferCu>(sizeof(float) * Lights.LightsCDF.size(), Lights.LightsCDF.data());
+    #else
+        LightsBuffer = std::make_shared<bufferGL>(sizeof(light) * Lights.Lights.size(), Lights.Lights.data());
+        LightsCDFBuffer = std::make_shared<bufferGL>(sizeof(float) * Lights.LightsCDF.size(), Lights.LightsCDF.data());
+    #endif
+    }
+    ResetRender=true;
+}
     
 void application::Init()
 {

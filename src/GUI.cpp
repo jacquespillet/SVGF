@@ -178,15 +178,7 @@ void gui::InstanceGUI(int InstanceInx)
                 // If the new material is emissive, or the old material was emissive, we rebuild the lights
                 if(glm::length(App->Scene->Materials[SelectedMaterial].Emission) > 1e-3f || glm::length(App->Scene->Materials[PreviousMaterial].Emission) > 1e-3f)
                 {
-                    App->Lights = GetLights(App->Scene, App->Params);
-#if API==API_CU
-                    App->LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * App->Lights.Lights.size(), App->Lights.Lights.data());
-                    App->LightsCDFBuffer = std::make_shared<bufferCu>(sizeof(float) * App->Lights.LightsCDF.size(), App->Lights.LightsCDF.data());
-#else
-                    App->LightsBuffer = std::make_shared<bufferGL>(sizeof(light) * App->Lights.Lights.size(), App->Lights.Lights.data());
-                    App->LightsCDFBuffer = std::make_shared<bufferGL>(sizeof(float) * App->Lights.LightsCDF.size(), App->Lights.LightsCDF.data());
-#endif
-                    App->ResetRender=true;
+                    App->UpdateLights();
                 }
 
                 ImGui::CloseCurrentPopup();
@@ -418,16 +410,7 @@ bool gui::MaterialGUI(int MaterialInx)
 
     if((glm::length(PrevEmission) <= 1e-3f && glm::length(Mat.Emission) > 1e-3f) || (glm::length(PrevEmission) > 1e-3f && glm::length(Mat.Emission)<= 1e-3f))
     {
-        // TODO: Do not recompute all lights
-        App->Lights = GetLights(App->Scene, App->Params);
-#if API==API_CU
-        App->LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * App->Lights.Lights.size(), App->Lights.Lights.data());
-        App->LightsCDFBuffer = std::make_shared<bufferCu>(sizeof(float) * App->Lights.LightsCDF.size(), App->Lights.LightsCDF.data());
-#else
-        App->LightsBuffer = std::make_shared<bufferGL>(sizeof(light) * App->Lights.Lights.size(), App->Lights.Lights.data());
-        App->LightsCDFBuffer = std::make_shared<bufferGL>(sizeof(float) * App->Lights.LightsCDF.size(), App->Lights.LightsCDF.data());
-#endif
-        App->ResetRender=true;
+        App->UpdateLights();
     }
 
     if(Changed)
@@ -633,11 +616,14 @@ void gui::TexturesGUI()
 bool gui::EnvironmentGUI(int EnvironmentInx)
 {
     bool Changed=false;
+    environment &Env = App->Scene->Environments[EnvironmentInx];
+    
+    glm::vec3 PrevEmission = Env.Emission;
 
     glm::vec3 Scale;
     glm::vec3 Rotation;
     glm::vec3 Translation;
-    DecomposeMatrixToComponents(App->Scene->Environments[EnvironmentInx].Transform, &Translation[0], &Rotation[0], &Scale[0]);
+    DecomposeMatrixToComponents(Env.Transform, &Translation[0], &Rotation[0], &Scale[0]);
 
     Changed |= ImGui::DragFloat3("Rotation", &Rotation[0], 1);
 
@@ -646,9 +632,9 @@ bool gui::EnvironmentGUI(int EnvironmentInx)
 
     if(UniformEmission)
     {
-        float Scale = (App->Scene->Environments[EnvironmentInx].Emission.x + App->Scene->Environments[EnvironmentInx].Emission.y + App->Scene->Environments[EnvironmentInx].Emission.z) / 3.0f;
+        float Scale = (Env.Emission.x + Env.Emission.y + Env.Emission.z) / 3.0f;
         Changed |= ImGui::DragFloat("Emission", &Scale, 0.5f, 0, 100000);
-        App->Scene->Environments[EnvironmentInx].Emission = glm::vec3(Scale, Scale, Scale);
+        Env.Emission = glm::vec3(Scale, Scale, Scale);
     }
     else
     {
@@ -657,7 +643,12 @@ bool gui::EnvironmentGUI(int EnvironmentInx)
 
     if(Changed)
     {
-        RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], App->Scene->Environments[EnvironmentInx].Transform);
+        RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], Env.Transform);
+    }
+
+    if((glm::length(PrevEmission) <= 1e-3f && glm::length(Env.Emission) > 1e-3f) || (glm::length(PrevEmission) > 1e-3f && glm::length(Env.Emission)<= 1e-3f))
+    {
+        App->UpdateLights();
     }
 
     return Changed;
@@ -673,19 +664,7 @@ bool gui::EnvironmentsGUI()
             SelectedEnvironment = i;
     }
 
-    // if(ImGui::Button("Add"))
-    // {
-    //     nfdchar_t *ImagePath = NULL;
-    //     nfdresult_t Result = NFD_OpenDialog( NULL, NULL, &ImagePath );
-    //     if ( Result == NFD_OKAY ) 
-    //     {
-    //         App->Scene->Environments.emplace_back();
-    //         texture &Texture = App->Scene->Environments.back(); 
-    //         Texture.SetFromFile(ImagePath, App->Scene->TextureWidth, App->Scene->TextureHeight);
-    //         App->Scene->TextureNames.push_back(ExtractFilename(ImagePath));
-    //         App->Scene->ReloadTextureArray();
-    //     }             
-    // }
+
     ImGui::Separator();
 
     if(SelectedEnvironment != -1)

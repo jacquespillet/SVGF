@@ -5,6 +5,7 @@
 #include "BufferGL.h"
 #include "App.h"
 #include "GLTFLoader.h"
+#include "AssimpLoader.h"
 #include "ImageLoader.h"
 #include "TextureArrayGL.h"
 #include "TextureArrayCu.cuh"
@@ -227,7 +228,9 @@ std::shared_ptr<scene> CreateCornellBox()
 #else
 
     // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\2.0\\Sponza\\glTF\\Sponza.gltf", Scene, true);
-    LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\gltf\\anime_class_room\\scene.gltf", Scene, true);
+    // LoadAssimp("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\breakfast_room\\breakfast_room.obj", Scene, true);
+    // LoadAssimp("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\breakfast_room\\breakfast_room.obj", Scene, true);
+    LoadAssimp("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\salle_de_bain\\salle_de_bain.obj", Scene, true);
     // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\gltf\\mech_drone\\scene.gltf", Scene, true);
     // LoadGLTF("C:\\Users\\jacqu\\Documents\\Boulot\\Models\\gltf\\spaceship_corridor\\scene.gltf", Scene, true);
     

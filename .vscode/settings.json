@@ -73,6 +73,12 @@
         "stop_token": "cpp",
         "thread": "cpp",
         "valarray": "cpp",
-        "xtree": "cpp"
+        "xtree": "cpp",
+        "bitset": "cpp",
+        "cwctype": "cpp",
+        "deque": "cpp",
+        "set": "cpp",
+        "stack": "cpp",
+        "__nullptr": "cpp"
     }
 }
