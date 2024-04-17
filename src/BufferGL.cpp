@@ -9,6 +9,13 @@ bufferGL::bufferGL(size_t dataSize, const void* data) {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
+void bufferGL::Reallocate(const void* data, size_t dataSize)
+{
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, BufferID);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataSize, data, GL_DYNAMIC_COPY);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
 bufferGL::~bufferGL() {
     if(BufferID != (GLuint)-1)
         Destroy();

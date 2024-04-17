@@ -7,7 +7,7 @@ namespace gpupt
 {
 struct scene;
 
-void LoadAssimp(std::string FilePath, std::shared_ptr<scene> Scene, bool AddInstances);
-void LoadAssimpShapeOnly(std::string FilePath, std::shared_ptr<scene> Scene, int ShapeInx);
+void LoadAssimp(std::string FilePath, scene* Scene, bool AddInstances);
+void LoadAssimpShapeOnly(std::string FilePath, scene* Scene, int ShapeInx);
 
 }

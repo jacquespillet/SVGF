@@ -16,7 +16,7 @@
 namespace gpupt
 {
 
-void LoadGeometry(const aiScene *AScene, std::shared_ptr<scene> Scene)
+void LoadGeometry(const aiScene *AScene, scene *Scene)
 {
     for(int i=0; i<AScene->mNumMeshes; i++)
     {
@@ -54,7 +54,7 @@ void LoadGeometry(const aiScene *AScene, std::shared_ptr<scene> Scene)
     }
 }
 
-void ProcessNode(const aiNode *Node, const aiScene *AScene, std::shared_ptr<scene> Scene, glm::mat4 ParentTransform)
+void ProcessNode(const aiNode *Node, const aiScene *AScene, scene *Scene, glm::mat4 ParentTransform)
 {
     int MeshBaseIndex = Scene->Shapes.size();
     int MaterialBaseIndex = Scene->Materials.size();
@@ -84,7 +84,7 @@ void ProcessNode(const aiNode *Node, const aiScene *AScene, std::shared_ptr<scen
     }    
 }
 
-void LoadInstances(const aiScene *AScene, std::shared_ptr<scene> Scene)
+void LoadInstances(const aiScene *AScene, scene *Scene)
 {
     glm::mat4 RootTransform = glm::mat4(1);
     ProcessNode(AScene->mRootNode, AScene, Scene, RootTransform);
@@ -105,7 +105,7 @@ std::string FileNameFromPath(const std::string& FullPath) {
     return FullPath.substr(lastSeparator + 1, extensionStart - lastSeparator - 1);
 }
 
-void LoadMaterials(const aiScene *AScene, std::shared_ptr<scene> Scene, const std::string &Path)
+void LoadMaterials(const aiScene *AScene, scene *Scene, const std::string &Path)
 {
     std::unordered_map<std::string, int> TexturesMapping;
 
@@ -158,7 +158,7 @@ std::string PathFromFile(const std::string &FullPath)
 }
 
 
-void LoadAssimp(std::string FileName, std::shared_ptr<scene> Scene, bool AddInstances)
+void LoadAssimp(std::string FileName, scene *Scene, bool AddInstances)
 {
     Assimp::Importer Importer;
     uint32_t Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices | aiProcess_CalcTangentSpace;
@@ -174,8 +174,44 @@ void LoadAssimp(std::string FileName, std::shared_ptr<scene> Scene, bool AddInst
     
 }    
 
-void LoadAssimpShapeOnly(std::string FileName, std::shared_ptr<scene> Scene, int ShapeInx)
+void LoadAssimpShapeOnly(std::string FileName, scene *Scene, int ShapeInx)
 {
+    Assimp::Importer Importer;
+    uint32_t Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices | aiProcess_CalcTangentSpace;
+    const aiScene* AScene = Importer.ReadFile(FileName, Flags);
+    
+    std::string Path = PathFromFile(FileName);
 
+    aiMesh* AMesh = AScene->mMeshes[ShapeInx];
+
+    Scene->Shapes.emplace_back();
+    shape &Shape = Scene->Shapes.back();
+    Scene->ShapeNames.push_back(AMesh->mName.C_Str());
+    // Reserve memory for Positions, Normals, and texture coordinates
+    Shape.Positions.reserve(AMesh->mNumVertices);
+    Shape.Normals.reserve(AMesh->mNumVertices);
+    Shape.TexCoords.reserve(AMesh->mNumVertices );
+
+    // Load Positions
+    for (unsigned int i = 0; i < AMesh->mNumVertices; ++i) {
+        Shape.Positions.push_back(glm::vec3(AMesh->mVertices[i].x, AMesh->mVertices[i].y, AMesh->mVertices[i].z));
+
+        // Load Normals if they exist
+        if (AMesh->HasNormals()) {
+            Shape.Normals.push_back(glm::vec3(AMesh->mNormals[i].x, AMesh->mNormals[i].y, AMesh->mNormals[i].z));
+        }
+
+        // Load texture coordinates if they exist
+        if (AMesh->HasTextureCoords(0)) {
+            Shape.TexCoords.push_back(glm::vec2(AMesh->mTextureCoords[0][i].x, AMesh->mTextureCoords[0][i].y));
+        }
+    }
+
+    // Load indices
+    Shape.Triangles.reserve(AMesh->mNumFaces * 3);
+    for (unsigned int i = 0; i < AMesh->mNumFaces; ++i) {
+        aiFace face = AMesh->mFaces[i];
+        Shape.Triangles.push_back(glm::ivec3(face.mIndices[0], face.mIndices[1], face.mIndices[2]));
+    }
 }    
 }

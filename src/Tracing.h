@@ -60,6 +60,6 @@ struct lights
     std::vector<float> LightsCDF;
 };
 
-lights GetLights(std::shared_ptr<scene> Scene, tracingParameters &Parameters);
+std::shared_ptr<lights> GetLights(scene* Scene);
 
 }

@@ -16,6 +16,7 @@
 #include <glm/gtx/quaternion.hpp>
 #include <glm/ext.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
 namespace gpupt
 {
     
@@ -93,6 +94,12 @@ void RecomposeMatrixFromComponents(const float* translation, const float* rotati
 
 gui::gui(application *App) : App(App){}
 
+bool gui::InstancesMultipleGUI()
+{
+    ImGui::Text("Multiple Instances");
+    return false;
+}
+
 void gui::InstanceGUI(int InstanceInx)
 {
     bool TransformChanged = false;
@@ -103,6 +110,32 @@ void gui::InstanceGUI(int InstanceInx)
     glm::vec3 Rotation;
     glm::vec3 Translation;
     DecomposeMatrixToComponents(App->Scene->Instances[InstanceInx].ModelMatrix, &Translation[0], &Rotation[0], &Scale[0]);
+
+    if (ImGui::IsKeyPressed(90))
+        CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+    if (ImGui::IsKeyPressed(69))
+        CurrentGizmoOperation = ImGuizmo::ROTATE;
+    if (ImGui::IsKeyPressed(82))
+        CurrentGizmoOperation = ImGuizmo::SCALE;
+    ImGui::Text("Gizmo Operation : ");
+    if (ImGui::RadioButton("Translate", CurrentGizmoOperation == ImGuizmo::TRANSLATE))
+        CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Rotate", CurrentGizmoOperation == ImGuizmo::ROTATE))
+        CurrentGizmoOperation = ImGuizmo::ROTATE;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Scale", CurrentGizmoOperation == ImGuizmo::SCALE))
+        CurrentGizmoOperation = ImGuizmo::SCALE;
+
+    if (CurrentGizmoOperation != ImGuizmo::SCALE)
+    {
+        ImGui::Text("Gizmo Space : ");
+        if (ImGui::RadioButton("Local", CurrentGizmoMode == ImGuizmo::LOCAL))
+            CurrentGizmoMode = ImGuizmo::LOCAL;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("World", CurrentGizmoMode == ImGuizmo::WORLD))
+            CurrentGizmoMode = ImGuizmo::WORLD;
+    }        
 
     TransformChanged |= ImGui::DragFloat3("Position", &Translation[0], 0.1);
     TransformChanged |= ImGui::DragFloat3("Rotation", &Rotation[0], 1);
@@ -122,7 +155,7 @@ void gui::InstanceGUI(int InstanceInx)
     if(TransformChanged)
     {
         RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], App->Scene->Instances[InstanceInx].ModelMatrix);
-        App->BVH->UpdateTLAS(InstanceInx);
+        App->Scene->BVH->UpdateTLAS(InstanceInx);
         App->ResetRender=true;
     }
 
@@ -143,7 +176,7 @@ void gui::InstanceGUI(int InstanceInx)
             if (ImGui::Selectable(App->Scene->ShapeNames[i].c_str(), SelectedShape == i))
             {
                 SelectedShape = i;
-                App->BVH->UpdateShape(InstanceInx, SelectedShape);
+                App->Scene->BVH->UpdateShape(InstanceInx, SelectedShape);
                 App->Scene->Instances[InstanceInx].Shape = SelectedShape;
                 App->ResetRender=true;
                 ImGui::CloseCurrentPopup();
@@ -163,22 +196,22 @@ void gui::InstanceGUI(int InstanceInx)
 
     if (ImGui::BeginPopup("Instance_Material_Selection"))
     {
-        static int SelectedMaterial = App->Scene->Instances[InstanceInx].Material;
+        static int SelectedInstanceMaterial = App->Scene->Instances[InstanceInx].Material;
         for (int i = 0; i < App->Scene->Materials.size(); i++)
         {
-            if (ImGui::Selectable(App->Scene->MaterialNames[i].c_str(), SelectedMaterial == i))
+            if (ImGui::Selectable(App->Scene->MaterialNames[i].c_str(), SelectedInstanceMaterial == i))
             {
                 int PreviousMaterial = App->Scene->Instances[InstanceInx].Material;
 
-                SelectedMaterial = i;
-                App->Scene->Instances[InstanceInx].Material = SelectedMaterial;
-                App->BVH->UpdateMaterial(InstanceInx, SelectedMaterial);
+                SelectedInstanceMaterial = i;
+                App->Scene->Instances[InstanceInx].Material = SelectedInstanceMaterial;
+                App->Scene->BVH->UpdateMaterial(InstanceInx, SelectedInstanceMaterial);
                 App->ResetRender=true;                        
 
                 // If the new material is emissive, or the old material was emissive, we rebuild the lights
-                if(glm::length(App->Scene->Materials[SelectedMaterial].Emission) > 1e-3f || glm::length(App->Scene->Materials[PreviousMaterial].Emission) > 1e-3f)
+                if(glm::length(App->Scene->Materials[SelectedInstanceMaterial].Emission) > 1e-3f || glm::length(App->Scene->Materials[PreviousMaterial].Emission) > 1e-3f)
                 {
-                    App->UpdateLights();
+                    App->Scene->UpdateLights();
                 }
 
                 ImGui::CloseCurrentPopup();
@@ -186,6 +219,7 @@ void gui::InstanceGUI(int InstanceInx)
         }
         ImGui::EndPopup();
     }
+
     
     ImGui::Separator();
 
@@ -200,14 +234,33 @@ void gui::InstanceGUI(int InstanceInx)
 bool gui::InstancesGUI()
 {
     bool Changed = false;
-    static int SelectedInstance = -1;
     for (int i = 0; i < App->Scene->Instances.size(); i++)
     {
-        if (ImGui::Selectable(App->Scene->InstanceNames[i].c_str(), SelectedInstance == i))
+        if (ImGui::Selectable(App->Scene->InstanceNames[i].c_str(), SelectedInstances[i]))
         {
-            if(SelectedInstance == i) SelectedInstance=-1;
-            else SelectedInstance = i;
-            Changed |= App->BVH->SetSelectedInstance(SelectedInstance);
+            if (ImGui::GetIO().KeyCtrl)
+            {
+                if(SelectedInstances[i]) 
+                {
+                    SelectedInstances[i]=false;
+                    SelectedInstanceIndices.erase(i);
+                }
+                else 
+                {
+                    SelectedInstances[i] = true;
+                    SelectedInstanceIndices.insert(i);
+                }
+            }
+            else
+            {
+                SelectedInstanceIndices.clear();
+                SelectedInstanceIndices.insert(i);
+                for (size_t j = 0; j < SelectedInstances.size(); j++)
+                {
+                    SelectedInstances[j]=false;
+                }
+                SelectedInstances[i] = true;
+            }
         }
     }
     
@@ -244,14 +297,18 @@ bool gui::InstancesGUI()
 
         if(ImGui::Button("Confirm"))
         {
-            App->Scene->Instances.emplace_back();
-            instance &NewInstance = App->Scene->Instances.back(); 
-            NewInstance.Shape = SelectedShape;
-            NewInstance.Material = SelectedMaterial;
-            App->Scene->InstanceNames.push_back(std::string(Name));      
-            App->BVH->AddInstance(App->Scene->Instances.size()-1);
-            App->ResetRender = true;
-            ImGui::CloseCurrentPopup();
+            if(SelectedShape != -1)
+            {
+                App->Scene->Instances.emplace_back();
+                instance &NewInstance = App->Scene->Instances.back(); 
+                NewInstance.Shape = SelectedShape;
+                NewInstance.Material = SelectedMaterial >= 0 ? SelectedMaterial : 0;
+                App->Scene->InstanceNames.push_back(std::string(Name));      
+                App->Scene->BVH->AddInstance(App->Scene->Instances.size()-1);
+                App->ResetRender = true;
+                App->Scene->CheckNames();
+                ImGui::CloseCurrentPopup();
+            }
         }     
         ImGui::EndPopup(); 
     }
@@ -259,9 +316,13 @@ bool gui::InstancesGUI()
 
     ImGui::Separator();
 
-    if(SelectedInstance != -1)
+    if(SelectedInstanceIndices.size() > 1)
     {
-        InstanceGUI(SelectedInstance);
+        InstancesMultipleGUI();
+    }
+    else if(SelectedInstanceIndices.size() == 1)
+    {
+        InstanceGUI(*SelectedInstanceIndices.begin());
     }
 
     
@@ -410,11 +471,12 @@ bool gui::MaterialGUI(int MaterialInx)
 
     if((glm::length(PrevEmission) <= 1e-3f && glm::length(Mat.Emission) > 1e-3f) || (glm::length(PrevEmission) > 1e-3f && glm::length(Mat.Emission)<= 1e-3f))
     {
-        App->UpdateLights();
+        App->Scene->UpdateLights();
+        Changed |= true;
     }
 
     if(Changed)
-        App->UploadMaterial(MaterialInx);
+        App->Scene->UploadMaterial(MaterialInx);
     return Changed;
 }
 
@@ -446,6 +508,7 @@ bool gui::MaterialsGUI()
             App->Scene->Materials.emplace_back();
             material Mat = App->Scene->Materials.back(); 
             App->Scene->MaterialNames.push_back(Name);
+            App->Scene->MaterialBuffer->Reallocate(App->Scene->Materials.size() * sizeof(material), App->Scene->Materials.data());
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
@@ -497,7 +560,7 @@ bool gui::ShapesGUI()
             LoadGLTF(AssetPath, App->Scene, false);
             for(int i=PreviousShapesInx; i<App->Scene->Shapes.size(); i++)
             {
-                App->BVH->AddShape(i);
+                App->Scene->BVH->AddShape(i);
             }
         }            
     }
@@ -648,7 +711,7 @@ bool gui::EnvironmentGUI(int EnvironmentInx)
 
     if((glm::length(PrevEmission) <= 1e-3f && glm::length(Env.Emission) > 1e-3f) || (glm::length(PrevEmission) > 1e-3f && glm::length(Env.Emission)<= 1e-3f))
     {
-        App->UpdateLights();
+        App->Scene->UpdateLights();
     }
 
     return Changed;
@@ -701,6 +764,8 @@ bool gui::TracingGUI()
 
 void gui::GUI()
 {
+    this->SelectedInstances.resize(App->Scene->Instances.size(), false);
+    
     App->CalculateWindowSizes(); 
 
 
@@ -765,17 +830,49 @@ void gui::GUI()
         ImGui::EndTabBar();
     }     
     ImGui::PopID();   
-
     ImGui::End();
 
     ImGui::SetNextWindowPos(ImVec2(GuiWidth,0), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(App->RenderWindowWidth, App->RenderWindowHeight), ImGuiCond_Always);
     ImGui::Begin("__", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoDecoration);
-    App->Controller.Locked = !ImGui::IsWindowFocused();
+    App->Controller.Locked = !ImGui::IsWindowFocused() || ImGuizmo::IsUsing();
     int RenderWindowWidth = ImGui::GetWindowSize().x;
     int RenderWindowHeight = ImGui::GetWindowSize().y;
 
+    
+
     ImGui::Image((ImTextureID)App->TonemapTexture->TextureID, ImVec2(RenderWindowWidth, RenderWindowHeight));
+    if(SelectedInstanceIndices.size()==1)
+    {
+        int SelectedInstance = *SelectedInstanceIndices.begin();
+        ImGuiIO &io = ImGui::GetIO();
+
+        ImGuizmo::SetRect(GuiWidth, 0, App->RenderWindowWidth, App->RenderWindowHeight);
+        instance &Instance = App->Scene->Instances[SelectedInstance];
+        camera &Camera = App->Scene->Cameras[int(App->Params.CurrentCamera)];
+        glm::mat4 ViewMatrix = glm::inverse(Camera.Frame);
+        
+        glm::mat4 ModelMatrix = App->Scene->Instances[SelectedInstance].ModelMatrix;
+
+        ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList()); 
+        
+        float A = Camera.Lens;
+        float O = Camera.Film/2;
+        float Theta = atan2(O, A) * 2;
+        glm::mat4 ProjMatrix = glm::perspective(Theta, Camera.Aspect, 0.001f, 100.0f);
+        glm::mat4 CorrectedTransform = glm::translate(ModelMatrix, App->Scene->Shapes[Instance.Shape].Centroid);
+        if(ImGuizmo::Manipulate(glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix), CurrentGizmoOperation, CurrentGizmoMode, glm::value_ptr(CorrectedTransform), NULL, NULL))
+        {
+            App->Scene->Instances[SelectedInstance].ModelMatrix = glm::translate(CorrectedTransform, -App->Scene->Shapes[Instance.Shape].Centroid);
+            App->Scene->BVH->UpdateTLAS(SelectedInstance);
+            App->ResetRender=true;
+        }
+    }
     ImGui::End();
+
+    
+
+    
+
 }
 }

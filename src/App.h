@@ -15,7 +15,6 @@ class textureGL;
 class bufferCu;
 class cudaTextureMapping;
 struct scene;
-struct sceneBVH;
 class bufferGL;
 class gui;
 
@@ -40,9 +39,7 @@ private:
     std::shared_ptr<window> Window;
 
     std::shared_ptr<scene> Scene;
-    std::shared_ptr<sceneBVH> BVH;
     bool ResetRender = false;
-    lights Lights;
 
     orbitCameraController Controller;
 
@@ -74,9 +71,6 @@ private:
     std::shared_ptr<shaderGL> TonemapShader;
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<uniformBufferGL> TracingParamsBuffer;
-    std::shared_ptr<bufferGL> MaterialBuffer;
-    std::shared_ptr<bufferGL> LightsBuffer;
-    std::shared_ptr<bufferGL> LightsCDFBuffer;
     std::shared_ptr<textureGL> DenoisedTexture;
     std::shared_ptr<cudaTextureMapping> RenderMapping;
     std::shared_ptr<cudaTextureMapping> DenoiseMapping;
@@ -87,17 +81,12 @@ private:
     std::shared_ptr<bufferCu> TonemapBuffer;    
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<cudaTextureMapping> RenderTextureMapping;
-    std::shared_ptr<bufferCu> MaterialBuffer;
-    std::shared_ptr<bufferCu> LightsBuffer;
-    std::shared_ptr<bufferCu> LightsCDFBuffer;
 #endif
 
     void Trace();
 
     void InitGpuObjects();
     void InitImGui();
-    void UploadMaterial(int MaterialInx);
-    void UpdateLights();
     void ResizeRenderTextures();
     void CalculateWindowSizes();
     void StartFrame();

@@ -336,6 +336,8 @@ int tlas::FindBestMatch(std::vector<int>& List, int N, int A)
 
 void tlas::Build()
 {
+    if(BLAS->size()==0) return;
+
     Nodes.resize(BLAS->size() * 2);
     
     std::vector<int> NodeIndex(BLAS->size());
@@ -388,10 +390,11 @@ void tlas::Build()
 }
 
 
-std::shared_ptr<sceneBVH> CreateBVH(std::shared_ptr<scene> Scene)
+std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
 {
-    // Build the low level bvh of each mesh
     std::shared_ptr<sceneBVH> Result = std::make_shared<sceneBVH>();
+    
+    // Build the low level bvh of each mesh
     for(size_t i=0; i<Scene->Shapes.size(); i++)
     {
         Result->Meshes.push_back(new mesh(Scene->Shapes[i]));

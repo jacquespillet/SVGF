@@ -462,6 +462,10 @@ FN_DECL vec3 EvalShadingNormal(INOUT(vec3) OutgoingDir, INOUT(sceneIntersection)
     return dot(Normal, OutgoingDir) >= 0 ? Normal : -Normal;
 }
 
+FN_DECL vec3 EvalEmission(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) Outgoing) {
+  return dot(Normal, Outgoing) >= 0 ? Material.Emission : vec3(0, 0, 0);
+}
+
 
 FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
 {
@@ -1240,9 +1244,9 @@ MAIN()
                 Isect.Tangent = TransformDirection(NormalTransform, vec3(Tangent));
                 Isect.Bitangent = TransformDirection(NormalTransform, normalize(cross(Isect.Normal, vec3(Tangent)) * Tangent.w));    
 
-                bool IsSelected = TLASInstancesBuffer[Isect.InstanceIndex].Selected>0;
-                if(IsSelected)
-                    Radiance += vec3(1, 1, 0);
+                // bool IsSelected = TLASInstancesBuffer[Isect.InstanceIndex].Selected>0;
+                // if(IsSelected)
+                //     Radiance += vec3(1, 1, 0);
 
                 bool StayInVolume=false;
                 if(HasVolumeMaterial)
@@ -1282,7 +1286,8 @@ MAIN()
 
                     
 
-                    Radiance += Weight * Material.Emission;
+                    Radiance += Weight * EvalEmission(Material, Normal, OutgoingDir);
+
                     vec3 Incoming = vec3(0);
                     if(!IsDelta(Material))
                     {
@@ -1326,7 +1331,7 @@ MAIN()
                         HasVolumeMaterial = !HasVolumeMaterial;
                     }
 
-                    Ray.Origin = Position;
+                    Ray.Origin = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
                     Ray.Direction = Incoming;
                 }
                 else

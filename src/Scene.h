@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include <glm/glm.hpp>
+#include "Tracing.h"
 
 #define MATERIAL_TYPE_MATTE 0
 #define MATERIAL_TYPE_PBR   1
@@ -18,6 +19,8 @@ class bufferCu;
 class bufferGL;
 class textureArrayGL;
 class textureArrayCu;
+struct sceneBVH;
+struct lights;
 
 static const int InvalidID = -1;
 
@@ -95,6 +98,8 @@ struct shape
     std::vector<glm::vec4> Tangents;
 
     std::vector<glm::ivec3> Triangles;
+
+    glm::vec3 Centroid;
 };
 
 struct environment
@@ -134,18 +139,33 @@ struct scene
 
     int EnvTextureWidth = ENV_TEX_WIDTH;
     int EnvTextureHeight = ENV_TEX_WIDTH/2;
-    void ReloadTextureArray();
 
+    std::shared_ptr<sceneBVH> BVH;
+    std::shared_ptr<lights> Lights;
+    
+    
+    scene();
+    void ReloadTextureArray();
+    void UploadMaterial(int MaterialInx);
+    void PreProcess();
+    void CheckNames();
+    void UpdateLights();
 #if API==API_GL
     std::shared_ptr<bufferGL> CamerasBuffer;
     std::shared_ptr<bufferGL> EnvironmentsBuffer;
     std::shared_ptr<textureArrayGL> TexArray;
     std::shared_ptr<textureArrayGL> EnvTexArray;
+    std::shared_ptr<bufferGL> LightsBuffer;
+    std::shared_ptr<bufferGL> LightsCDFBuffer;
+    std::shared_ptr<bufferGL> MaterialBuffer;
 #elif API==API_CU
     std::shared_ptr<bufferCu> EnvironmentsBuffer;
     std::shared_ptr<bufferCu> CamerasBuffer;
     std::shared_ptr<textureArrayCu> TexArray;
     std::shared_ptr<textureArrayCu> EnvTexArray;
+    std::shared_ptr<bufferCu> LightsBuffer;
+    std::shared_ptr<bufferCu> LightsCDFBuffer;
+    std::shared_ptr<bufferCu> MaterialBuffer;
 #endif    
 };
 

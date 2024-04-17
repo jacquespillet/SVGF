@@ -210,9 +210,9 @@ struct sceneBVH
     int SelectedInstance = -1;
     ~sceneBVH();
     void Destroy();
-    std::shared_ptr<scene> Scene;
+    scene* Scene;
 };
 
-std::shared_ptr<sceneBVH> CreateBVH(std::shared_ptr<scene> Scene);
+std::shared_ptr<sceneBVH> CreateBVH(scene* Scene);
 
 }

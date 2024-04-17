@@ -16,6 +16,13 @@ bufferCu::bufferCu(int Size, void *InitData) : Size(Size){
     if(InitData != nullptr) cudaMemcpy(this->Data, InitData, Size, cudaMemcpyHostToDevice);
 }
 
+void bufferCu::Reallocate(int Size, void *InitData)
+{
+    cudaFree(Data); 
+    cudaMalloc((void**)&this->Data, Size);
+    if(InitData != nullptr) cudaMemcpy(this->Data, InitData, Size, cudaMemcpyHostToDevice);
+}
+
 // Destructor
 bufferCu::~bufferCu() {
     Destroy();

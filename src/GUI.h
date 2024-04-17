@@ -1,5 +1,9 @@
 #pragma once
 #include <stdint.h>
+#include "imgui.h"
+#include "ImGuizmo.h"
+#include <set>
+#include <vector>
 
 namespace gpupt
 {
@@ -11,6 +15,7 @@ public:
     gui(application *app);
     void InstanceGUI(int InstanceInx);
     bool InstancesGUI();
+    bool InstancesMultipleGUI();
     bool MaterialGUI(int MaterialInx);
     bool MaterialsGUI();
     bool ShapeGUI(int ShapeInx);
@@ -30,9 +35,14 @@ public:
     // GUI
     int SelectedMaterial = -1;
     int SelectedShape = -1;
-    int SelectedInstance = -1;
+    std::vector<bool> SelectedInstances;
+    std::set<int> SelectedInstanceIndices;
     int SelectedTexture = -1;
     int SelectedEnvironment = -1;
     int SelectedCamera = -1;
+
+    
+    ImGuizmo::OPERATION CurrentGizmoOperation = (ImGuizmo::TRANSLATE);
+    ImGuizmo::MODE CurrentGizmoMode = (ImGuizmo::WORLD);    
 };
 }
