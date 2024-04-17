@@ -37,6 +37,92 @@ void EnsureUnicity(std::vector<std::string> &Names, std::string DefaultName)
     }
 }
 
+void shape::CalculateTangents()
+{
+    std::vector<glm::vec4> tan1(this->Positions.size(), glm::vec4(0));
+    std::vector<glm::vec4> tan2(this->Positions.size(), glm::vec4(0));
+    if (this->Tangents.size() != this->Positions.size()) this->Tangents.resize(this->Positions.size());
+    if(this->TexCoords.size() != this->Positions.size()) return;
+
+    for(uint64_t i=0; i<this->Triangles.size(); i++) {
+        glm::vec3 v1 = this->Positions[this->Triangles[i].x];
+        glm::vec3 v2 = this->Positions[this->Triangles[i].y];
+        glm::vec3 v3 = this->Positions[this->Triangles[i].z];
+
+        glm::vec2 w1 = this->TexCoords[this->Triangles[i].x];
+        glm::vec2 w2 = this->TexCoords[this->Triangles[i].y];
+        glm::vec2 w3 = this->TexCoords[this->Triangles[i].z];
+
+        float x1 = v2.x - v1.x;
+        float x2 = v3.x - v1.x;
+        float y1 = v2.y - v1.y;
+        float y2 = v3.y - v1.y;
+        float z1 = v2.z - v1.z;
+        float z2 = v3.z - v1.z;
+
+        float s1 = w2.x - w1.x;
+        float s2 = w3.x - w1.x;
+        float t1 = w2.y - w1.y;
+        float t2 = w3.y - w1.y;
+
+        float r = 1.0F / (s1 * t2 - s2 * t1);
+        glm::vec4 sdir((t2 * x1 - t1 * x2) * r, (t2 * y1 - t1 * y2) * r, (t2 * z1 - t1 * z2) * r, 0);
+        glm::vec4 tdir((s1 * x2 - s2 * x1) * r, (s1 * y2 - s2 * y1) * r, (s1 * z2 - s2 * z1) * r, 0);
+
+        tan1[this->Triangles[i].x] += sdir;
+        tan1[this->Triangles[i].y] += sdir;
+        tan1[this->Triangles[i].z] += sdir;
+        
+        tan2[this->Triangles[i].x] += tdir;
+        tan2[this->Triangles[i].y] += tdir;
+        tan2[this->Triangles[i].z] += tdir;
+
+    }
+
+    for(uint64_t i=0; i<this->Positions.size(); i++) { 
+        glm::vec3 n = this->Normals[i];
+        glm::vec3 t = glm::vec3(tan1[i]);
+
+        this->Tangents[i] = glm::vec4(glm::normalize((t - n * glm::dot(n, t))), 1);
+        
+        this->Tangents[i].w = (glm::dot(glm::cross(n, t), glm::vec3(tan2[i])) < 0.0F) ? -1.0F : 1.0F;
+    }
+}
+
+void shape::PreProcess()
+{
+    if(this->Normals.size() == 0)
+    {
+        this->Normals.resize(this->Positions.size());
+        for (size_t j = 0; j < this->Triangles.size(); j++)
+        {
+            glm::ivec3 Tri = this->Triangles[j];
+            glm::vec3 v0 = this->Positions[Tri.x];
+            glm::vec3 v1 = this->Positions[Tri.y];
+            glm::vec3 v2 = this->Positions[Tri.z];
+
+            glm::vec3 Normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+            this->Normals[Tri.x] = Normal;
+            this->Normals[Tri.y] = Normal;
+            this->Normals[Tri.z] = Normal;
+        }
+    }
+    if(this->Tangents.size() ==0)
+    {
+        this->CalculateTangents();            
+    }
+    if(this->TexCoords.size() != this->Positions.size()) this->TexCoords.resize(this->Positions.size());
+    if(this->Colours.size() != this->Positions.size()) this->Colours.resize(this->Positions.size(), glm::vec4{1,1,1,1});
+    
+    double InverseSize = 1.0 / double(this->Positions.size()); 
+    glm::dvec3 Centroid;
+    for(size_t j=0; j < this->Positions.size(); j++)
+    {
+        Centroid += glm::dvec3(this->Positions[j]) * InverseSize;
+    }
+    this->Centroid = glm::vec3(Centroid);    
+}
+
 scene::scene()
 {
     glm::uvec2 RenderSize = application::GetSize();
@@ -52,30 +138,62 @@ scene::scene()
     Camera.Controlled = 1;  
     this->CameraNames.push_back("Main Camera");
     
-    LoadAssimpShapeOnly("resources/models/BaseShapes/Cube/Cube.obj", this, 0);
-    LoadAssimpShapeOnly("resources/models/BaseShapes/Cone/Cone.obj", this, 0);
-    LoadAssimpShapeOnly("resources/models/BaseShapes/Cylinder/Cylinder.obj", this, 0);
-    LoadAssimpShapeOnly("resources/models/BaseShapes/Sphere/Sphere.obj", this, 0);
-    LoadAssimpShapeOnly("resources/models/BaseShapes/Torus/Torus.obj", this, 0);
-    LoadAssimpShapeOnly("resources/models/BaseShapes/Plane/Plane.obj", this, 0);
+    LoadAssimp("resources/models/BaseShapes/Cube/Cube.obj", this, false, false, false);
+    LoadAssimp("resources/models/BaseShapes/Cone/Cone.obj", this, false, false, false);
+    LoadAssimp("resources/models/BaseShapes/Cylinder/Cylinder.obj", this, false, false, false);
+    LoadAssimp("resources/models/BaseShapes/Sphere/Sphere.obj", this, false, false, false);
+    LoadAssimp("resources/models/BaseShapes/Torus/Torus.obj", this, false, false, false);
+    LoadAssimp("resources/models/BaseShapes/Plane/Plane.obj", this, false, false, false);
 
     this->Materials.emplace_back();
     material &BaseMaterial = this->Materials.back(); 
     BaseMaterial.Colour = {0.725f, 0.71f, 0.68f};
 
     
-    this->Instances.emplace_back();
-    instance &FloorInstance = this->Instances.back();
-    FloorInstance.Shape = (int)this->Shapes.size()-1;
-    FloorInstance.Material = (int)this->Materials.size()-1;
-    FloorInstance.ModelMatrix = glm::scale(glm::vec3(4, 4, 4));
-    this->InstanceNames.push_back("Floor");
-    this->MaterialNames.push_back("Floor");
+    {
+        this->Instances.emplace_back();
+        instance &FloorInstance = this->Instances.back();
+        FloorInstance.Shape = (int)this->Shapes.size()-1;
+        FloorInstance.Material = (int)this->Materials.size()-1;
+        FloorInstance.ModelMatrix = glm::scale(glm::vec3(4, 4, 4));
+        this->InstanceNames.push_back("Floor");
+        this->MaterialNames.push_back("Floor");
+    }
+    
+    {
+        this->Instances.emplace_back();
+        instance &FloorInstance = this->Instances.back();
+        FloorInstance.Shape = (int)this->Shapes.size()-1;
+        FloorInstance.Material = (int)this->Materials.size()-1;
+        FloorInstance.ModelMatrix = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(2, 0, 0));
+        this->InstanceNames.push_back("Floor");
+        this->MaterialNames.push_back("Floor");
+    }
 
+    {
+        this->Instances.emplace_back();
+        instance &FloorInstance = this->Instances.back();
+        FloorInstance.Shape = (int)this->Shapes.size()-1;
+        FloorInstance.Material = (int)this->Materials.size()-1;
+        FloorInstance.ModelMatrix = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(0, 0, 2));
+        this->InstanceNames.push_back("Floor");
+        this->MaterialNames.push_back("Floor");
+    }
+
+    {
+        this->Instances.emplace_back();
+        instance &FloorInstance = this->Instances.back();
+        FloorInstance.Shape = (int)this->Shapes.size()-1;
+        FloorInstance.Material = (int)this->Materials.size()-1;
+        FloorInstance.ModelMatrix = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(-2, 0, 2));
+        this->InstanceNames.push_back("Floor");
+        this->MaterialNames.push_back("Floor");
+    }
+
+    
     this->Materials.emplace_back();
     material &LightMaterial = this->Materials.back();
     LightMaterial.Emission = {40, 40, 40};    
-    
     this->Instances.emplace_back();
     instance &LightInstance = this->Instances.back(); 
     LightInstance.Shape = (int)this->Shapes.size()-1;
@@ -98,18 +216,7 @@ void scene::CheckNames()
 
 void scene::UpdateLights()
 {
-    this->Lights = GetLights(this);
-    if(this->Lights->Lights.size()>0)
-    {
-    // TODO: Only recreate the buffer if it's bigger.
-    #if API==API_CU
-        this->LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * this->Lights->Lights.size(), this->Lights->Lights.data());
-        this->LightsCDFBuffer = std::make_shared<bufferCu>(sizeof(float) * this->Lights->LightsCDF.size(), this->Lights->LightsCDF.data());
-    #else
-        this->LightsBuffer = std::make_shared<bufferGL>(sizeof(light) * this->Lights->Lights.size(), this->Lights->Lights.data());
-        this->LightsCDFBuffer = std::make_shared<bufferGL>(sizeof(float) * this->Lights->LightsCDF.size(), this->Lights->LightsCDF.data());
-    #endif
-    };
+    this->Lights->Build(this);
 }
 
 void scene::UploadMaterial(int MaterialInx)
@@ -127,52 +234,20 @@ void scene::PreProcess()
     // Checkup
     for (size_t i = 0; i < this->Shapes.size(); i++)
     {
-        if(this->Shapes[i].Normals.size() == 0)
-        {
-            this->Shapes[i].Normals.resize(this->Shapes[i].Positions.size());
-            for (size_t j = 0; j < this->Shapes[i].Triangles.size(); j++)
-            {
-                glm::ivec3 Tri = this->Shapes[i].Triangles[j];
-                glm::vec3 v0 = this->Shapes[i].Positions[Tri.x];
-                glm::vec3 v1 = this->Shapes[i].Positions[Tri.y];
-                glm::vec3 v2 = this->Shapes[i].Positions[Tri.z];
-
-                glm::vec3 Normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
-                this->Shapes[i].Normals[Tri.x] = Normal;
-                this->Shapes[i].Normals[Tri.y] = Normal;
-                this->Shapes[i].Normals[Tri.z] = Normal;
-            }
-        }
-        if(this->Shapes[i].Tangents.size() ==0)
-        {
-            CalculateTangents(this->Shapes[i]);            
-        }
-        if(this->Shapes[i].TexCoords.size() != this->Shapes[i].Positions.size()) this->Shapes[i].TexCoords.resize(this->Shapes[i].Positions.size());
-        if(this->Shapes[i].Colours.size() != this->Shapes[i].Positions.size()) this->Shapes[i].Colours.resize(this->Shapes[i].Positions.size(), glm::vec4{1,1,1,1});
-        
-        double InverseSize = 1.0 / double(this->Shapes[i].Positions.size()); 
-        glm::dvec3 Centroid;
-        for(size_t j=0; j < this->Shapes[i].Positions.size(); j++)
-        {
-            Centroid += glm::dvec3(this->Shapes[i].Positions[j]) * InverseSize;
-        }
-        this->Shapes[i].Centroid = glm::vec3(Centroid);
+        Shapes[i].PreProcess();
     }
     
 
     BVH = CreateBVH(this); 
-    Lights = GetLights(this);
+    Lights = std::make_shared<lights>();
+    Lights->Build(this);
 #if API==API_GL
     this->CamerasBuffer = std::make_shared<bufferGL>(this->Cameras.size() * sizeof(camera), this->Cameras.data());
     this->EnvironmentsBuffer = std::make_shared<bufferGL>(this->Environments.size() * sizeof(camera), this->Environments.data());
-    this->LightsBuffer = std::make_shared<bufferGL>(sizeof(light) * Lights->Lights.size(), Lights->Lights.data());
-    this->LightsCDFBuffer = std::make_shared<bufferGL>(sizeof(float) * Lights->LightsCDF.size(), Lights->LightsCDF.data());
     this->MaterialBuffer = std::make_shared<bufferGL>(sizeof(material) * Materials.size(), Materials.data());
 #elif API==API_CU
     this->CamerasBuffer = std::make_shared<bufferCu>(this->Cameras.size() * sizeof(camera), this->Cameras.data());
     this->EnvironmentsBuffer = std::make_shared<bufferCu>(this->Environments.size() * sizeof(environment), this->Environments.data());
-    this->LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * Lights->Lights.size(), Lights->Lights.data());
-    this->LightsCDFBuffer = std::make_shared<bufferCu>(sizeof(float) * Lights->LightsCDF.size(), Lights->LightsCDF.data());
     this->MaterialBuffer = std::make_shared<bufferCu>(sizeof(material) * Materials.size(), Materials.data());
 #endif    
 }
@@ -377,57 +452,7 @@ std::shared_ptr<scene> CreateCornellBox()
 }
 
 
-void CalculateTangents(shape &Shape)
-{
-    std::vector<glm::vec4> tan1(Shape.Positions.size(), glm::vec4(0));
-    std::vector<glm::vec4> tan2(Shape.Positions.size(), glm::vec4(0));
-    if (Shape.Tangents.size() != Shape.Positions.size()) Shape.Tangents.resize(Shape.Positions.size());
-    if(Shape.TexCoords.size() != Shape.Positions.size()) return;
 
-    for(uint64_t i=0; i<Shape.Triangles.size(); i++) {
-        glm::vec3 v1 = Shape.Positions[Shape.Triangles[i].x];
-        glm::vec3 v2 = Shape.Positions[Shape.Triangles[i].y];
-        glm::vec3 v3 = Shape.Positions[Shape.Triangles[i].z];
-
-        glm::vec2 w1 = Shape.TexCoords[Shape.Triangles[i].x];
-        glm::vec2 w2 = Shape.TexCoords[Shape.Triangles[i].y];
-        glm::vec2 w3 = Shape.TexCoords[Shape.Triangles[i].z];
-
-        float x1 = v2.x - v1.x;
-        float x2 = v3.x - v1.x;
-        float y1 = v2.y - v1.y;
-        float y2 = v3.y - v1.y;
-        float z1 = v2.z - v1.z;
-        float z2 = v3.z - v1.z;
-
-        float s1 = w2.x - w1.x;
-        float s2 = w3.x - w1.x;
-        float t1 = w2.y - w1.y;
-        float t2 = w3.y - w1.y;
-
-        float r = 1.0F / (s1 * t2 - s2 * t1);
-        glm::vec4 sdir((t2 * x1 - t1 * x2) * r, (t2 * y1 - t1 * y2) * r, (t2 * z1 - t1 * z2) * r, 0);
-        glm::vec4 tdir((s1 * x2 - s2 * x1) * r, (s1 * y2 - s2 * y1) * r, (s1 * z2 - s2 * z1) * r, 0);
-
-        tan1[Shape.Triangles[i].x] += sdir;
-        tan1[Shape.Triangles[i].y] += sdir;
-        tan1[Shape.Triangles[i].z] += sdir;
-        
-        tan2[Shape.Triangles[i].x] += tdir;
-        tan2[Shape.Triangles[i].y] += tdir;
-        tan2[Shape.Triangles[i].z] += tdir;
-
-    }
-
-    for(uint64_t i=0; i<Shape.Positions.size(); i++) { 
-        glm::vec3 n = Shape.Normals[i];
-        glm::vec3 t = glm::vec3(tan1[i]);
-
-        Shape.Tangents[i] = glm::vec4(glm::normalize((t - n * glm::dot(n, t))), 1);
-        
-        Shape.Tangents[i].w = (glm::dot(glm::cross(n, t), glm::vec3(tan2[i])) < 0.0F) ? -1.0F : 1.0F;
-    }
-}
 
 void scene::ReloadTextureArray()
 {

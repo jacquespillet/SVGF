@@ -29,7 +29,7 @@
         cudaError_t error = err; \
         if (error != cudaSuccess) { \
             std::cout << "CUDA error at " << __FILE__ << ":" << __LINE__ << " - " << cudaGetErrorString(error) << std::endl; \
-            exit(EXIT_FAILURE); \
+            assert(false); \
         } \
     } while (0)
 
@@ -62,6 +62,8 @@ void application::InitImGui()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(Window->Handle, true);
     ImGui_ImplOpenGL3_Init("#version 460");
@@ -213,16 +215,18 @@ void application::Trace()
         dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
         TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, RenderWidth, RenderHeight,
                                             (triangle*)Scene->BVH->TrianglesBuffer->Data, (bvhNode*) Scene->BVH->BVHBuffer->Data, (uint32_t*) Scene->BVH->IndicesBuffer->Data, (indexData*) Scene->BVH->IndexDataBuffer->Data, (bvhInstance*)Scene->BVH->TLASInstancesBuffer->Data, (tlasNode*) Scene->BVH->TLASNodeBuffer->Data,
-                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)Scene->MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)Scene->LightsBuffer->Data, (float*)Scene->LightsCDFBuffer->Data, (int)Scene->Lights->Lights.size(), 
+                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)Scene->MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)Scene->Lights->LightsBuffer->Data, (float*)Scene->Lights->LightsCDFBuffer->Data, (int)Scene->Lights->Lights.size(), 
                                             (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight);
 #endif
         Params.CurrentSample+= Params.Batch;
     }
+    CUDA_CHECK_ERROR(cudaGetLastError());
 
     if(DoDenoise && !Denoised)
     {
         Denoise();
     }
+    CUDA_CHECK_ERROR(cudaGetLastError());
 
 #if API==API_GL
     TonemapShader->Use();
@@ -233,6 +237,7 @@ void application::Trace()
     dim3 blockSize(16, 16);
     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
     TonemapKernel<<<gridSize, blockSize>>>(Denoised ? (glm::vec4*)DenoisedBuffer->Data : (glm::vec4*)RenderBuffer->Data, (glm::vec4*)TonemapBuffer->Data, RenderWidth, RenderHeight);
+    CUDA_CHECK_ERROR(cudaGetLastError());
     cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, TonemapBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
     CUDA_CHECK_ERROR(cudaGetLastError());
 #endif

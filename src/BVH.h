@@ -204,6 +204,7 @@ struct sceneBVH
     void UpdateMaterial(uint32_t InstanceInx, uint32_t MaterialInx);
     void UpdateTLAS(uint32_t InstanceInx);
     void AddInstance(uint32_t InstanceInx);
+    void RemoveInstance(uint32_t InstanceInx);
     bool SetSelectedInstance(uint32_t instanceInx);
     void AddShape(uint32_t ShapeInx);
 

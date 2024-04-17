@@ -100,6 +100,9 @@ struct shape
     std::vector<glm::ivec3> Triangles;
 
     glm::vec3 Centroid;
+
+    void PreProcess();
+    void CalculateTangents();
 };
 
 struct environment
@@ -143,7 +146,6 @@ struct scene
     std::shared_ptr<sceneBVH> BVH;
     std::shared_ptr<lights> Lights;
     
-    
     scene();
     void ReloadTextureArray();
     void UploadMaterial(int MaterialInx);
@@ -155,16 +157,12 @@ struct scene
     std::shared_ptr<bufferGL> EnvironmentsBuffer;
     std::shared_ptr<textureArrayGL> TexArray;
     std::shared_ptr<textureArrayGL> EnvTexArray;
-    std::shared_ptr<bufferGL> LightsBuffer;
-    std::shared_ptr<bufferGL> LightsCDFBuffer;
     std::shared_ptr<bufferGL> MaterialBuffer;
 #elif API==API_CU
     std::shared_ptr<bufferCu> EnvironmentsBuffer;
     std::shared_ptr<bufferCu> CamerasBuffer;
     std::shared_ptr<textureArrayCu> TexArray;
     std::shared_ptr<textureArrayCu> EnvTexArray;
-    std::shared_ptr<bufferCu> LightsBuffer;
-    std::shared_ptr<bufferCu> LightsCDFBuffer;
     std::shared_ptr<bufferCu> MaterialBuffer;
 #endif    
 };

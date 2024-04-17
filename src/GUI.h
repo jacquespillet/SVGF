@@ -4,6 +4,7 @@
 #include "ImGuizmo.h"
 #include <set>
 #include <vector>
+#include <string>
 
 namespace gpupt
 {
@@ -18,6 +19,7 @@ public:
     bool InstancesMultipleGUI();
     bool MaterialGUI(int MaterialInx);
     bool MaterialsGUI();
+    bool TexturePickerGUI(std::string Name, int &TextureInx);
     bool ShapeGUI(int ShapeInx);
     bool ShapesGUI();
     bool CameraGUI(int CameraInx);

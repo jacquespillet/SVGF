@@ -51,6 +51,7 @@ void LoadGeometry(const aiScene *AScene, scene *Scene)
             aiFace face = AMesh->mFaces[i];
             Shape.Triangles.push_back(glm::ivec3(face.mIndices[0], face.mIndices[1], face.mIndices[2]));
         }
+        Shape.PreProcess();
     }
 }
 
@@ -105,45 +106,55 @@ std::string FileNameFromPath(const std::string& FullPath) {
     return FullPath.substr(lastSeparator + 1, extensionStart - lastSeparator - 1);
 }
 
-void LoadMaterials(const aiScene *AScene, scene *Scene, const std::string &Path)
+void LoadMaterials(const aiScene *AScene, scene *Scene, const std::string &Path, bool DoLoadMaterials, bool DoLoadTextures)
 {
     std::unordered_map<std::string, int> TexturesMapping;
 
     for(int i=0; i<AScene->mNumMaterials; i++)
     {
-        Scene->Materials.emplace_back();
-        Scene->MaterialNames.push_back(AScene->mMaterials[i]->GetName().C_Str());
-        material &Material = Scene->Materials.back();
-        Material.MaterialType = MATERIAL_TYPE_PBR;
-
         aiMaterial *AMaterial = AScene->mMaterials[i];
-
-        aiColor3D DiffuseColour;
-        AMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, DiffuseColour);
-        Material.Colour = glm::vec3(DiffuseColour.r, DiffuseColour.g, DiffuseColour.b);
-
-        aiColor3D Emission;
-        AMaterial->Get(AI_MATKEY_COLOR_EMISSIVE, Emission);
-        Material.Emission = glm::vec3(Emission.r, Emission.g, Emission.b);
-        
-        AMaterial->Get(AI_MATKEY_METALLIC_FACTOR, Material.Metallic);
-        AMaterial->Get(AI_MATKEY_ROUGHNESS_FACTOR, Material.Roughness);
-        AMaterial->Get(AI_MATKEY_OPACITY, Material.Opacity);
-
-        aiString TexturePath;
-        AMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &TexturePath);
-        if(TexturePath.length != 0)
+        if(DoLoadMaterials)
         {
-            if(TexturesMapping.find(TexturePath.C_Str()) == TexturesMapping.end())
-            {
-                TexturesMapping[TexturePath.C_Str()] = Scene->Textures.size();
+            Scene->Materials.emplace_back();
+            Scene->MaterialNames.push_back(AScene->mMaterials[i]->GetName().C_Str());
+            material &Material = Scene->Materials.back();
+            Material.MaterialType = MATERIAL_TYPE_PBR;
 
-                Scene->Textures.emplace_back();
-                Scene->TextureNames.push_back(FileNameFromPath(TexturePath.C_Str()));
-                texture &Texture = Scene->Textures.back();
-                Texture.SetFromFile(Path + "/" + TexturePath.C_Str(), Scene->TextureWidth, Scene->TextureHeight);
+
+            aiColor3D DiffuseColour;
+            AMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, DiffuseColour);
+            Material.Colour = glm::vec3(DiffuseColour.r, DiffuseColour.g, DiffuseColour.b);
+
+            aiColor3D Emission;
+            AMaterial->Get(AI_MATKEY_COLOR_EMISSIVE, Emission);
+            Material.Emission = glm::vec3(Emission.r, Emission.g, Emission.b);
+            
+            AMaterial->Get(AI_MATKEY_METALLIC_FACTOR, Material.Metallic);
+            AMaterial->Get(AI_MATKEY_ROUGHNESS_FACTOR, Material.Roughness);
+            AMaterial->Get(AI_MATKEY_OPACITY, Material.Opacity);
+        }
+
+        if(DoLoadTextures)
+        {
+            aiString TexturePath;
+            AMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &TexturePath);
+            if(TexturePath.length != 0)
+            {
+                if(TexturesMapping.find(TexturePath.C_Str()) == TexturesMapping.end())
+                {
+                    TexturesMapping[TexturePath.C_Str()] = Scene->Textures.size();
+
+                    Scene->Textures.emplace_back();
+                    Scene->TextureNames.push_back(FileNameFromPath(TexturePath.C_Str()));
+                    texture &Texture = Scene->Textures.back();
+                    Texture.SetFromFile(Path + "/" + TexturePath.C_Str(), Scene->TextureWidth, Scene->TextureHeight);
+                }
+                if(DoLoadMaterials)
+                {
+                    material &Material = Scene->Materials.back();
+                    Material.ColourTexture = TexturesMapping[TexturePath.C_Str()];
+                }
             }
-            Material.ColourTexture = TexturesMapping[TexturePath.C_Str()];
         }
     }
 }
@@ -158,7 +169,7 @@ std::string PathFromFile(const std::string &FullPath)
 }
 
 
-void LoadAssimp(std::string FileName, scene *Scene, bool AddInstances)
+void LoadAssimp(std::string FileName, scene *Scene, bool DoLoadInstances, bool DoLoadMaterials, bool DoLoadTextures)
 {
     Assimp::Importer Importer;
     uint32_t Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices | aiProcess_CalcTangentSpace;
@@ -168,9 +179,9 @@ void LoadAssimp(std::string FileName, scene *Scene, bool AddInstances)
 
     
 
-    if(AddInstances) LoadInstances(AScene, Scene);
+    if(DoLoadInstances) LoadInstances(AScene, Scene);
     LoadGeometry(AScene, Scene);
-    LoadMaterials(AScene, Scene, Path);
+    if(DoLoadMaterials || DoLoadTextures) LoadMaterials(AScene, Scene, Path, DoLoadMaterials, DoLoadTextures);
     
 }    
 

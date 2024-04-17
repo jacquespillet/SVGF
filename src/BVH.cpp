@@ -4,6 +4,7 @@
 
 #include "BufferGL.h"
 #include "BufferCu.cuh"
+#include <cuda_runtime_api.h>
 
 #define BINS 8
 
@@ -308,7 +309,6 @@ tlas::tlas()
 tlas::tlas(std::vector<bvhInstance>* BVHList)
 {
     BLAS = BVHList;
-    NodesUsed=2;
 }
 
 int tlas::FindBestMatch(std::vector<int>& List, int N, int A)
@@ -408,11 +408,6 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
                         Scene->Instances[i].GetModelMatrix(), (uint32_t)i, Scene->Instances[i].Material)
         );
     }
-    
-    // Build the top level data structure
-    Result->TLAS = tlas(&Result->Instances);
-    Result->TLAS.Build();
-
     //Build big buffers with all the shape datas inside
     uint64_t TotalTriangleCount=0;
     uint64_t TotalIndicesCount=0;
@@ -451,29 +446,33 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
         RunningIndicesCount += (uint32_t)Result->Meshes[i]->BVH->TriangleIndices.size();
         RunningBVHNodeCount += (uint32_t)Result->Meshes[i]->BVH->NodesUsed;
     }
-
-    // Upload to the gpu
 #if API==API_GL
-    // BLAS
     Result->TrianglesBuffer =std::make_shared<bufferGL>(Result->AllTriangles.size() * sizeof(triangle), Result->AllTriangles.data());
     Result->BVHBuffer =std::make_shared<bufferGL>(Result->AllBVHNodes.size() * sizeof(bvhNode), Result->AllBVHNodes.data());
     Result->IndicesBuffer =std::make_shared<bufferGL>(Result->AllTriangleIndices.size() * sizeof(uint32_t), Result->AllTriangleIndices.data());
     Result->IndexDataBuffer =std::make_shared<bufferGL>(Result->IndexData.size() * sizeof(indexData), Result->IndexData.data());
-
-    // TLAS
-    Result->TLASInstancesBuffer =std::make_shared<bufferGL>(Result->TLAS.BLAS->size() * sizeof(bvhInstance), Result->TLAS.BLAS->data());
-    Result->TLASNodeBuffer =std::make_shared<bufferGL>(Result->TLAS.Nodes.size() * sizeof(tlasNode), Result->TLAS.Nodes.data());
 #elif API==API_CU
     // BLAS
     Result->TrianglesBuffer =std::make_shared<bufferCu>(Result->AllTriangles.size() * sizeof(triangle), Result->AllTriangles.data());
     Result->BVHBuffer =std::make_shared<bufferCu>(Result->AllBVHNodes.size() * sizeof(bvhNode), Result->AllBVHNodes.data());
     Result->IndicesBuffer =std::make_shared<bufferCu>(Result->AllTriangleIndices.size() * sizeof(uint32_t), Result->AllTriangleIndices.data());
     Result->IndexDataBuffer =std::make_shared<bufferCu>(Result->IndexData.size() * sizeof(indexData), Result->IndexData.data());
+#endif    
+    
+    // Build the top level data structure
+    Result->TLAS = tlas(&Result->Instances);
+    Result->TLAS.Build();
 
-    // TLAS
+
+    // Upload to the gpu
+#if API==API_GL
+    Result->TLASInstancesBuffer =std::make_shared<bufferGL>(Result->TLAS.BLAS->size() * sizeof(bvhInstance), Result->TLAS.BLAS->data());
+    Result->TLASNodeBuffer =std::make_shared<bufferGL>(Result->TLAS.Nodes.size() * sizeof(tlasNode), Result->TLAS.Nodes.data());
+#elif API==API_CU
     Result->TLASInstancesBuffer =std::make_shared<bufferCu>(Result->TLAS.BLAS->size() * sizeof(bvhInstance), Result->TLAS.BLAS->data());
     Result->TLASNodeBuffer =std::make_shared<bufferCu>(Result->TLAS.Nodes.size() * sizeof(tlasNode), Result->TLAS.Nodes.data());
 #endif
+
     Result->Scene = Scene;
     return Result;
 }
@@ -507,15 +506,39 @@ void sceneBVH::AddInstance(uint32_t InstanceInx)
             bvhInstance(&Meshes, Scene->Instances[InstanceInx].Shape,
                         Scene->Instances[InstanceInx].GetModelMatrix(), (uint32_t)Instances.size(), Scene->Instances[InstanceInx].Material)
         );
+    for(int i=0; i<Instances.size(); i++)
+    {
+        Instances[i].Index = i;   
+    }        
     TLAS.Build();
 #if API==API_GL
     this->TLASInstancesBuffer =std::make_shared<bufferGL>(this->TLAS.BLAS->size() * sizeof(bvhInstance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<bufferGL>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 #elif API==API_CU
+    cudaDeviceSynchronize(); 
     this->TLASInstancesBuffer =std::make_shared<bufferCu>(this->TLAS.BLAS->size() * sizeof(bvhInstance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<bufferCu>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 #endif
 }
+
+void sceneBVH::RemoveInstance(uint32_t InstanceInx)
+{
+    Instances.erase(Instances.begin() + InstanceInx);
+    for(int i=0; i<Instances.size(); i++)
+    {
+        Instances[i].Index = i;
+    }
+    TLAS.Build();   
+#if API==API_GL
+    this->TLASInstancesBuffer =std::make_shared<bufferGL>(this->TLAS.BLAS->size() * sizeof(bvhInstance), this->TLAS.BLAS->data());
+    this->TLASNodeBuffer =std::make_shared<bufferGL>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
+#elif API==API_CU
+    cudaDeviceSynchronize();
+    this->TLASInstancesBuffer =std::make_shared<bufferCu>(this->TLAS.BLAS->size() * sizeof(bvhInstance), this->TLAS.BLAS->data());
+    this->TLASNodeBuffer =std::make_shared<bufferCu>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
+#endif
+}
+
 
 bool sceneBVH::SetSelectedInstance(uint32_t InstanceInx)
 {

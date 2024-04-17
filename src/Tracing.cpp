@@ -1,17 +1,12 @@
 #include "Tracing.h"
 #include "Scene.h"
 #include "ImageLoader.h"
+#include "BufferCu.cuh"
 
 #define PI_F 3.141592653589
 
 namespace gpupt
 {
-
-light &AddLight(std::shared_ptr<lights> Lights)
-{
-    Lights->Lights.emplace_back();
-    return Lights->Lights.back();
-}
 
 inline float TriangleArea(glm::vec3 P0, glm::vec3 P1, glm::vec3 P2)
 {
@@ -106,11 +101,50 @@ void Test_SampleEnvMap(lights &Lights, std::shared_ptr<scene> Scene)
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
-
-std::shared_ptr<lights> GetLights(scene* Scene)
+void lights::RemoveInstance(scene *Scene, int InstanceInx)
 {
-    std::shared_ptr<lights> Lights = std::make_shared<lights>();
+    bool ShouldRebuild = false;
+    for(int i=0; i<Lights.size(); i++)
+    {
+        if(Lights[i].Instance == InstanceInx)
+        {
+            Build(Scene);
+            ShouldRebuild=true;
+        }
+        else if(Lights[i].Instance > InstanceInx)
+        {
+            Lights[i].Instance--;
+            ShouldRebuild=true;
+        }
+    }
+    if(ShouldRebuild)
+    {
+        RecreateBuffers();
+    }
+}
 
+light &lights::AddLight()
+{
+    Lights.emplace_back();
+    return Lights.back();
+}
+
+void lights::RecreateBuffers()
+{
+    if(this->Lights.size()>0)
+    {
+#if API==API_GL
+        this->LightsBuffer = std::make_shared<bufferGL>(sizeof(light) * Lights.size(), Lights.data());
+        this->LightsCDFBuffer = std::make_shared<bufferGL>(sizeof(float) * LightsCDF.size(), LightsCDF.data());
+#elif API==API_CU
+        this->LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * Lights.size(), Lights.data());
+        this->LightsCDFBuffer = std::make_shared<bufferCu>(sizeof(float) * LightsCDF.size(), LightsCDF.data());
+#endif    
+    }
+}
+
+void lights::Build(scene *Scene)
+{
     for (size_t i = 0; i < Scene->Instances.size(); i++)
     {
 
@@ -124,7 +158,7 @@ std::shared_ptr<lights> GetLights(scene* Scene)
         if(Shape.Triangles.empty()) continue;
 
         //Initialize the light
-        light &Light = AddLight(Lights);
+        light &Light = AddLight();
         Light.Instance = i;
         Light.Environment = InvalidID;
 
@@ -133,13 +167,13 @@ std::shared_ptr<lights> GetLights(scene* Scene)
         if(!Shape.Triangles.empty())
         {
             Light.CDFCount = Shape.Triangles.size();
-            Light.CDFStart = Lights->LightsCDF.size();
-            Lights->LightsCDF.resize(Lights->LightsCDF.size() + Light.CDFCount);
+            Light.CDFStart = LightsCDF.size();
+            LightsCDF.resize(LightsCDF.size() + Light.CDFCount);
             for(size_t j=0; j<Light.CDFCount; j++)
             {
                 const glm::ivec3 &Tri = Shape.Triangles[j];
-                Lights->LightsCDF[Light.CDFStart + j] = TriangleArea(Shape.Positions[Tri.x], Shape.Positions[Tri.y], Shape.Positions[Tri.z]);
-                if(j != 0) Lights->LightsCDF[Light.CDFStart + j] += Lights->LightsCDF[Light.CDFStart + j-1]; 
+                LightsCDF[Light.CDFStart + j] = TriangleArea(Shape.Positions[Tri.x], Shape.Positions[Tri.y], Shape.Positions[Tri.z]);
+                if(j != 0) LightsCDF[Light.CDFStart + j] += LightsCDF[Light.CDFStart + j-1]; 
             }
         }
     }
@@ -149,22 +183,22 @@ std::shared_ptr<lights> GetLights(scene* Scene)
         const environment &Environment = Scene->Environments[i];
         if(Environment.Emission == glm::vec3{0,0,0}) continue;
 
-        light &Light = AddLight(Lights);
+        light &Light = AddLight();
         Light.Instance = InvalidID;
         Light.Environment = (int)i;
         if(Environment.EmissionTexture != InvalidID)
         {
             texture& Texture = Scene->EnvTextures[Environment.EmissionTexture];
             Light.CDFCount = Texture.Width * Texture.Height;
-            Light.CDFStart = Lights->LightsCDF.size();
-            Lights->LightsCDF.resize(Lights->LightsCDF.size() + Light.CDFCount);
+            Light.CDFStart = LightsCDF.size();
+            LightsCDF.resize(LightsCDF.size() + Light.CDFCount);
             
             for (size_t i=0; i<Light.CDFCount; i++) {
                 glm::ivec2 IJ((int)i % Texture.Width, (int)i / Texture.Width);
                 float Theta    = (IJ.y + 0.5f) * PI_F / Texture.Height;
                 glm::vec4 Value = Texture.SampleF(IJ);
-                Lights->LightsCDF[Light.CDFStart + i] = MaxElem(Value) * sin(Theta);
-                if (i != 0) Lights->LightsCDF[Light.CDFStart + i] += Lights->LightsCDF[Light.CDFStart + i - 1];
+                LightsCDF[Light.CDFStart + i] = MaxElem(Value) * sin(Theta);
+                if (i != 0) LightsCDF[Light.CDFStart + i] += LightsCDF[Light.CDFStart + i - 1];
             }
         }
 
@@ -173,6 +207,8 @@ std::shared_ptr<lights> GetLights(scene* Scene)
     Test_SampleEnvMap(Lights, Scene);
     ImageToFile("Test.hdr", Scene->EnvTextures[0].PixelsF, Scene->EnvTextureWidth, Scene->EnvTextureHeight, 4);
 #endif
-    return Lights;
-}     
+
+    RecreateBuffers();
+}
+
 }

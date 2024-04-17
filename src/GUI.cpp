@@ -10,13 +10,12 @@
 #include "BufferCu.cuh"
 #include "BufferGL.h"
 #include "Window.h"
-#include "GLTFLoader.h"
+#include "AssetLoader.h"
 
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/ext.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
 namespace gpupt
 {
     
@@ -103,60 +102,74 @@ bool gui::InstancesMultipleGUI()
 void gui::InstanceGUI(int InstanceInx)
 {
     bool TransformChanged = false;
-    // XForm
-    ImGui::Text("Transform");
 
-    glm::vec3 Scale;
-    glm::vec3 Rotation;
-    glm::vec3 Translation;
-    DecomposeMatrixToComponents(App->Scene->Instances[InstanceInx].ModelMatrix, &Translation[0], &Rotation[0], &Scale[0]);
-
-    if (ImGui::IsKeyPressed(90))
-        CurrentGizmoOperation = ImGuizmo::TRANSLATE;
-    if (ImGui::IsKeyPressed(69))
-        CurrentGizmoOperation = ImGuizmo::ROTATE;
-    if (ImGui::IsKeyPressed(82))
-        CurrentGizmoOperation = ImGuizmo::SCALE;
-    ImGui::Text("Gizmo Operation : ");
-    if (ImGui::RadioButton("Translate", CurrentGizmoOperation == ImGuizmo::TRANSLATE))
-        CurrentGizmoOperation = ImGuizmo::TRANSLATE;
-    ImGui::SameLine();
-    if (ImGui::RadioButton("Rotate", CurrentGizmoOperation == ImGuizmo::ROTATE))
-        CurrentGizmoOperation = ImGuizmo::ROTATE;
-    ImGui::SameLine();
-    if (ImGui::RadioButton("Scale", CurrentGizmoOperation == ImGuizmo::SCALE))
-        CurrentGizmoOperation = ImGuizmo::SCALE;
-
-    if (CurrentGizmoOperation != ImGuizmo::SCALE)
+    if(ImGui::Button("Delete"))
     {
-        ImGui::Text("Gizmo Space : ");
-        if (ImGui::RadioButton("Local", CurrentGizmoMode == ImGuizmo::LOCAL))
-            CurrentGizmoMode = ImGuizmo::LOCAL;
-        ImGui::SameLine();
-        if (ImGui::RadioButton("World", CurrentGizmoMode == ImGuizmo::WORLD))
-            CurrentGizmoMode = ImGuizmo::WORLD;
-    }        
-
-    TransformChanged |= ImGui::DragFloat3("Position", &Translation[0], 0.1);
-    TransformChanged |= ImGui::DragFloat3("Rotation", &Rotation[0], 1);
-
-    static bool UniformScale = false;
-    ImGui::Checkbox("Uniform Scale", &UniformScale);
-    if(UniformScale)
-    {
-        float ScaleUniform = (Scale.x + Scale.y + Scale.z) / 3.0f;
-        TransformChanged |= ImGui::DragFloat("Scale", &ScaleUniform, 0.1);
-        Scale = glm::vec3(ScaleUniform);
-    }
-    else
-        TransformChanged |= ImGui::DragFloat3("Scale", &Scale[0], 0.1);
-    
-
-    if(TransformChanged)
-    {
-        RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], App->Scene->Instances[InstanceInx].ModelMatrix);
-        App->Scene->BVH->UpdateTLAS(InstanceInx);
+        App->Scene->Instances.erase(App->Scene->Instances.begin() + InstanceInx);
+        App->Scene->InstanceNames.erase(App->Scene->InstanceNames.begin() + InstanceInx);
+        App->Scene->BVH->RemoveInstance(InstanceInx);
+        App->Scene->Lights->RemoveInstance(App->Scene.get(), InstanceInx);
+        SelectedInstances[InstanceInx] = false;
+        SelectedInstanceIndices.erase(InstanceInx);
         App->ResetRender=true;
+        return;
+    }
+
+    if(ImGui::CollapsingHeader("Transform"))
+    {
+        // XForm
+        glm::vec3 Scale;
+        glm::vec3 Rotation;
+        glm::vec3 Translation;
+        DecomposeMatrixToComponents(App->Scene->Instances[InstanceInx].ModelMatrix, &Translation[0], &Rotation[0], &Scale[0]);
+
+        if (ImGui::IsKeyPressed(90))
+            CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+        if (ImGui::IsKeyPressed(69))
+            CurrentGizmoOperation = ImGuizmo::ROTATE;
+        if (ImGui::IsKeyPressed(82))
+            CurrentGizmoOperation = ImGuizmo::SCALE;
+        ImGui::Text("Gizmo Operation : ");
+        if (ImGui::RadioButton("Translate", CurrentGizmoOperation == ImGuizmo::TRANSLATE))
+            CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Rotate", CurrentGizmoOperation == ImGuizmo::ROTATE))
+            CurrentGizmoOperation = ImGuizmo::ROTATE;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Scale", CurrentGizmoOperation == ImGuizmo::SCALE))
+            CurrentGizmoOperation = ImGuizmo::SCALE;
+
+        if (CurrentGizmoOperation != ImGuizmo::SCALE)
+        {
+            ImGui::Text("Gizmo Space : ");
+            if (ImGui::RadioButton("Local", CurrentGizmoMode == ImGuizmo::LOCAL))
+                CurrentGizmoMode = ImGuizmo::LOCAL;
+            ImGui::SameLine();
+            if (ImGui::RadioButton("World", CurrentGizmoMode == ImGuizmo::WORLD))
+                CurrentGizmoMode = ImGuizmo::WORLD;
+        }        
+
+        TransformChanged |= ImGui::DragFloat3("Position", &Translation[0], 0.1);
+        TransformChanged |= ImGui::DragFloat3("Rotation", &Rotation[0], 1);
+
+        static bool UniformScale = false;
+        ImGui::Checkbox("Uniform Scale", &UniformScale);
+        if(UniformScale)
+        {
+            float ScaleUniform = (Scale.x + Scale.y + Scale.z) / 3.0f;
+            TransformChanged |= ImGui::DragFloat("Scale", &ScaleUniform, 0.1);
+            Scale = glm::vec3(ScaleUniform);
+        }
+        else
+            TransformChanged |= ImGui::DragFloat3("Scale", &Scale[0], 0.1);
+        
+
+        if(TransformChanged)
+        {
+            RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], App->Scene->Instances[InstanceInx].ModelMatrix);
+            App->Scene->BVH->UpdateTLAS(InstanceInx);
+            App->ResetRender=true;
+        }
     }
 
     ImGui::Separator();
@@ -223,11 +236,12 @@ void gui::InstanceGUI(int InstanceInx)
     
     ImGui::Separator();
 
-    
-    
-    if(MaterialGUI(App->Scene->Instances[InstanceInx].Material))
+    if(ImGui::CollapsingHeader("Material"))
     {
-        App->ResetRender=true;
+        if(MaterialGUI(App->Scene->Instances[InstanceInx].Material))
+        {
+            App->ResetRender=true;
+        }
     }
 }
 
@@ -236,6 +250,7 @@ bool gui::InstancesGUI()
     bool Changed = false;
     for (int i = 0; i < App->Scene->Instances.size(); i++)
     {
+        
         if (ImGui::Selectable(App->Scene->InstanceNames[i].c_str(), SelectedInstances[i]))
         {
             if (ImGui::GetIO().KeyCtrl)
@@ -331,6 +346,43 @@ bool gui::InstancesGUI()
 }
 
 
+bool gui::TexturePickerGUI(std::string Name, int &TextureInx)
+{
+    bool Changed = false;
+    std::string TextureName = TextureInx >=0 ? App->Scene->TextureNames[TextureInx] : "Empty";
+    ImGui::Text(Name.c_str()); ImGui::SameLine(); 
+    ImGui::Text(TextureName.c_str()); ImGui::SameLine(); 
+    
+    ImGui::PushID(Name.c_str());
+    if(ImGui::Button("Choose"))
+    {
+        ImGui::PopID();
+        ImGui::OpenPopup((Name + "TexturePicker").c_str());
+    }
+    else 
+        ImGui::PopID();
+
+    if(ImGui::BeginPopup((Name + "TexturePicker").c_str()))
+    {
+        if (ImGui::Selectable("None", TextureInx == -1, ImGuiSelectableFlags_DontClosePopups))
+        {
+            TextureInx=-1;
+        }
+        for (int i = 0; i < App->Scene->Textures.size(); i++)
+        {
+            if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), TextureInx == i, ImGuiSelectableFlags_DontClosePopups))
+                TextureInx = i;
+        }
+
+        if(ImGui::Button("Choose"))
+        {
+            Changed |= true;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    return Changed;
+}
 
 bool gui::MaterialGUI(int MaterialInx)
 {
@@ -365,109 +417,90 @@ bool gui::MaterialGUI(int MaterialInx)
     ImGui::Separator();
     ImGui::Text("Textures : ");
 
-    // Colour
-    std::string ColourTextureName = Mat.ColourTexture >=0 ? App->Scene->TextureNames[Mat.ColourTexture] : "Empty";
-    ImGui::Text("Colour"); ImGui::SameLine(); ImGui::Text(ColourTextureName.c_str()); ImGui::SameLine(); if(ImGui::Button("Choose"))
-    {
-        ImGui::OpenPopup("ColourTexturePicker");
-    }
+    Changed |= TexturePickerGUI("Colour", Mat.ColourTexture);
+    Changed |= TexturePickerGUI("Roughness", Mat.RoughnessTexture);
+    Changed |= TexturePickerGUI("Normal", Mat.NormalTexture);
+    Changed |= TexturePickerGUI("Emission", Mat.EmissionTexture);
 
-    if(ImGui::BeginPopup("ColourTexturePicker"))
-    {
-        static int SelectedIndex = -1;
-        for (int i = 0; i < App->Scene->Textures.size(); i++)
-        {
-            if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), SelectedIndex == i, ImGuiSelectableFlags_DontClosePopups))
-                SelectedIndex = i;
+    // // Colour
+  
+    // // Roughness
+    // std::string RoughnessTextureName = Mat.RoughnessTexture >=0 ? App->Scene->TextureNames[Mat.RoughnessTexture] : "Empty";
+    // ImGui::Text("Roughness"); ImGui::SameLine(); ImGui::Text(RoughnessTextureName.c_str()); ImGui::SameLine(); if(ImGui::Button("Choose"))
+    // {
+    //     ImGui::OpenPopup("RoughnessTexturePicker");
+    // }
 
-        }
+    // if(ImGui::BeginPopup("RoughnessTexturePicker"))
+    // {
+    //     static int SelectedIndex = -1;
+    //     for (int i = 0; i < App->Scene->Textures.size(); i++)
+    //     {
+    //         if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), SelectedIndex == i, ImGuiSelectableFlags_DontClosePopups))
+    //             SelectedIndex = i;
 
-        if(ImGui::Button("Choose") && SelectedIndex >=0)
-        {
-            Mat.ColourTexture = SelectedIndex;
-            Changed |= true;
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
-    }
+    //     }
 
-    // Roughness
-    std::string RoughnessTextureName = Mat.RoughnessTexture >=0 ? App->Scene->TextureNames[Mat.RoughnessTexture] : "Empty";
-    ImGui::Text("Roughness"); ImGui::SameLine(); ImGui::Text(RoughnessTextureName.c_str()); ImGui::SameLine(); if(ImGui::Button("Choose"))
-    {
-        ImGui::OpenPopup("RoughnessTexturePicker");
-    }
+    //     if(ImGui::Button("Choose") && SelectedIndex >=0)
+    //     {
+    //         Mat.RoughnessTexture = SelectedIndex;
+    //         Changed |= true;
+    //         ImGui::CloseCurrentPopup();
+    //     }
+    //     ImGui::EndPopup();
+    // }
 
-    if(ImGui::BeginPopup("RoughnessTexturePicker"))
-    {
-        static int SelectedIndex = -1;
-        for (int i = 0; i < App->Scene->Textures.size(); i++)
-        {
-            if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), SelectedIndex == i, ImGuiSelectableFlags_DontClosePopups))
-                SelectedIndex = i;
+    // // Normal
+    // std::string NormalTextureName = Mat.NormalTexture >=0 ? App->Scene->TextureNames[Mat.NormalTexture] : "Empty";
+    // ImGui::Text("Normal"); ImGui::SameLine(); ImGui::Text(NormalTextureName.c_str()); ImGui::SameLine(); if(ImGui::Button("Choose"))
+    // {
+    //     ImGui::OpenPopup("NormalTexturePicker");
+    // }
 
-        }
+    // if(ImGui::BeginPopup("NormalTexturePicker"))
+    // {
+    //     static int SelectedIndex = -1;
+    //     for (int i = 0; i < App->Scene->Textures.size(); i++)
+    //     {
+    //         if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), SelectedIndex == i, ImGuiSelectableFlags_DontClosePopups))
+    //             SelectedIndex = i;
 
-        if(ImGui::Button("Choose") && SelectedIndex >=0)
-        {
-            Mat.RoughnessTexture = SelectedIndex;
-            Changed |= true;
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
-    }
+    //     }
 
-    // Normal
-    std::string NormalTextureName = Mat.NormalTexture >=0 ? App->Scene->TextureNames[Mat.NormalTexture] : "Empty";
-    ImGui::Text("Normal"); ImGui::SameLine(); ImGui::Text(NormalTextureName.c_str()); ImGui::SameLine(); if(ImGui::Button("Choose"))
-    {
-        ImGui::OpenPopup("NormalTexturePicker");
-    }
+    //     if(ImGui::Button("Choose") && SelectedIndex >=0)
+    //     {
+    //         Mat.NormalTexture = SelectedIndex;
+    //         Changed |= true;
+    //         ImGui::CloseCurrentPopup();
+    //     }
+    //     ImGui::EndPopup();
+    // }
 
-    if(ImGui::BeginPopup("NormalTexturePicker"))
-    {
-        static int SelectedIndex = -1;
-        for (int i = 0; i < App->Scene->Textures.size(); i++)
-        {
-            if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), SelectedIndex == i, ImGuiSelectableFlags_DontClosePopups))
-                SelectedIndex = i;
+    // // Emission
+    // std::string EmissionTextureName = Mat.EmissionTexture >=0 ? App->Scene->TextureNames[Mat.EmissionTexture] : "Empty";
+    // ImGui::Text("Emission"); ImGui::SameLine(); ImGui::Text(EmissionTextureName.c_str()); ImGui::SameLine(); if(ImGui::Button("Choose"))
+    // {
+    //     ImGui::OpenPopup("EmissionTexturePicker");
+    // }
 
-        }
+    // if(ImGui::BeginPopup("EmissionTexturePicker"))
+    // {
+    //     static int SelectedIndex = -1;
+    //     for (int i = 0; i < App->Scene->Textures.size(); i++)
+    //     {
+    //         if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), SelectedIndex == i, ImGuiSelectableFlags_DontClosePopups))
+    //             SelectedIndex = i;
 
-        if(ImGui::Button("Choose") && SelectedIndex >=0)
-        {
-            Mat.NormalTexture = SelectedIndex;
-            Changed |= true;
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
-    }
+    //     }
 
-    // Emission
-    std::string EmissionTextureName = Mat.EmissionTexture >=0 ? App->Scene->TextureNames[Mat.EmissionTexture] : "Empty";
-    ImGui::Text("Emission"); ImGui::SameLine(); ImGui::Text(EmissionTextureName.c_str()); ImGui::SameLine(); if(ImGui::Button("Choose"))
-    {
-        ImGui::OpenPopup("EmissionTexturePicker");
-    }
-
-    if(ImGui::BeginPopup("EmissionTexturePicker"))
-    {
-        static int SelectedIndex = -1;
-        for (int i = 0; i < App->Scene->Textures.size(); i++)
-        {
-            if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), SelectedIndex == i, ImGuiSelectableFlags_DontClosePopups))
-                SelectedIndex = i;
-
-        }
-
-        if(ImGui::Button("Choose") && SelectedIndex >=0)
-        {
-            Mat.EmissionTexture = SelectedIndex;
-            Changed |= true;
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
-    }
+    //     if(ImGui::Button("Choose") && SelectedIndex >=0)
+    //     {
+    //         Mat.EmissionTexture = SelectedIndex;
+    //         Changed |= true;
+    //         ImGui::CloseCurrentPopup();
+    //     }
+    //     ImGui::EndPopup();
+    // }
 
     if((glm::length(PrevEmission) <= 1e-3f && glm::length(Mat.Emission) > 1e-3f) || (glm::length(PrevEmission) > 1e-3f && glm::length(Mat.Emission)<= 1e-3f))
     {
@@ -552,19 +585,38 @@ bool gui::ShapesGUI()
 
     if(ImGui::Button("Add"))
     {
-        nfdchar_t *AssetPath = NULL;
-        nfdresult_t Result = NFD_OpenDialog( NULL, NULL, &AssetPath );
-        if ( Result == NFD_OKAY ) 
-        {
-            int PreviousShapesInx = App->Scene->Shapes.size();
-            LoadGLTF(AssetPath, App->Scene, false);
-            for(int i=PreviousShapesInx; i<App->Scene->Shapes.size(); i++)
-            {
-                App->Scene->BVH->AddShape(i);
-            }
-        }            
+            ImGui::OpenPopup("Instance_Shape_Selection");
     }
 
+    if (ImGui::BeginPopup("Instance_Shape_Selection"))
+    {
+        static bool LoadInstances = false;
+        static bool LoadMaterials = false;
+        static bool LoadTextures = false;
+        ImGui::Checkbox("Load Instances", &LoadInstances); ImGui::SameLine(); ImGui::Checkbox("Load Materials", &LoadMaterials); ImGui::SameLine(); ImGui::Checkbox("Load Textures", &LoadTextures);
+
+        if(ImGui::Button("Add"))
+        {
+            nfdpathset_t ShapesPaths;
+            nfdresult_t Result = NFD_OpenDialogMultiple(NULL, NULL, &ShapesPaths);
+            if ( Result == NFD_OKAY ) 
+            {
+                for (size_t i = 0; i < NFD_PathSet_GetCount(&ShapesPaths); ++i )
+                {
+                    nfdchar_t *Path = NFD_PathSet_GetPath(&ShapesPaths, i);
+                    int PreviousShapesInx = App->Scene->Shapes.size();
+                    LoadAsset(Path, App->Scene.get(), LoadInstances, LoadMaterials, LoadTextures);
+                    for(int i=PreviousShapesInx; i<App->Scene->Shapes.size(); i++)
+                    {
+                        App->Scene->BVH->AddShape(i);
+                    }
+                }
+                NFD_PathSet_Free(&ShapesPaths);            
+            }   
+        }
+        ImGui::EndPopup();
+    }
+    
     ImGui::Separator();
 
     if(SelectedShape != -1)
@@ -656,15 +708,20 @@ void gui::TexturesGUI()
 
     if(ImGui::Button("Add"))
     {
-        nfdchar_t *ImagePath = NULL;
-        nfdresult_t Result = NFD_OpenDialog( NULL, NULL, &ImagePath );
+        nfdpathset_t ImagePaths;
+        nfdresult_t Result = NFD_OpenDialogMultiple(NULL, NULL, &ImagePaths);
         if ( Result == NFD_OKAY ) 
         {
-            App->Scene->Textures.emplace_back();
-            texture &Texture = App->Scene->Textures.back(); 
-            Texture.SetFromFile(ImagePath, App->Scene->TextureWidth, App->Scene->TextureHeight);
-            App->Scene->TextureNames.push_back(ExtractFilename(ImagePath));
+            for (size_t i = 0; i < NFD_PathSet_GetCount(&ImagePaths); ++i )
+            {
+                nfdchar_t *Path = NFD_PathSet_GetPath(&ImagePaths, i);
+                App->Scene->Textures.emplace_back();
+                texture &Texture = App->Scene->Textures.back(); 
+                Texture.SetFromFile(Path, App->Scene->TextureWidth, App->Scene->TextureHeight);
+                App->Scene->TextureNames.push_back(ExtractFilename(Path));
+            }
             App->Scene->ReloadTextureArray();
+            NFD_PathSet_Free(&ImagePaths);            
         }             
     }
     ImGui::Separator();
@@ -869,10 +926,6 @@ void gui::GUI()
         }
     }
     ImGui::End();
-
-    
-
-    
 
 }
 }

@@ -88,6 +88,7 @@ set (sourceFiles
         src/CameraController.cpp
         src/GLTFLoader.cpp
         src/AssimpLoader.cpp
+        src/AssetLoader.cpp
         src/ImageLoader.cpp
         src/TextureArrayGL.cpp
         src/TextureArrayCu.cu

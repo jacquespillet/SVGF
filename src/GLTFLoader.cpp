@@ -15,7 +15,7 @@
 namespace gpupt
 {
 
-void LoadTextures(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene)
+void LoadTextures(tinygltf::Model &GLTFModel, scene *Scene)
 {
     std::vector<texture> &Textures = Scene->Textures;
     std::vector<std::string> &TextureNames = Scene->TextureNames;
@@ -71,7 +71,7 @@ void LoadTextures(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene)
     }    
 }
 
-void LoadGeometry(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std::vector<std::vector<uint32_t>> &InstanceMapping)
+void LoadGeometry(tinygltf::Model &GLTFModel, scene *Scene, std::vector<std::vector<uint32_t>> &InstanceMapping)
 {
     uint32_t GIndexBase=0;
     InstanceMapping.resize(GLTFModel.meshes.size());
@@ -258,11 +258,12 @@ void LoadGeometry(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std:
                     Shape.Triangles[j].z = Uint[i+2];
                 }                
             }
+            Shape.PreProcess();
         }
     }
 }
 
-void LoadMaterials(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene)
+void LoadMaterials(tinygltf::Model &GLTFModel, scene *Scene, bool DoLoadTextures)
 {
     std::vector<material> &Materials = Scene->Materials;
     std::vector<std::string> &MaterialNames = Scene->MaterialNames;
@@ -297,16 +298,18 @@ void LoadMaterials(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene)
         Material.Roughness = std::max(0.01, PBR.roughnessFactor);
         Material.Metallic = PBR.metallicFactor;
         // Material.Emission = glm::vec3(GLTFMaterial.emissiveFactor[0], GLTFMaterial.emissiveFactor[1], GLTFMaterial.emissiveFactor[2]);
-
-        Material.ColourTexture = BaseTextureIndex + PBR.baseColorTexture.index;
-        Material.RoughnessTexture = BaseTextureIndex + PBR.metallicRoughnessTexture.index;
-        Material.NormalTexture = BaseTextureIndex + GLTFMaterial.normalTexture.index;
-        Material.EmissionTexture = BaseTextureIndex + GLTFMaterial.emissiveTexture.index;
+        if(DoLoadTextures)
+        {
+            Material.ColourTexture = BaseTextureIndex + PBR.baseColorTexture.index;
+            Material.RoughnessTexture = BaseTextureIndex + PBR.metallicRoughnessTexture.index;
+            Material.NormalTexture = BaseTextureIndex + GLTFMaterial.normalTexture.index;
+            Material.EmissionTexture = BaseTextureIndex + GLTFMaterial.emissiveTexture.index;
+        }
     }
 }    
 
 
-void TraverseNodes(tinygltf::Model &GLTFModel, uint32_t nodeIndex, glm::mat4 ParentTransform, std::shared_ptr<scene> &Scene, std::vector<std::vector<uint32_t>> &InstanceMapping)
+void TraverseNodes(tinygltf::Model &GLTFModel, uint32_t nodeIndex, glm::mat4 ParentTransform, scene *&Scene, std::vector<std::vector<uint32_t>> &InstanceMapping)
 {
     tinygltf::Node GLTFNode = GLTFModel.nodes[nodeIndex];
 
@@ -376,7 +379,7 @@ void TraverseNodes(tinygltf::Model &GLTFModel, uint32_t nodeIndex, glm::mat4 Par
     }
 }
 
-void LoadInstances(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std::vector<std::vector<uint32_t>> &InstanceMapping)
+void LoadInstances(tinygltf::Model &GLTFModel, scene *Scene, std::vector<std::vector<uint32_t>> &InstanceMapping)
 {
     // glm::mat4 Scale = glm::scale(glm::mat4(1), glm::vec3(25));
     // glm::mat4 Translate = glm::translate(glm::mat4(1), glm::vec3(0, 0.4, 0));
@@ -392,7 +395,7 @@ void LoadInstances(tinygltf::Model &GLTFModel, std::shared_ptr<scene> Scene, std
     }
 }
 
-void LoadGLTF(std::string FileName, std::shared_ptr<scene> Scene, bool AddInstances)
+void LoadGLTF(std::string FileName, scene *Scene, bool DoLoadInstances, bool DoLoadMaterials, bool DoLoadTextures)
 {
     tinygltf::Model GLTFModel;
     tinygltf::TinyGLTF ModelLoader;
@@ -420,12 +423,12 @@ void LoadGLTF(std::string FileName, std::shared_ptr<scene> Scene, bool AddInstan
     std::vector<std::vector<uint32_t>> InstanceMapping;
     
     LoadGeometry(GLTFModel, Scene, InstanceMapping);
-    if(AddInstances) LoadInstances(GLTFModel, Scene, InstanceMapping);
-    LoadMaterials(GLTFModel, Scene);
-    LoadTextures(GLTFModel, Scene);
+    if(DoLoadInstances) LoadInstances(GLTFModel, Scene, InstanceMapping);
+    if(DoLoadMaterials) LoadMaterials(GLTFModel, Scene, LoadTextures);
+    if(DoLoadTextures) LoadTextures(GLTFModel, Scene);
 }    
 
-void LoadGLTFShapeOnly(std::string FileName, std::shared_ptr<scene> Scene, int ShapeInx)
+void LoadGLTFShapeOnly(std::string FileName, scene *Scene, int ShapeInx)
 {
     tinygltf::Model GLTFModel;
     tinygltf::TinyGLTF ModelLoader;
