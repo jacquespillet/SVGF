@@ -9,12 +9,12 @@
 #include "Window.h"
 #include "ShaderGL.h"
 #include "TextureGL.h"
-#include "BufferCu.cuh"
-#include "BufferGL.h"
+#include "Buffer.h"
 #include "CudaUtil.h"
 #include "Scene.h"
 #include "BVH.h"
 #include "GUI.h"
+#include "Buffer.h"
 #if API==API_CU
 #include "PathTrace.cu"
 #include "TextureArrayCu.cuh"
@@ -85,11 +85,11 @@ void application::InitGpuObjects()
     TracingParamsBuffer = std::make_shared<uniformBufferGL>(sizeof(tracingParameters), &Params);    
 #elif API==API_CU  
     TonemapTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
-    RenderBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * sizeof(glm::vec4));
-    TonemapBuffer = std::make_shared<bufferCu>(Window->Width * Window->Height * sizeof(glm::vec4));
+    RenderBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
+    TonemapBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
     RenderTextureMapping = CreateMapping(TonemapTexture);
 
-    TracingParamsBuffer = std::make_shared<bufferCu>(sizeof(tracingParameters), &Params);
+    TracingParamsBuffer = std::make_shared<buffer>(sizeof(tracingParameters), &Params);
 #endif
 }
 
@@ -98,16 +98,8 @@ void application::CreateOIDNFilter()
     cudaStreamCreate(&Stream);
     Device = oidn::newCUDADevice(0, Stream);
     Device.commit();
-    DenoisedBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
 
     Filter = Device.newFilter("RT");
-#if API==API_CU
-    Filter.setImage("color",  RenderBuffer->Data,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-    Filter.setImage("output", DenoisedBuffer->Data, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-#else
-    Filter.setImage("color",  RenderMapping->CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-    Filter.setImage("output", DenoisedBuffer->Data, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-#endif
     Filter.set("hdr", true);        
     Filter.set("cleanAux", true);           
     Filter.set("quality", OIDN_QUALITY_BALANCED);        
@@ -162,7 +154,7 @@ void application::Denoise()
 #if API==API_GL 
     GLTexToCuBuffer(RenderMapping->CudaBuffer, RenderMapping->TexObj, RenderWidth, RenderHeight);
     Filter.execute();
-    cudaMemcpyToArray(DenoiseMapping->CudaTextureArray, 0, 0, DenoisedBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+    cudaMemcpyToArray(DenoiseMapping->CudaTextureArray, 0, 0, DenoisedBufferData, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
 #else
     Filter.execute();
 #endif
@@ -198,12 +190,12 @@ void application::Trace()
         PathTracingShader->SetSSBO(Scene->BVH->TLASNodeBuffer, 7);        
         PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
         PathTracingShader->SetUBO(TracingParamsBuffer, 9);
-        PathTracingShader->SetSSBO(LightsBuffer, 10);
+        PathTracingShader->SetSSBO(Scene->Lights->LightsBuffer, 10);
         PathTracingShader->SetSSBO(Scene->EnvironmentsBuffer, 11);
         PathTracingShader->SetSSBO(Scene->MaterialBuffer, 12);
         PathTracingShader->SetTextureArray(Scene->TexArray, 13, "SceneTextures");
         PathTracingShader->SetTextureArray(Scene->EnvTexArray, 14, "EnvTextures");
-        PathTracingShader->SetSSBO(Scene->LightsCDFBuffer, 15);
+        PathTracingShader->SetSSBO(Scene->Lights->LightsCDFBuffer, 15);
         PathTracingShader->SetInt("EnvironmentsCount", Scene->Environments.size());
         PathTracingShader->SetInt("LightsCount", Scene->Lights->Lights.size());
         PathTracingShader->SetInt("EnvTexturesWidth", Scene->EnvTextureWidth);
@@ -220,13 +212,11 @@ void application::Trace()
 #endif
         Params.CurrentSample+= Params.Batch;
     }
-    CUDA_CHECK_ERROR(cudaGetLastError());
 
     if(DoDenoise && !Denoised)
     {
         Denoise();
     }
-    CUDA_CHECK_ERROR(cudaGetLastError());
 
 #if API==API_GL
     TonemapShader->Use();
@@ -237,7 +227,6 @@ void application::Trace()
     dim3 blockSize(16, 16);
     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
     TonemapKernel<<<gridSize, blockSize>>>(Denoised ? (glm::vec4*)DenoisedBuffer->Data : (glm::vec4*)RenderBuffer->Data, (glm::vec4*)TonemapBuffer->Data, RenderWidth, RenderHeight);
-    CUDA_CHECK_ERROR(cudaGetLastError());
     cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, TonemapBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
     CUDA_CHECK_ERROR(cudaGetLastError());
 #endif
@@ -282,7 +271,7 @@ void application::Run()
 
 void application::Cleanup()
 {
-       
+    cudaFree(DenoisedBufferData);
 }
 
 
@@ -300,19 +289,21 @@ void application::ResizeRenderTextures()
     RenderMapping = CreateMapping(RenderTexture);    
     DenoiseMapping = CreateMapping(DenoisedTexture, true);    
 
-    DenoisedBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    cudaFree(DenoisedBufferData);
+    cudaMalloc((void**)&DenoisedBufferData, RenderWidth * RenderHeight * sizeof(glm::vec4));
+    
     // Allocate cuda buffer for denoise
     Filter.setImage("color",  RenderMapping->CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-    Filter.setImage("output", DenoisedBuffer->Data, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
+    Filter.setImage("output", DenoisedBufferData, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
     Filter.commit();
 #elif API==API_CU
     cudaDeviceSynchronize();
     TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
-    RenderBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
-    TonemapBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    RenderBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    TonemapBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     RenderTextureMapping = CreateMapping(TonemapTexture);
 
-    DenoisedBuffer = std::make_shared<bufferCu>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    DenoisedBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     Filter.setImage("color",  RenderBuffer->Data,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
     Filter.setImage("output", DenoisedBuffer->Data, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
     Filter.commit();

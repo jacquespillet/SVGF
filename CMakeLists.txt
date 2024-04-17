@@ -3,7 +3,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(API_GL 0)
 set(API_CU 1)
-set(API ${API_CU})
+set(API ${API_GL})
 
 add_definitions(-DAPI_GL=${API_GL})
 add_definitions(-DAPI_CU=${API_CU})
@@ -83,8 +83,7 @@ set (sourceFiles
         src/App.cu
         src/ShaderGL.cpp
         src/TextureGL.cpp
-        src/BufferCu.cu
-        src/BufferGL.cpp
+        src/Buffer.cpp
         src/CameraController.cpp
         src/GLTFLoader.cpp
         src/AssimpLoader.cpp

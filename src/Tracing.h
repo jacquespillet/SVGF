@@ -8,8 +8,7 @@
 namespace gpupt
 {
 struct scene;
-class bufferCu;
-class bufferGL;
+class buffer;
 
 struct tracingParameters
 {
@@ -64,14 +63,8 @@ struct lights
     void RemoveInstance(scene *Scene, int InstanceInx);
     void RecreateBuffers();
     light &AddLight();
-#if API==API_GL
-    std::shared_ptr<bufferGL> LightsBuffer;
-    std::shared_ptr<bufferGL> LightsCDFBuffer;
-#elif API==API_CU
-    std::shared_ptr<bufferCu> LightsBuffer;
-    std::shared_ptr<bufferCu> LightsCDFBuffer;
-#endif        
-
+    std::shared_ptr<buffer> LightsBuffer;
+    std::shared_ptr<buffer> LightsCDFBuffer;
 };
 
 

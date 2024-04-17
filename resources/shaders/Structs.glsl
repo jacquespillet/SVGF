@@ -49,17 +49,17 @@ struct aabb
     float pad1;
 };
 
-struct bvhInstance
+struct instance
 {
-    mat4 InverseTransform;
     mat4 Transform;
+    mat4 InverseTransform;
     mat4 NormalTransform;
     aabb Bounds;
 
-    uint MeshIndex;
+    uint Shape;
     uint Index;
-    uint MaterialIndex;
-    uint Selected;
+    uint Material;
+    uint Selected;  
 };
 
 struct tlasNode
@@ -93,7 +93,8 @@ struct tracingParameters
     int Batch;
     int Bounces;
 
-    vec3 Pad;    
+    vec2 Pad;    
+    float CurrentCamera;    
     float Clamp;    
 };
 

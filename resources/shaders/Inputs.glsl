@@ -31,7 +31,7 @@ layout(std430, binding = 5)  buffer indexDataBuffer
 
 layout(std430, binding = 6)  buffer tlasInstancesBuffer
 {
-    bvhInstance TLASInstancesBuffer[];
+    instance TLASInstancesBuffer[];
 };
 
 layout(std430, binding = 7)  buffer tlasNodes

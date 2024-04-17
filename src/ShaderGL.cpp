@@ -1,9 +1,10 @@
+#if API==API_GL
 #include "ShaderGL.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>
 
-#include "BufferGL.h"
+#include "Buffer.h"
 #include "TextureArrayGL.h"
 
 namespace gpupt
@@ -42,7 +43,7 @@ void shaderGL::SetTexture(int ImageUnit, GLuint TextureID) const {
     glBindTextureUnit(ImageUnit, TextureID);
 }
 
-void shaderGL::SetSSBO(std::shared_ptr<bufferGL> Buffer, int BindingPoint)
+void shaderGL::SetSSBO(std::shared_ptr<buffer> Buffer, int BindingPoint)
 {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, Buffer->BufferID);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BindingPoint, Buffer->BufferID);
@@ -158,3 +159,4 @@ GLuint shaderGL::LinkShader(GLuint ComputeShader) const {
     return Program;
 }
 }
+#endif

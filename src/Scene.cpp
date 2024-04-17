@@ -1,8 +1,7 @@
 #include "Scene.h"
 #include <glm/ext.hpp>
 
-#include "BufferCu.cuh"
-#include "BufferGL.h"
+#include "Buffer.h"
 #include "App.h"
 #include "GLTFLoader.h"
 #include "AssimpLoader.h"
@@ -303,15 +302,9 @@ void scene::PreProcess()
     BVH = CreateBVH(this); 
     Lights = std::make_shared<lights>();
     Lights->Build(this);
-#if API==API_GL
-    this->CamerasBuffer = std::make_shared<bufferGL>(this->Cameras.size() * sizeof(camera), this->Cameras.data());
-    this->EnvironmentsBuffer = std::make_shared<bufferGL>(this->Environments.size() * sizeof(camera), this->Environments.data());
-    this->MaterialBuffer = std::make_shared<bufferGL>(sizeof(material) * Materials.size(), Materials.data());
-#elif API==API_CU
-    this->CamerasBuffer = std::make_shared<bufferCu>(this->Cameras.size() * sizeof(camera), this->Cameras.data());
-    this->EnvironmentsBuffer = std::make_shared<bufferCu>(this->Environments.size() * sizeof(environment), this->Environments.data());
-    this->MaterialBuffer = std::make_shared<bufferCu>(sizeof(material) * Materials.size(), Materials.data());
-#endif    
+    this->CamerasBuffer = std::make_shared<buffer>(this->Cameras.size() * sizeof(camera), this->Cameras.data());
+    this->EnvironmentsBuffer = std::make_shared<buffer>(this->Environments.size() * sizeof(environment), this->Environments.data());
+    this->MaterialBuffer = std::make_shared<buffer>(sizeof(material) * Materials.size(), Materials.data());
 }
 
 std::shared_ptr<scene> CreateCornellBox()

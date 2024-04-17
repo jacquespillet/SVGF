@@ -7,8 +7,7 @@
 #include <nfd.h>
 #include "IO.h"
 #include "TextureGL.h"
-#include "BufferCu.cuh"
-#include "BufferGL.h"
+#include "Buffer.h"
 #include "Window.h"
 #include "AssetLoader.h"
 
@@ -538,7 +537,7 @@ bool gui::MaterialsGUI()
             App->Scene->Materials.emplace_back();
             material Mat = App->Scene->Materials.back(); 
             App->Scene->MaterialNames.push_back(Name);
-            App->Scene->MaterialBuffer->Reallocate(App->Scene->Materials.size() * sizeof(material), App->Scene->Materials.data());
+            App->Scene->MaterialBuffer->Reallocate(App->Scene->Materials.data(), App->Scene->Materials.size() * sizeof(material));
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
@@ -636,13 +635,8 @@ bool gui::CameraGUI(int CameraInx)
         App->Scene->Cameras.push_back(App->Scene->Cameras[CameraInx]);
         App->Scene->CameraNames.push_back(App->Scene->CameraNames[CameraInx] + "_Duplicated");
         App->Scene->Cameras.back().Controlled=false;
-#if API==API_GL
-        App->Scene->CamerasBuffer = std::make_shared<bufferGL>(App->Scene->Cameras.size() * sizeof(camera), App->Scene->Cameras.data());
-        App->Scene->EnvironmentsBuffer = std::make_shared<bufferGL>(App->Scene->Environments.size() * sizeof(camera), App->Scene->Environments.data());
-#elif API==API_CU
-        App->Scene->CamerasBuffer = std::make_shared<bufferCu>(App->Scene->Cameras.size() * sizeof(camera), App->Scene->Cameras.data());
-        App->Scene->EnvironmentsBuffer = std::make_shared<bufferCu>(App->Scene->Environments.size() * sizeof(environment), App->Scene->Environments.data());
-#endif    
+        App->Scene->CamerasBuffer = std::make_shared<buffer>(App->Scene->Cameras.size() * sizeof(camera), App->Scene->Cameras.data());
+        App->Scene->EnvironmentsBuffer = std::make_shared<buffer>(App->Scene->Environments.size() * sizeof(environment), App->Scene->Environments.data());
     }
 
     if(ImGui::Button("Make Current"))

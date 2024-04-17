@@ -1,7 +1,7 @@
 #include "Tracing.h"
 #include "Scene.h"
 #include "ImageLoader.h"
-#include "BufferCu.cuh"
+#include "Buffer.h"
 
 #define PI_F 3.141592653589
 
@@ -133,13 +133,8 @@ void lights::RecreateBuffers()
 {
     if(this->Lights.size()>0)
     {
-#if API==API_GL
-        this->LightsBuffer = std::make_shared<bufferGL>(sizeof(light) * Lights.size(), Lights.data());
-        this->LightsCDFBuffer = std::make_shared<bufferGL>(sizeof(float) * LightsCDF.size(), LightsCDF.data());
-#elif API==API_CU
-        this->LightsBuffer = std::make_shared<bufferCu>(sizeof(light) * Lights.size(), Lights.data());
-        this->LightsCDFBuffer = std::make_shared<bufferCu>(sizeof(float) * LightsCDF.size(), LightsCDF.data());
-#endif    
+        this->LightsBuffer = std::make_shared<buffer>(sizeof(light) * Lights.size(), Lights.data());
+        this->LightsCDFBuffer = std::make_shared<buffer>(sizeof(float) * LightsCDF.size(), LightsCDF.data());
     }
 }
 

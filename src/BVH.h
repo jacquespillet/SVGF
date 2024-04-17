@@ -7,8 +7,7 @@
 namespace gpupt
 {
 
-class bufferGL;
-class bufferCu;
+class buffer;
 
 
 struct ray
@@ -124,21 +123,12 @@ struct sceneBVH
     std::vector<uint32_t> AllTriangleIndices;
     std::vector<bvhNode> AllBVHNodes;
 
-#if API == API_GL
-    std::shared_ptr<bufferGL> TrianglesBuffer;
-    std::shared_ptr<bufferGL> BVHBuffer;
-    std::shared_ptr<bufferGL> IndicesBuffer;
-    std::shared_ptr<bufferGL> IndexDataBuffer;
-    std::shared_ptr<bufferGL> TLASInstancesBuffer;
-    std::shared_ptr<bufferGL> TLASNodeBuffer;
-#elif API == API_CU
-    std::shared_ptr<bufferCu> TrianglesBuffer;
-    std::shared_ptr<bufferCu> BVHBuffer;
-    std::shared_ptr<bufferCu> IndicesBuffer;
-    std::shared_ptr<bufferCu> IndexDataBuffer;
-    std::shared_ptr<bufferCu> TLASInstancesBuffer;
-    std::shared_ptr<bufferCu> TLASNodeBuffer;
-#endif
+    std::shared_ptr<buffer> TrianglesBuffer;
+    std::shared_ptr<buffer> BVHBuffer;
+    std::shared_ptr<buffer> IndicesBuffer;
+    std::shared_ptr<buffer> IndexDataBuffer;
+    std::shared_ptr<buffer> TLASInstancesBuffer;
+    std::shared_ptr<buffer> TLASNodeBuffer;
 
     void UpdateShape(uint32_t InstanceInx, uint32_t ShapeInx);
     void UpdateMaterial(uint32_t InstanceInx, uint32_t MaterialInx);

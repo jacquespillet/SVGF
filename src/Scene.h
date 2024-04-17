@@ -15,8 +15,7 @@
 
 namespace gpupt
 {
-class bufferCu;
-class bufferGL;
+class buffer;
 class textureArrayGL;
 class textureArrayCu;
 struct sceneBVH;
@@ -193,18 +192,15 @@ struct scene
 
     void CalculateInstanceTransform(int InstanceInx);
 #if API==API_GL
-    std::shared_ptr<bufferGL> CamerasBuffer;
-    std::shared_ptr<bufferGL> EnvironmentsBuffer;
     std::shared_ptr<textureArrayGL> TexArray;
     std::shared_ptr<textureArrayGL> EnvTexArray;
-    std::shared_ptr<bufferGL> MaterialBuffer;
 #elif API==API_CU
-    std::shared_ptr<bufferCu> EnvironmentsBuffer;
-    std::shared_ptr<bufferCu> CamerasBuffer;
     std::shared_ptr<textureArrayCu> TexArray;
     std::shared_ptr<textureArrayCu> EnvTexArray;
-    std::shared_ptr<bufferCu> MaterialBuffer;
 #endif    
+    std::shared_ptr<buffer> CamerasBuffer;
+    std::shared_ptr<buffer> EnvironmentsBuffer;
+    std::shared_ptr<buffer> MaterialBuffer;
 };
 
 std::shared_ptr<scene> CreateCornellBox();

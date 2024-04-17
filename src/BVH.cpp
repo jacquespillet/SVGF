@@ -2,8 +2,7 @@
 #include <glm/ext.hpp>
 
 
-#include "BufferGL.h"
-#include "BufferCu.cuh"
+#include "Buffer.h"
 #include <cuda_runtime_api.h>
 
 #define BINS 8
@@ -374,18 +373,11 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
         RunningIndicesCount += (uint32_t)Scene->Shapes[i].BVH->TriangleIndices.size();
         RunningBVHNodeCount += (uint32_t)Scene->Shapes[i].BVH->NodesUsed;
     }
-#if API==API_GL
-    Result->TrianglesBuffer =std::make_shared<bufferGL>(Result->AllTriangles.size() * sizeof(triangle), Result->AllTriangles.data());
-    Result->BVHBuffer =std::make_shared<bufferGL>(Result->AllBVHNodes.size() * sizeof(bvhNode), Result->AllBVHNodes.data());
-    Result->IndicesBuffer =std::make_shared<bufferGL>(Result->AllTriangleIndices.size() * sizeof(uint32_t), Result->AllTriangleIndices.data());
-    Result->IndexDataBuffer =std::make_shared<bufferGL>(Result->IndexData.size() * sizeof(indexData), Result->IndexData.data());
-#elif API==API_CU
     // BLAS
-    Result->TrianglesBuffer =std::make_shared<bufferCu>(Result->AllTriangles.size() * sizeof(triangle), Result->AllTriangles.data());
-    Result->BVHBuffer =std::make_shared<bufferCu>(Result->AllBVHNodes.size() * sizeof(bvhNode), Result->AllBVHNodes.data());
-    Result->IndicesBuffer =std::make_shared<bufferCu>(Result->AllTriangleIndices.size() * sizeof(uint32_t), Result->AllTriangleIndices.data());
-    Result->IndexDataBuffer =std::make_shared<bufferCu>(Result->IndexData.size() * sizeof(indexData), Result->IndexData.data());
-#endif    
+    Result->TrianglesBuffer =std::make_shared<buffer>(Result->AllTriangles.size() * sizeof(triangle), Result->AllTriangles.data());
+    Result->BVHBuffer =std::make_shared<buffer>(Result->AllBVHNodes.size() * sizeof(bvhNode), Result->AllBVHNodes.data());
+    Result->IndicesBuffer =std::make_shared<buffer>(Result->AllTriangleIndices.size() * sizeof(uint32_t), Result->AllTriangleIndices.data());
+    Result->IndexDataBuffer =std::make_shared<buffer>(Result->IndexData.size() * sizeof(indexData), Result->IndexData.data());
     
     // Build the top level data structure
     Result->TLAS = tlas(&Scene->Instances);
@@ -393,13 +385,8 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
 
 
     // Upload to the gpu
-#if API==API_GL
-    Result->TLASInstancesBuffer =std::make_shared<bufferGL>(Result->TLAS.BLAS->size() * sizeof(instance), Result->TLAS.BLAS->data());
-    Result->TLASNodeBuffer =std::make_shared<bufferGL>(Result->TLAS.Nodes.size() * sizeof(tlasNode), Result->TLAS.Nodes.data());
-#elif API==API_CU
-    Result->TLASInstancesBuffer =std::make_shared<bufferCu>(Result->TLAS.BLAS->size() * sizeof(instance), Result->TLAS.BLAS->data());
-    Result->TLASNodeBuffer =std::make_shared<bufferCu>(Result->TLAS.Nodes.size() * sizeof(tlasNode), Result->TLAS.Nodes.data());
-#endif
+    Result->TLASInstancesBuffer =std::make_shared<buffer>(Result->TLAS.BLAS->size() * sizeof(instance), Result->TLAS.BLAS->data());
+    Result->TLASNodeBuffer =std::make_shared<buffer>(Result->TLAS.Nodes.size() * sizeof(tlasNode), Result->TLAS.Nodes.data());
 
     Result->Scene = Scene;
     return Result;
@@ -436,14 +423,8 @@ void sceneBVH::AddInstance(uint32_t InstanceInx)
         Scene->Instances[i].Index = i;   
     }        
     TLAS.Build();
-#if API==API_GL
-    this->TLASInstancesBuffer =std::make_shared<bufferGL>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
-    this->TLASNodeBuffer =std::make_shared<bufferGL>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
-#elif API==API_CU
-    cudaDeviceSynchronize(); 
-    this->TLASInstancesBuffer =std::make_shared<bufferCu>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
-    this->TLASNodeBuffer =std::make_shared<bufferCu>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
-#endif
+    this->TLASInstancesBuffer =std::make_shared<buffer>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
+    this->TLASNodeBuffer =std::make_shared<buffer>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 }
 
 void sceneBVH::RemoveInstance(uint32_t InstanceInx)
@@ -454,14 +435,8 @@ void sceneBVH::RemoveInstance(uint32_t InstanceInx)
         Scene->Instances[i].Index = i;
     }
     TLAS.Build();   
-#if API==API_GL
-    this->TLASInstancesBuffer =std::make_shared<bufferGL>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
-    this->TLASNodeBuffer =std::make_shared<bufferGL>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
-#elif API==API_CU
-    cudaDeviceSynchronize();
-    this->TLASInstancesBuffer =std::make_shared<bufferCu>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
-    this->TLASNodeBuffer =std::make_shared<bufferCu>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
-#endif
+    this->TLASInstancesBuffer =std::make_shared<buffer>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
+    this->TLASNodeBuffer =std::make_shared<buffer>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 }
 
 
@@ -495,17 +470,10 @@ void sceneBVH::AddShape(uint32_t ShapeInx)
 
 
     // BLAS
-#if API==API_GL
-    TrianglesBuffer =std::make_shared<bufferGL>(AllTriangles.size() * sizeof(triangle), AllTriangles.data());
-    BVHBuffer =std::make_shared<bufferGL>(AllBVHNodes.size() * sizeof(bvhNode), AllBVHNodes.data());
-    IndicesBuffer =std::make_shared<bufferGL>(AllTriangleIndices.size() * sizeof(uint32_t), AllTriangleIndices.data());
-    IndexDataBuffer =std::make_shared<bufferGL>(IndexData.size() * sizeof(indexData), IndexData.data());
-#elif API==API_CU
-    TrianglesBuffer =std::make_shared<bufferCu>(AllTriangles.size() * sizeof(triangle), AllTriangles.data());
-    BVHBuffer =std::make_shared<bufferCu>(AllBVHNodes.size() * sizeof(bvhNode), AllBVHNodes.data());
-    IndicesBuffer =std::make_shared<bufferCu>(AllTriangleIndices.size() * sizeof(uint32_t), AllTriangleIndices.data());
-    IndexDataBuffer =std::make_shared<bufferCu>(IndexData.size() * sizeof(indexData), IndexData.data());
-#endif
+    TrianglesBuffer =std::make_shared<buffer>(AllTriangles.size() * sizeof(triangle), AllTriangles.data());
+    BVHBuffer =std::make_shared<buffer>(AllBVHNodes.size() * sizeof(bvhNode), AllBVHNodes.data());
+    IndicesBuffer =std::make_shared<buffer>(AllTriangleIndices.size() * sizeof(uint32_t), AllTriangleIndices.data());
+    IndexDataBuffer =std::make_shared<buffer>(IndexData.size() * sizeof(indexData), IndexData.data());
 }
 
 

@@ -12,10 +12,9 @@ class window;
 class shaderGL;
 class uniformBufferGL;
 class textureGL;
-class bufferCu;
 class cudaTextureMapping;
 struct scene;
-class bufferGL;
+class buffer;
 class gui;
 
 
@@ -58,7 +57,9 @@ private:
     oidn::DeviceRef Device;
     oidn::FilterRef Filter;
     cudaStream_t Stream;
-    std::shared_ptr<bufferCu> DenoisedBuffer;
+    
+    void *DenoisedBufferData;
+
     bool Denoised=false;
     bool DoDenoise=false;
 
@@ -76,9 +77,9 @@ private:
     std::shared_ptr<cudaTextureMapping> DenoiseMapping;
 
 #elif API==API_CU
-    std::shared_ptr<bufferCu> TracingParamsBuffer;
-    std::shared_ptr<bufferCu> RenderBuffer;
-    std::shared_ptr<bufferCu> TonemapBuffer;    
+    std::shared_ptr<buffer> TracingParamsBuffer;
+    std::shared_ptr<buffer> RenderBuffer;
+    std::shared_ptr<buffer> TonemapBuffer;    
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<cudaTextureMapping> RenderTextureMapping;
 #endif
