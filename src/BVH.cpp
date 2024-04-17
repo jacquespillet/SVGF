@@ -40,66 +40,31 @@ bool bvhNode::IsLeaf()
 
 ////////////////////////////////////////////////////////////////////////////////////////
 
-mesh::mesh(const shape &Shape)
-{
-    uint32_t AddedTriangles=0;
-    Triangles.resize(Shape.Triangles.size());
-    for(size_t j=0; j<Shape.Triangles.size(); j++)
-    {
-        uint32_t i0 = Shape.Triangles[j].x;
-        uint32_t i1 = Shape.Triangles[j].y;
-        uint32_t i2 = Shape.Triangles[j].z;
-        glm::vec3 v0 = glm::vec3(Shape.Positions[i0]);
-        glm::vec3 v1 = glm::vec3(Shape.Positions[i1]);
-        glm::vec3 v2 = glm::vec3(Shape.Positions[i2]);
-
-        glm::vec3 n0 = glm::vec3(Shape.Normals[i0]);
-        glm::vec3 n1 = glm::vec3(Shape.Normals[i1]);
-        glm::vec3 n2 = glm::vec3(Shape.Normals[i2]);
-        
-        Triangles[AddedTriangles].PositionUvX0=glm::vec4(v0, Shape.TexCoords[i0].x);
-        Triangles[AddedTriangles].PositionUvX1=glm::vec4(v1, Shape.TexCoords[i1].x);
-        Triangles[AddedTriangles].PositionUvX2=glm::vec4(v2, Shape.TexCoords[i2].x);
-        
-        Triangles[AddedTriangles].NormalUvY0=glm::vec4(n0, Shape.TexCoords[i0].y);
-        Triangles[AddedTriangles].NormalUvY1=glm::vec4(n1, Shape.TexCoords[i1].y);
-        Triangles[AddedTriangles].NormalUvY2=glm::vec4(n2, Shape.TexCoords[i2].y);
-
-        Triangles[AddedTriangles].Tangent0 = Shape.Tangents[i0];
-        Triangles[AddedTriangles].Tangent1 = Shape.Tangents[i1];
-        Triangles[AddedTriangles].Tangent2 = Shape.Tangents[i2];
-        
-
-        AddedTriangles++;
-    }
-
-    BVH = new bvh(this);
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 
-bvh::bvh(mesh *_Mesh)
+blas::blas(shape *_Shape)
 {
-    this->Mesh = _Mesh;
+    this->Shape = _Shape;
     Build();
 }
 
-void bvh::Build()
+void blas::Build()
 {
-    BVHNodes.resize(Mesh->Triangles.size() * 2 - 1);
-    TriangleIndices.resize(Mesh->Triangles.size());
+    BVHNodes.resize(Shape->Triangles.size() * 2 - 1);
+    TriangleIndices.resize(Shape->Triangles.size());
 
     // Calculate the centroid of each triangle
-    for(size_t i=0; i<Mesh->Triangles.size(); i++)
+    for(size_t i=0; i<Shape->Triangles.size(); i++)
     {
-        Mesh->Triangles[i].Centroid = (glm::vec3(Mesh->Triangles[i].PositionUvX0) + glm::vec3(Mesh->Triangles[i].PositionUvX1) + glm::vec3(Mesh->Triangles[i].PositionUvX2)) * 0.33333f;
+        Shape->Triangles[i].Centroid = (glm::vec3(Shape->Triangles[i].PositionUvX0) + glm::vec3(Shape->Triangles[i].PositionUvX1) + glm::vec3(Shape->Triangles[i].PositionUvX2)) * 0.33333f;
         TriangleIndices[i] = (uint32_t)i;
     }
 
     // Create root node that encompasses the whole object
     bvhNode &Root = BVHNodes[RootNodeIndex];
     Root.LeftChildOrFirst = 0;
-    Root.TriangleCount = (uint32_t)Mesh->Triangles.size();
+    Root.TriangleCount = (uint32_t)Shape->Triangles.size();
     UpdateNodeBounds(RootNodeIndex);
     
     // Subdivide the node recursively
@@ -107,13 +72,13 @@ void bvh::Build()
 }
 
 
-float bvh::EvaluateSAH(bvhNode &Node, int Axis, float Position)
+float blas::EvaluateSAH(bvhNode &Node, int Axis, float Position)
 {
 	aabb leftBox, rightBox;
 	int leftCount = 0, rightCount = 0;
 	for (uint32_t i = 0; i < Node.TriangleCount; i++)
 	{
-		triangle& Triangle = Mesh->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
+		triangle& Triangle = Shape->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
 		if (Triangle.Centroid[Axis] < Position)
 		{
 			leftCount++;
@@ -134,7 +99,7 @@ float bvh::EvaluateSAH(bvhNode &Node, int Axis, float Position)
 }
 
 
-float bvh::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
+float blas::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
 {
     float BestCost = 1e30f;
     for(int CurrentAxis=0; CurrentAxis<3; CurrentAxis++)
@@ -143,7 +108,7 @@ float bvh::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
         float BoundsMax = -1e30f;
         for(uint32_t i=0; i<Node.TriangleCount; i++)
         {
-            triangle &Triangle = Mesh->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
+            triangle &Triangle = Shape->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
             BoundsMin = std::min(BoundsMin, Triangle.Centroid[CurrentAxis]);
             BoundsMax = std::max(BoundsMax, Triangle.Centroid[CurrentAxis]);
         }
@@ -154,7 +119,7 @@ float bvh::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
         float Scale = BINS / (BoundsMax - BoundsMin);
         for(uint32_t i=0; i<Node.TriangleCount; i++)
         {
-            triangle &Triangle = Mesh->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
+            triangle &Triangle = Shape->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
             int BinIndex = std::min(BINS - 1, (int)((Triangle.Centroid[CurrentAxis] - BoundsMin) * Scale));
             Bins[BinIndex].TrianglesCount++;
             Bins[BinIndex].Bounds.Grow(glm::vec3(Triangle.PositionUvX0));
@@ -199,7 +164,7 @@ float bvh::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
 
 }
 
-void bvh::Subdivide(uint32_t NodeIndex)
+void blas::Subdivide(uint32_t NodeIndex)
 {
     bvhNode &Node = BVHNodes[NodeIndex];
 
@@ -215,7 +180,7 @@ void bvh::Subdivide(uint32_t NodeIndex)
     int j = i + Node.TriangleCount -1;
     while(i <= j)
     {
-        if(Mesh->Triangles[TriangleIndices[i]].Centroid[Axis] < SplitPosition)
+        if(Shape->Triangles[TriangleIndices[i]].Centroid[Axis] < SplitPosition)
         {
             i++;
         }
@@ -249,7 +214,7 @@ void bvh::Subdivide(uint32_t NodeIndex)
 }
 
 
-float bvh::CalculateNodeCost(bvhNode &Node)
+float blas::CalculateNodeCost(bvhNode &Node)
 {
     glm::vec3 e = Node.AABBMax - Node.AABBMin;
     float ParentArea = e.x * e.y + e.x * e.z + e.y * e.z;
@@ -258,7 +223,7 @@ float bvh::CalculateNodeCost(bvhNode &Node)
 }
 
 
-void bvh::UpdateNodeBounds(uint32_t NodeIndex)
+void blas::UpdateNodeBounds(uint32_t NodeIndex)
 {
     // Calculate the bounds of the given node
     bvhNode &Node = BVHNodes[NodeIndex];
@@ -267,7 +232,7 @@ void bvh::UpdateNodeBounds(uint32_t NodeIndex)
     for(uint32_t First=Node.LeftChildOrFirst, i=0; i<Node.TriangleCount; i++)
     {
         uint32_t TriangleIndex = TriangleIndices[First + i];
-        triangle &Triangle = Mesh->Triangles[TriangleIndex];
+        triangle &Triangle = Shape->Triangles[TriangleIndex];
         Node.AABBMin = glm::min(Node.AABBMin, glm::vec3(Triangle.PositionUvX0));
         Node.AABBMin = glm::min(Node.AABBMin, glm::vec3(Triangle.PositionUvX1));
         Node.AABBMin = glm::min(Node.AABBMin, glm::vec3(Triangle.PositionUvX2));
@@ -279,34 +244,11 @@ void bvh::UpdateNodeBounds(uint32_t NodeIndex)
 
 ////////////////////////////////////////////////////////////////////////////////////////
 
-void bvhInstance::SetTransform(glm::mat4 &Transform, std::vector<mesh*> *Meshes)
-{
-    bvh *BVH = Meshes->at(MeshIndex)->BVH;
-    this->InverseTransform = glm::inverse(Transform);
-    this->Transform = Transform;
-    this->NormalTransform = glm::inverseTranspose(Transform);
-    
-    glm::vec3 Min = BVH->BVHNodes[0].AABBMin;
-    glm::vec3 Max = BVH->BVHNodes[0].AABBMax;
-    Bounds = {};
-    for (int i = 0; i < 8; i++)
-    {
-		Bounds.Grow( Transform *  glm::vec4( 
-                                    i & 1 ? Max.x : Min.x,
-                                    i & 2 ? Max.y : Min.y, 
-                                    i & 4 ? Max.z : Min.z,
-                                    1.0f ));
-    }    
-}
-
-////////////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////////////
 
 tlas::tlas()
 {}
 
-tlas::tlas(std::vector<bvhInstance>* BVHList)
+tlas::tlas(std::vector<instance>* BVHList)
 {
     BLAS = BVHList;
 }
@@ -394,57 +336,43 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
 {
     std::shared_ptr<sceneBVH> Result = std::make_shared<sceneBVH>();
     
-    // Build the low level bvh of each mesh
-    for(size_t i=0; i<Scene->Shapes.size(); i++)
-    {
-        Result->Meshes.push_back(new mesh(Scene->Shapes[i]));
-    }
-
-    //Build the array of instances
-    for(size_t i=0; i<Scene->Instances.size(); i++)
-    {
-        Result->Instances.push_back(
-            bvhInstance(&Result->Meshes, Scene->Instances[i].Shape,
-                        Scene->Instances[i].GetModelMatrix(), (uint32_t)i, Scene->Instances[i].Material)
-        );
-    }
     //Build big buffers with all the shape datas inside
     uint64_t TotalTriangleCount=0;
     uint64_t TotalIndicesCount=0;
     uint64_t TotalBVHNodes=0;
-    for(int i=0; i<Result->Meshes.size(); i++)
+    for(int i=0; i<Scene->Shapes.size(); i++)
     {
-        TotalTriangleCount += Result->Meshes[i]->Triangles.size();
-        TotalIndicesCount += Result->Meshes[i]->BVH->TriangleIndices.size();
-        TotalBVHNodes += Result->Meshes[i]->BVH->NodesUsed;
+        TotalTriangleCount += Scene->Shapes[i].Triangles.size();
+        TotalIndicesCount += Scene->Shapes[i].BVH->TriangleIndices.size();
+        TotalBVHNodes += Scene->Shapes[i].BVH->NodesUsed;
     }
     Result->AllTriangles = std::vector<triangle> (TotalTriangleCount);
     Result->AllTriangleIndices = std::vector<uint32_t> (TotalIndicesCount);
     Result->AllBVHNodes = std::vector<bvhNode> (TotalBVHNodes);
-    Result->IndexData.resize(Result->Meshes.size());
+    Result->IndexData.resize(Scene->Shapes.size());
 
 
     // Fill the buffers
     uint32_t RunningTriangleCount=0;
     uint32_t RunningIndicesCount=0;
     uint32_t RunningBVHNodeCount=0;
-    for(int i=0; i<Result->Meshes.size(); i++)
+    for(int i=0; i<Scene->Shapes.size(); i++)
     {
-        memcpy((void*)(Result->AllTriangles.data() + RunningTriangleCount), Result->Meshes[i]->Triangles.data(), Result->Meshes[i]->Triangles.size() * sizeof(triangle));
-        memcpy((void*)(Result->AllTriangleIndices.data() + RunningIndicesCount), Result->Meshes[i]->BVH->TriangleIndices.data(), Result->Meshes[i]->BVH->TriangleIndices.size() * sizeof(uint32_t));
-        memcpy((void*)(Result->AllBVHNodes.data() + RunningBVHNodeCount), Result->Meshes[i]->BVH->BVHNodes.data(), Result->Meshes[i]->BVH->NodesUsed * sizeof(bvhNode));
+        memcpy((void*)(Result->AllTriangles.data() + RunningTriangleCount), Scene->Shapes[i].Triangles.data(), Scene->Shapes[i].Triangles.size() * sizeof(triangle));
+        memcpy((void*)(Result->AllTriangleIndices.data() + RunningIndicesCount), Scene->Shapes[i].BVH->TriangleIndices.data(), Scene->Shapes[i].BVH->TriangleIndices.size() * sizeof(uint32_t));
+        memcpy((void*)(Result->AllBVHNodes.data() + RunningBVHNodeCount), Scene->Shapes[i].BVH->BVHNodes.data(), Scene->Shapes[i].BVH->NodesUsed * sizeof(bvhNode));
 
         Result->IndexData[i] = 
         {
             RunningTriangleCount,
             RunningIndicesCount,
             RunningBVHNodeCount,
-            (uint32_t)Result->Meshes[i]->Triangles.size()
+            (uint32_t)Scene->Shapes[i].Triangles.size()
         };
 
-        RunningTriangleCount += (uint32_t)Result->Meshes[i]->Triangles.size();
-        RunningIndicesCount += (uint32_t)Result->Meshes[i]->BVH->TriangleIndices.size();
-        RunningBVHNodeCount += (uint32_t)Result->Meshes[i]->BVH->NodesUsed;
+        RunningTriangleCount += (uint32_t)Scene->Shapes[i].Triangles.size();
+        RunningIndicesCount += (uint32_t)Scene->Shapes[i].BVH->TriangleIndices.size();
+        RunningBVHNodeCount += (uint32_t)Scene->Shapes[i].BVH->NodesUsed;
     }
 #if API==API_GL
     Result->TrianglesBuffer =std::make_shared<bufferGL>(Result->AllTriangles.size() * sizeof(triangle), Result->AllTriangles.data());
@@ -460,16 +388,16 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
 #endif    
     
     // Build the top level data structure
-    Result->TLAS = tlas(&Result->Instances);
+    Result->TLAS = tlas(&Scene->Instances);
     Result->TLAS.Build();
 
 
     // Upload to the gpu
 #if API==API_GL
-    Result->TLASInstancesBuffer =std::make_shared<bufferGL>(Result->TLAS.BLAS->size() * sizeof(bvhInstance), Result->TLAS.BLAS->data());
+    Result->TLASInstancesBuffer =std::make_shared<bufferGL>(Result->TLAS.BLAS->size() * sizeof(instance), Result->TLAS.BLAS->data());
     Result->TLASNodeBuffer =std::make_shared<bufferGL>(Result->TLAS.Nodes.size() * sizeof(tlasNode), Result->TLAS.Nodes.data());
 #elif API==API_CU
-    Result->TLASInstancesBuffer =std::make_shared<bufferCu>(Result->TLAS.BLAS->size() * sizeof(bvhInstance), Result->TLAS.BLAS->data());
+    Result->TLASInstancesBuffer =std::make_shared<bufferCu>(Result->TLAS.BLAS->size() * sizeof(instance), Result->TLAS.BLAS->data());
     Result->TLASNodeBuffer =std::make_shared<bufferCu>(Result->TLAS.Nodes.size() * sizeof(tlasNode), Result->TLAS.Nodes.data());
 #endif
 
@@ -480,116 +408,89 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
 
 void sceneBVH::UpdateShape(uint32_t InstanceInx, uint32_t ShapeInx)
 {
-    Instances[InstanceInx].MeshIndex = ShapeInx;
+    Scene->Instances[InstanceInx].Shape = ShapeInx;
     TLAS.Build();
-    this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(bvhInstance));
+    this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(instance));
     this->TLASNodeBuffer->updateData(this->TLAS.Nodes.data(), this->TLAS.Nodes.size() * sizeof(tlasNode));
 }
 
 void sceneBVH::UpdateMaterial(uint32_t InstanceInx, uint32_t MaterialInx)
 {
-    Instances[InstanceInx].MaterialIndex = MaterialInx;
-    this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(bvhInstance));
+    Scene->Instances[InstanceInx].Material = MaterialInx;
+    this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(instance));
 }
 
 void sceneBVH::UpdateTLAS(uint32_t InstanceInx)
 {
-    Instances[InstanceInx].SetTransform(Scene->Instances[InstanceInx].GetModelMatrix(), &this->Meshes);
+    Scene->CalculateInstanceTransform(InstanceInx);
     TLAS.Build();
-    this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(bvhInstance));
+    this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(instance));
     this->TLASNodeBuffer->updateData(this->TLAS.Nodes.data(), this->TLAS.Nodes.size() * sizeof(tlasNode));
 }
 
 void sceneBVH::AddInstance(uint32_t InstanceInx)
 {
-    Instances.push_back(
-            bvhInstance(&Meshes, Scene->Instances[InstanceInx].Shape,
-                        Scene->Instances[InstanceInx].GetModelMatrix(), (uint32_t)Instances.size(), Scene->Instances[InstanceInx].Material)
-        );
-    for(int i=0; i<Instances.size(); i++)
+    Scene->CalculateInstanceTransform(InstanceInx);
+    for(int i=0; i<Scene->Instances.size(); i++)
     {
-        Instances[i].Index = i;   
+        Scene->Instances[i].Index = i;   
     }        
     TLAS.Build();
 #if API==API_GL
-    this->TLASInstancesBuffer =std::make_shared<bufferGL>(this->TLAS.BLAS->size() * sizeof(bvhInstance), this->TLAS.BLAS->data());
+    this->TLASInstancesBuffer =std::make_shared<bufferGL>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<bufferGL>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 #elif API==API_CU
     cudaDeviceSynchronize(); 
-    this->TLASInstancesBuffer =std::make_shared<bufferCu>(this->TLAS.BLAS->size() * sizeof(bvhInstance), this->TLAS.BLAS->data());
+    this->TLASInstancesBuffer =std::make_shared<bufferCu>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<bufferCu>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 #endif
 }
 
 void sceneBVH::RemoveInstance(uint32_t InstanceInx)
 {
-    Instances.erase(Instances.begin() + InstanceInx);
-    for(int i=0; i<Instances.size(); i++)
+    Scene->Instances.erase(Scene->Instances.begin() + InstanceInx);
+    for(int i=0; i<Scene->Instances.size(); i++)
     {
-        Instances[i].Index = i;
+        Scene->Instances[i].Index = i;
     }
     TLAS.Build();   
 #if API==API_GL
-    this->TLASInstancesBuffer =std::make_shared<bufferGL>(this->TLAS.BLAS->size() * sizeof(bvhInstance), this->TLAS.BLAS->data());
+    this->TLASInstancesBuffer =std::make_shared<bufferGL>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<bufferGL>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 #elif API==API_CU
     cudaDeviceSynchronize();
-    this->TLASInstancesBuffer =std::make_shared<bufferCu>(this->TLAS.BLAS->size() * sizeof(bvhInstance), this->TLAS.BLAS->data());
+    this->TLASInstancesBuffer =std::make_shared<bufferCu>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<bufferCu>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 #endif
 }
 
 
-bool sceneBVH::SetSelectedInstance(uint32_t InstanceInx)
-{
-    if(InstanceInx != this->SelectedInstance)
-    {
-        // Update newly selected
-        if(InstanceInx != -1)
-        {
-            this->Instances[InstanceInx].Selected = 1;
-            this->TLASInstancesBuffer->updateData(InstanceInx * sizeof(bvhInstance), &this->Instances[InstanceInx], sizeof(bvhInstance));
-        }
-        
-        // Update previous selected
-        if(this->SelectedInstance >=0)
-        {
-            this->Instances[this->SelectedInstance].Selected=0;
-            this->TLASInstancesBuffer->updateData(SelectedInstance * sizeof(bvhInstance), &this->Instances[SelectedInstance], sizeof(bvhInstance));
-        }
-    
-        this->SelectedInstance = InstanceInx;
-        return true;
-    }
-    return false;
-}
+
 void sceneBVH::AddShape(uint32_t ShapeInx)
 {
-    const shape &Shape = Scene->Shapes[ShapeInx];
-    this->Meshes.push_back(new mesh(Scene->Shapes[ShapeInx]));
-    mesh *Mesh = this->Meshes[this->Meshes.size()-1];
-
+    shape &Shape = this->Scene->Shapes[this->Scene->Shapes.size()-1];
     uint32_t RunningTriangleCount = AllTriangles.size();
     uint32_t RunningIndicesCount = AllTriangleIndices.size();
     uint32_t RunningBVHNodeCount = AllBVHNodes.size();
-    uint32_t Inx = Meshes.size()-1;
+    
+    uint32_t Inx = Scene->Shapes.size()-1;
 
-    AllTriangles.resize(AllTriangles.size() + Mesh->Triangles.size());
-    AllTriangleIndices.resize(AllTriangleIndices.size() + Mesh->BVH->TriangleIndices.size());
-    AllBVHNodes.resize(AllBVHNodes.size() + Mesh->BVH->NodesUsed);
-    IndexData.resize(Meshes.size());
+    AllTriangles.resize(AllTriangles.size() + Shape.Triangles.size());
+    AllTriangleIndices.resize(AllTriangleIndices.size() + Shape.BVH->TriangleIndices.size());
+    AllBVHNodes.resize(AllBVHNodes.size() + Shape.BVH->NodesUsed);
+    IndexData.resize(Scene->Shapes.size());
 
 
-    memcpy((void*)(AllTriangles.data() + RunningTriangleCount), Meshes[Inx]->Triangles.data(), Meshes[Inx]->Triangles.size() * sizeof(triangle));
-    memcpy((void*)(AllTriangleIndices.data() + RunningIndicesCount), Meshes[Inx]->BVH->TriangleIndices.data(), Meshes[Inx]->BVH->TriangleIndices.size() * sizeof(uint32_t));
-    memcpy((void*)(AllBVHNodes.data() + RunningBVHNodeCount), Meshes[Inx]->BVH->BVHNodes.data(), Meshes[Inx]->BVH->NodesUsed * sizeof(bvhNode));
+    memcpy((void*)(AllTriangles.data() + RunningTriangleCount), Scene->Shapes[Inx].Triangles.data(), Scene->Shapes[Inx].Triangles.size() * sizeof(triangle));
+    memcpy((void*)(AllTriangleIndices.data() + RunningIndicesCount), Scene->Shapes[Inx].BVH->TriangleIndices.data(), Scene->Shapes[Inx].BVH->TriangleIndices.size() * sizeof(uint32_t));
+    memcpy((void*)(AllBVHNodes.data() + RunningBVHNodeCount), Scene->Shapes[Inx].BVH->BVHNodes.data(), Scene->Shapes[Inx].BVH->NodesUsed * sizeof(bvhNode));
 
     IndexData[Inx] = 
     {
         RunningTriangleCount,
         RunningIndicesCount,
         RunningBVHNodeCount,
-        (uint32_t)Meshes[Inx]->Triangles.size()
+        (uint32_t)Scene->Shapes[Inx].Triangles.size()
     };
 
 
@@ -615,10 +516,9 @@ sceneBVH::~sceneBVH()
 
 void sceneBVH::Destroy()
 {
-    for (size_t i = 0; i < this->Meshes.size(); i++)
+    for (size_t i = 0; i < this->Scene->Shapes.size(); i++)
     {
-        delete this->Meshes[i]->BVH;
-        delete this->Meshes[i];
+        delete this->Scene->Shapes[i].BVH;
     }
 }
 

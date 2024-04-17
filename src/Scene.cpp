@@ -16,11 +16,6 @@ namespace gpupt
 {
 
 
-glm::mat4 instance::GetModelMatrix() const
-{
-    return ModelMatrix;    
-}
-
 void EnsureUnicity(std::vector<std::string> &Names, std::string DefaultName)
 {
     std::unordered_map<std::string, int> Counts;
@@ -39,19 +34,19 @@ void EnsureUnicity(std::vector<std::string> &Names, std::string DefaultName)
 
 void shape::CalculateTangents()
 {
-    std::vector<glm::vec4> tan1(this->Positions.size(), glm::vec4(0));
-    std::vector<glm::vec4> tan2(this->Positions.size(), glm::vec4(0));
-    if (this->Tangents.size() != this->Positions.size()) this->Tangents.resize(this->Positions.size());
-    if(this->TexCoords.size() != this->Positions.size()) return;
+    std::vector<glm::vec4> tan1(this->PositionsTmp.size(), glm::vec4(0));
+    std::vector<glm::vec4> tan2(this->PositionsTmp.size(), glm::vec4(0));
+    if (this->TangentsTmp.size() != this->PositionsTmp.size()) this->TangentsTmp.resize(this->PositionsTmp.size());
+    if(this->TexCoordsTmp.size() != this->PositionsTmp.size()) return;
 
-    for(uint64_t i=0; i<this->Triangles.size(); i++) {
-        glm::vec3 v1 = this->Positions[this->Triangles[i].x];
-        glm::vec3 v2 = this->Positions[this->Triangles[i].y];
-        glm::vec3 v3 = this->Positions[this->Triangles[i].z];
+    for(uint64_t i=0; i<this->IndicesTmp.size(); i++) {
+        glm::vec3 v1 = this->PositionsTmp[this->IndicesTmp[i].x];
+        glm::vec3 v2 = this->PositionsTmp[this->IndicesTmp[i].y];
+        glm::vec3 v3 = this->PositionsTmp[this->IndicesTmp[i].z];
 
-        glm::vec2 w1 = this->TexCoords[this->Triangles[i].x];
-        glm::vec2 w2 = this->TexCoords[this->Triangles[i].y];
-        glm::vec2 w3 = this->TexCoords[this->Triangles[i].z];
+        glm::vec2 w1 = this->TexCoordsTmp[this->IndicesTmp[i].x];
+        glm::vec2 w2 = this->TexCoordsTmp[this->IndicesTmp[i].y];
+        glm::vec2 w3 = this->TexCoordsTmp[this->IndicesTmp[i].z];
 
         float x1 = v2.x - v1.x;
         float x2 = v3.x - v1.x;
@@ -69,58 +64,118 @@ void shape::CalculateTangents()
         glm::vec4 sdir((t2 * x1 - t1 * x2) * r, (t2 * y1 - t1 * y2) * r, (t2 * z1 - t1 * z2) * r, 0);
         glm::vec4 tdir((s1 * x2 - s2 * x1) * r, (s1 * y2 - s2 * y1) * r, (s1 * z2 - s2 * z1) * r, 0);
 
-        tan1[this->Triangles[i].x] += sdir;
-        tan1[this->Triangles[i].y] += sdir;
-        tan1[this->Triangles[i].z] += sdir;
+        tan1[this->IndicesTmp[i].x] += sdir;
+        tan1[this->IndicesTmp[i].y] += sdir;
+        tan1[this->IndicesTmp[i].z] += sdir;
         
-        tan2[this->Triangles[i].x] += tdir;
-        tan2[this->Triangles[i].y] += tdir;
-        tan2[this->Triangles[i].z] += tdir;
+        tan2[this->IndicesTmp[i].x] += tdir;
+        tan2[this->IndicesTmp[i].y] += tdir;
+        tan2[this->IndicesTmp[i].z] += tdir;
 
     }
 
-    for(uint64_t i=0; i<this->Positions.size(); i++) { 
-        glm::vec3 n = this->Normals[i];
+    for(uint64_t i=0; i<this->PositionsTmp.size(); i++) { 
+        glm::vec3 n = this->NormalsTmp[i];
         glm::vec3 t = glm::vec3(tan1[i]);
 
-        this->Tangents[i] = glm::vec4(glm::normalize((t - n * glm::dot(n, t))), 1);
+        this->TangentsTmp[i] = glm::vec4(glm::normalize((t - n * glm::dot(n, t))), 1);
         
-        this->Tangents[i].w = (glm::dot(glm::cross(n, t), glm::vec3(tan2[i])) < 0.0F) ? -1.0F : 1.0F;
+        this->TangentsTmp[i].w = (glm::dot(glm::cross(n, t), glm::vec3(tan2[i])) < 0.0F) ? -1.0F : 1.0F;
     }
 }
 
 void shape::PreProcess()
 {
-    if(this->Normals.size() == 0)
+    if(this->NormalsTmp.size() == 0)
     {
-        this->Normals.resize(this->Positions.size());
-        for (size_t j = 0; j < this->Triangles.size(); j++)
+        this->NormalsTmp.resize(this->PositionsTmp.size());
+        for (size_t j = 0; j < this->IndicesTmp.size(); j++)
         {
-            glm::ivec3 Tri = this->Triangles[j];
-            glm::vec3 v0 = this->Positions[Tri.x];
-            glm::vec3 v1 = this->Positions[Tri.y];
-            glm::vec3 v2 = this->Positions[Tri.z];
+            glm::ivec3 Tri = this->IndicesTmp[j];
+            glm::vec3 v0 = this->PositionsTmp[Tri.x];
+            glm::vec3 v1 = this->PositionsTmp[Tri.y];
+            glm::vec3 v2 = this->PositionsTmp[Tri.z];
 
             glm::vec3 Normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
-            this->Normals[Tri.x] = Normal;
-            this->Normals[Tri.y] = Normal;
-            this->Normals[Tri.z] = Normal;
+            this->NormalsTmp[Tri.x] = Normal;
+            this->NormalsTmp[Tri.y] = Normal;
+            this->NormalsTmp[Tri.z] = Normal;
         }
     }
-    if(this->Tangents.size() ==0)
+    if(this->TangentsTmp.size() ==0)
     {
         this->CalculateTangents();            
     }
-    if(this->TexCoords.size() != this->Positions.size()) this->TexCoords.resize(this->Positions.size());
-    if(this->Colours.size() != this->Positions.size()) this->Colours.resize(this->Positions.size(), glm::vec4{1,1,1,1});
+    if(this->TexCoordsTmp.size() != this->PositionsTmp.size()) this->TexCoordsTmp.resize(this->PositionsTmp.size());
     
-    double InverseSize = 1.0 / double(this->Positions.size()); 
-    glm::dvec3 Centroid;
-    for(size_t j=0; j < this->Positions.size(); j++)
+
+    uint32_t AddedTriangles=0;
+    Triangles.resize(IndicesTmp.size());
+    for(size_t j=0; j<IndicesTmp.size(); j++)
     {
-        Centroid += glm::dvec3(this->Positions[j]) * InverseSize;
+        uint32_t i0 = IndicesTmp[j].x;
+        uint32_t i1 = IndicesTmp[j].y;
+        uint32_t i2 = IndicesTmp[j].z;
+        glm::vec3 v0 = glm::vec3(PositionsTmp[i0]);
+        glm::vec3 v1 = glm::vec3(PositionsTmp[i1]);
+        glm::vec3 v2 = glm::vec3(PositionsTmp[i2]);
+
+        glm::vec3 n0 = glm::vec3(NormalsTmp[i0]);
+        glm::vec3 n1 = glm::vec3(NormalsTmp[i1]);
+        glm::vec3 n2 = glm::vec3(NormalsTmp[i2]);
+        
+        Triangles[AddedTriangles].PositionUvX0=glm::vec4(v0, TexCoordsTmp[i0].x);
+        Triangles[AddedTriangles].PositionUvX1=glm::vec4(v1, TexCoordsTmp[i1].x);
+        Triangles[AddedTriangles].PositionUvX2=glm::vec4(v2, TexCoordsTmp[i2].x);
+        
+        Triangles[AddedTriangles].NormalUvY0=glm::vec4(n0, TexCoordsTmp[i0].y);
+        Triangles[AddedTriangles].NormalUvY1=glm::vec4(n1, TexCoordsTmp[i1].y);
+        Triangles[AddedTriangles].NormalUvY2=glm::vec4(n2, TexCoordsTmp[i2].y);
+
+        Triangles[AddedTriangles].Tangent0 = TangentsTmp[i0];
+        Triangles[AddedTriangles].Tangent1 = TangentsTmp[i1];
+        Triangles[AddedTriangles].Tangent2 = TangentsTmp[i2];
+        
+
+        AddedTriangles++;
+    }
+
+    double InverseSize = 1.0 / double(this->PositionsTmp.size()); 
+    glm::dvec3 Centroid;
+    for(size_t j=0; j < this->PositionsTmp.size(); j++)
+    {
+        Centroid += glm::dvec3(this->PositionsTmp[j]) * InverseSize;
     }
     this->Centroid = glm::vec3(Centroid);    
+
+    PositionsTmp.resize(0);
+    NormalsTmp.resize(0);
+    TexCoordsTmp.resize(0);
+    TangentsTmp.resize(0);
+    IndicesTmp.resize(0);
+
+    BVH = new blas(this);
+}
+
+void scene::CalculateInstanceTransform(int Inx)
+{
+    instance &Instance = Instances[Inx];
+
+    Instance.InverseTransform = glm::inverse(Instance.Transform);
+    Instance.NormalTransform = glm::inverseTranspose(Instance.Transform);
+    
+    blas *BVH = Shapes[Instance.Shape].BVH;
+    glm::vec3 Min = BVH->BVHNodes[0].AABBMin;
+    glm::vec3 Max = BVH->BVHNodes[0].AABBMax;
+    Instance.Bounds = {};
+    for (int i = 0; i < 8; i++)
+    {
+		Instance.Bounds.Grow( Instance.Transform *  glm::vec4( 
+                                    i & 1 ? Max.x : Min.x,
+                                    i & 2 ? Max.y : Min.y, 
+                                    i & 4 ? Max.z : Min.z,
+                                    1.0f ));
+    }        
 }
 
 scene::scene()
@@ -155,7 +210,7 @@ scene::scene()
         instance &FloorInstance = this->Instances.back();
         FloorInstance.Shape = (int)this->Shapes.size()-1;
         FloorInstance.Material = (int)this->Materials.size()-1;
-        FloorInstance.ModelMatrix = glm::scale(glm::vec3(4, 4, 4));
+        FloorInstance.Transform = glm::scale(glm::vec3(4, 4, 4));
         this->InstanceNames.push_back("Floor");
         this->MaterialNames.push_back("Floor");
     }
@@ -165,7 +220,7 @@ scene::scene()
         instance &FloorInstance = this->Instances.back();
         FloorInstance.Shape = (int)this->Shapes.size()-1;
         FloorInstance.Material = (int)this->Materials.size()-1;
-        FloorInstance.ModelMatrix = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(2, 0, 0));
+        FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(2, 0, 0));
         this->InstanceNames.push_back("Floor");
         this->MaterialNames.push_back("Floor");
     }
@@ -175,7 +230,7 @@ scene::scene()
         instance &FloorInstance = this->Instances.back();
         FloorInstance.Shape = (int)this->Shapes.size()-1;
         FloorInstance.Material = (int)this->Materials.size()-1;
-        FloorInstance.ModelMatrix = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(0, 0, 2));
+        FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(0, 0, 2));
         this->InstanceNames.push_back("Floor");
         this->MaterialNames.push_back("Floor");
     }
@@ -185,7 +240,7 @@ scene::scene()
         instance &FloorInstance = this->Instances.back();
         FloorInstance.Shape = (int)this->Shapes.size()-1;
         FloorInstance.Material = (int)this->Materials.size()-1;
-        FloorInstance.ModelMatrix = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(-2, 0, 2));
+        FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(-2, 0, 2));
         this->InstanceNames.push_back("Floor");
         this->MaterialNames.push_back("Floor");
     }
@@ -198,7 +253,7 @@ scene::scene()
     instance &LightInstance = this->Instances.back(); 
     LightInstance.Shape = (int)this->Shapes.size()-1;
     LightInstance.Material = (int)this->Materials.size()-1;
-    LightInstance.ModelMatrix = glm::translate(glm::vec3(0, 2, 0));
+    LightInstance.Transform = glm::translate(glm::vec3(0, 2, 0));
     this->InstanceNames.push_back("Light");
     this->MaterialNames.push_back("Light");
 }
@@ -224,6 +279,14 @@ void scene::UploadMaterial(int MaterialInx)
     this->MaterialBuffer->updateData((size_t)MaterialInx * sizeof(material), (void*)&this->Materials[MaterialInx], sizeof(material));
 }
 
+void scene::RemoveInstance(int InstanceInx)
+{
+    Instances.erase(Instances.begin() + InstanceInx);
+    InstanceNames.erase(InstanceNames.begin() + InstanceInx);
+    BVH->RemoveInstance(InstanceInx);
+    Lights->RemoveInstance(this, InstanceInx);
+}
+
 void scene::PreProcess()
 {
     this->ReloadTextureArray();
@@ -231,12 +294,11 @@ void scene::PreProcess()
     // Ensure name unicity
     CheckNames();
 
-    // Checkup
-    for (size_t i = 0; i < this->Shapes.size(); i++)
+    for(size_t i=0; i<Instances.size(); i++)
     {
-        Shapes[i].PreProcess();
+        Instances[i].Index = i;
+        CalculateInstanceTransform(i);
     }
-    
 
     BVH = CreateBVH(this); 
     Lights = std::make_shared<lights>();

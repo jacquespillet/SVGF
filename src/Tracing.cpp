@@ -171,8 +171,11 @@ void lights::Build(scene *Scene)
             LightsCDF.resize(LightsCDF.size() + Light.CDFCount);
             for(size_t j=0; j<Light.CDFCount; j++)
             {
-                const glm::ivec3 &Tri = Shape.Triangles[j];
-                LightsCDF[Light.CDFStart + j] = TriangleArea(Shape.Positions[Tri.x], Shape.Positions[Tri.y], Shape.Positions[Tri.z]);
+                const glm::vec3 &Pos0 = Shape.Triangles[j].PositionUvX0;
+                const glm::vec3 &Pos1 = Shape.Triangles[j].PositionUvX1;
+                const glm::vec3 &Pos2 = Shape.Triangles[j].PositionUvX2;
+
+                LightsCDF[Light.CDFStart + j] = TriangleArea(Pos0, Pos1, Pos2);
                 if(j != 0) LightsCDF[Light.CDFStart + j] += LightsCDF[Light.CDFStart + j-1]; 
             }
         }

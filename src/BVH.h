@@ -10,16 +10,6 @@ namespace gpupt
 class bufferGL;
 class bufferCu;
 
-struct aabb
-{
-    glm::vec3 Min =glm::vec3(1e30f);
-    float pad0;
-    glm::vec3 Max =glm::vec3(-1e30f);
-    float pad1;
-    float Area();
-    void Grow(glm::vec3 Position);
-    void Grow(aabb &AABB);
-};
 
 struct ray
 {
@@ -30,23 +20,7 @@ struct ray
     ray() = default;
 };
 
-struct triangle
-{
-    glm::vec4 PositionUvX0;
-    glm::vec4 PositionUvX1;
-    glm::vec4 PositionUvX2;
-    
-    glm::vec4 NormalUvY0; 
-    glm::vec4 NormalUvY1; 
-    glm::vec4 NormalUvY2;
-    
-    glm::vec4 Tangent0;
-    glm::vec4 Tangent1;  
-    glm::vec4 Tangent2;
-    
-    glm::vec3 Centroid;
-    float padding3; 
-};
+
 
 struct bvhNode
 {
@@ -77,11 +51,11 @@ struct rayPayload
 };
 
 
-struct mesh;
+struct shape;
 
-struct bvh
+struct blas
 {
-    bvh(mesh *Mesh);
+    blas(shape *Shape);
     void Build();
     void Refit();
 
@@ -92,7 +66,7 @@ struct bvh
     float EvaluateSAH(bvhNode &Node, int Axis, float Position);
     float CalculateNodeCost(bvhNode &Node);
 
-    mesh *Mesh;
+    shape *Shape;
     
     std::vector<uint32_t> TriangleIndices;
 
@@ -101,20 +75,7 @@ struct bvh
     uint32_t RootNodeIndex=0;
 };
 
-struct vertex
-{
-    glm::vec4 Position;
-    glm::vec4 Normal;
-    glm::vec4 Tangent;
-    glm::vec4 MatInx;
-};
 
-struct mesh
-{
-    mesh(const shape &Shape);
-    bvh *BVH;
-    std::vector<triangle> Triangles;
-};
 
 
 
@@ -127,36 +88,17 @@ struct tlasNode
     bool IsLeaf() {return LeftRight==0;}
 };
 
-struct bvhInstance
-{
-    bvhInstance(std::vector<mesh*> *Meshes, uint32_t MeshIndex, glm::mat4 Transform, uint32_t Index, uint32_t MaterialIndex) : MeshIndex(MeshIndex), Index(Index), MaterialIndex(MaterialIndex)
-    {
-        SetTransform(Transform, Meshes);
-    }
-    void SetTransform(glm::mat4 &Transform, std::vector<mesh*> *Meshes);
-
-    //Store the mesh index in the scene instead, and a pointer to the mesh array to access the bvh.
-    glm::mat4 InverseTransform;
-    glm::mat4 Transform;
-    glm::mat4 NormalTransform;
-    aabb Bounds;
-
-    uint32_t MeshIndex;
-    uint32_t Index=0;
-    uint32_t MaterialIndex;
-    uint32_t Selected=0;
-};
 
 struct tlas
 {
-    tlas(std::vector<bvhInstance>* Instances);
+    tlas(std::vector<instance>* Instances);
     tlas();
     void Build();
 
     int FindBestMatch(std::vector<int>& List, int N, int A);
 
     //Instances
-    std::vector<bvhInstance>* BLAS;
+    std::vector<instance>* BLAS;
     
     std::vector<tlasNode> Nodes;
 
@@ -177,8 +119,6 @@ struct sceneBVH
 {
     tlas TLAS;
 
-    std::vector<mesh*> Meshes;
-    std::vector<bvhInstance> Instances;
     std::vector<indexData> IndexData;
     std::vector<triangle> AllTriangles;
     std::vector<uint32_t> AllTriangleIndices;
@@ -205,7 +145,6 @@ struct sceneBVH
     void UpdateTLAS(uint32_t InstanceInx);
     void AddInstance(uint32_t InstanceInx);
     void RemoveInstance(uint32_t InstanceInx);
-    bool SetSelectedInstance(uint32_t instanceInx);
     void AddShape(uint32_t ShapeInx);
 
     int SelectedInstance = -1;

@@ -105,10 +105,7 @@ void gui::InstanceGUI(int InstanceInx)
 
     if(ImGui::Button("Delete"))
     {
-        App->Scene->Instances.erase(App->Scene->Instances.begin() + InstanceInx);
-        App->Scene->InstanceNames.erase(App->Scene->InstanceNames.begin() + InstanceInx);
-        App->Scene->BVH->RemoveInstance(InstanceInx);
-        App->Scene->Lights->RemoveInstance(App->Scene.get(), InstanceInx);
+        App->Scene->RemoveInstance(InstanceInx);
         SelectedInstances[InstanceInx] = false;
         SelectedInstanceIndices.erase(InstanceInx);
         App->ResetRender=true;
@@ -121,7 +118,7 @@ void gui::InstanceGUI(int InstanceInx)
         glm::vec3 Scale;
         glm::vec3 Rotation;
         glm::vec3 Translation;
-        DecomposeMatrixToComponents(App->Scene->Instances[InstanceInx].ModelMatrix, &Translation[0], &Rotation[0], &Scale[0]);
+        DecomposeMatrixToComponents(App->Scene->Instances[InstanceInx].Transform, &Translation[0], &Rotation[0], &Scale[0]);
 
         if (ImGui::IsKeyPressed(90))
             CurrentGizmoOperation = ImGuizmo::TRANSLATE;
@@ -166,7 +163,7 @@ void gui::InstanceGUI(int InstanceInx)
 
         if(TransformChanged)
         {
-            RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], App->Scene->Instances[InstanceInx].ModelMatrix);
+            RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], App->Scene->Instances[InstanceInx].Transform);
             App->Scene->BVH->UpdateTLAS(InstanceInx);
             App->ResetRender=true;
         }
@@ -564,11 +561,6 @@ bool gui::ShapeGUI(int ShapeInx)
     ImGui::Separator();
 
     ImGui::Text("Triangles Count : "); ImGui::SameLine(); ImGui::Text( std::to_string(App->Scene->Shapes[ShapeInx].Triangles.size()).c_str());
-    ImGui::Text("Positions Count : "); ImGui::SameLine(); ImGui::Text( std::to_string(App->Scene->Shapes[ShapeInx].Positions.size()).c_str());
-    ImGui::Text("Normals Count : "); ImGui::SameLine(); ImGui::Text( std::to_string(App->Scene->Shapes[ShapeInx].Normals.size()).c_str());
-    ImGui::Text("TexCoords Count : "); ImGui::SameLine(); ImGui::Text( std::to_string(App->Scene->Shapes[ShapeInx].TexCoords.size()).c_str());
-    ImGui::Text("Colours Count : "); ImGui::SameLine(); ImGui::Text( std::to_string(App->Scene->Shapes[ShapeInx].Colours.size()).c_str());
-    ImGui::Text("Tangents Count : "); ImGui::SameLine(); ImGui::Text( std::to_string(App->Scene->Shapes[ShapeInx].Tangents.size()).c_str());
 
     return Changed;
 }
@@ -909,7 +901,7 @@ void gui::GUI()
         camera &Camera = App->Scene->Cameras[int(App->Params.CurrentCamera)];
         glm::mat4 ViewMatrix = glm::inverse(Camera.Frame);
         
-        glm::mat4 ModelMatrix = App->Scene->Instances[SelectedInstance].ModelMatrix;
+        glm::mat4 ModelMatrix = App->Scene->Instances[SelectedInstance].Transform;
 
         ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList()); 
         
@@ -920,7 +912,7 @@ void gui::GUI()
         glm::mat4 CorrectedTransform = glm::translate(ModelMatrix, App->Scene->Shapes[Instance.Shape].Centroid);
         if(ImGuizmo::Manipulate(glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix), CurrentGizmoOperation, CurrentGizmoMode, glm::value_ptr(CorrectedTransform), NULL, NULL))
         {
-            App->Scene->Instances[SelectedInstance].ModelMatrix = glm::translate(CorrectedTransform, -App->Scene->Shapes[Instance.Shape].Centroid);
+            App->Scene->Instances[SelectedInstance].Transform = glm::translate(CorrectedTransform, -App->Scene->Shapes[Instance.Shape].Centroid);
             App->Scene->BVH->UpdateTLAS(SelectedInstance);
             App->ResetRender=true;
         }

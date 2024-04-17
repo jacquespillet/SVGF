@@ -26,22 +26,23 @@ void LoadGeometry(const aiScene *AScene, scene *Scene)
         shape &Shape = Scene->Shapes.back();
         Scene->ShapeNames.push_back(AMesh->mName.C_Str());
         // Reserve memory for Positions, Normals, and texture coordinates
-        Shape.Positions.reserve(AMesh->mNumVertices);
-        Shape.Normals.reserve(AMesh->mNumVertices);
-        Shape.TexCoords.reserve(AMesh->mNumVertices );
+        
+        Shape.PositionsTmp.reserve(AMesh->mNumVertices);
+        Shape.NormalsTmp.reserve(AMesh->mNumVertices);
+        Shape.TexCoordsTmp.reserve(AMesh->mNumVertices );
 
         // Load Positions
         for (unsigned int i = 0; i < AMesh->mNumVertices; ++i) {
-            Shape.Positions.push_back(glm::vec3(AMesh->mVertices[i].x, AMesh->mVertices[i].y, AMesh->mVertices[i].z));
+            Shape.PositionsTmp.push_back(glm::vec3(AMesh->mVertices[i].x, AMesh->mVertices[i].y, AMesh->mVertices[i].z));
 
             // Load Normals if they exist
             if (AMesh->HasNormals()) {
-                Shape.Normals.push_back(glm::vec3(AMesh->mNormals[i].x, AMesh->mNormals[i].y, AMesh->mNormals[i].z));
+                Shape.NormalsTmp.push_back(glm::vec3(AMesh->mNormals[i].x, AMesh->mNormals[i].y, AMesh->mNormals[i].z));
             }
 
             // Load texture coordinates if they exist
             if (AMesh->HasTextureCoords(0)) {
-                Shape.TexCoords.push_back(glm::vec2(AMesh->mTextureCoords[0][i].x, AMesh->mTextureCoords[0][i].y));
+                Shape.TexCoordsTmp.push_back(glm::vec2(AMesh->mTextureCoords[0][i].x, AMesh->mTextureCoords[0][i].y));
             }
         }
 
@@ -49,7 +50,7 @@ void LoadGeometry(const aiScene *AScene, scene *Scene)
         Shape.Triangles.reserve(AMesh->mNumFaces * 3);
         for (unsigned int i = 0; i < AMesh->mNumFaces; ++i) {
             aiFace face = AMesh->mFaces[i];
-            Shape.Triangles.push_back(glm::ivec3(face.mIndices[0], face.mIndices[1], face.mIndices[2]));
+            Shape.IndicesTmp.push_back(glm::ivec3(face.mIndices[0], face.mIndices[1], face.mIndices[2]));
         }
         Shape.PreProcess();
     }
@@ -74,7 +75,7 @@ void ProcessNode(const aiNode *Node, const aiScene *AScene, scene *Scene, glm::m
         Scene->Instances.emplace_back();
         instance &Instance = Scene->Instances.back();
         Scene->InstanceNames.push_back(Node->mName.C_Str());
-        Instance.ModelMatrix = WorldTransform;
+        Instance.Transform = WorldTransform;
         Instance.Material = MaterialBaseIndex + AMesh->mMaterialIndex;
         Instance.Shape = MeshBaseIndex + Node->mMeshes[i];
     }
@@ -185,44 +186,4 @@ void LoadAssimp(std::string FileName, scene *Scene, bool DoLoadInstances, bool D
     
 }    
 
-void LoadAssimpShapeOnly(std::string FileName, scene *Scene, int ShapeInx)
-{
-    Assimp::Importer Importer;
-    uint32_t Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices | aiProcess_CalcTangentSpace;
-    const aiScene* AScene = Importer.ReadFile(FileName, Flags);
-    
-    std::string Path = PathFromFile(FileName);
-
-    aiMesh* AMesh = AScene->mMeshes[ShapeInx];
-
-    Scene->Shapes.emplace_back();
-    shape &Shape = Scene->Shapes.back();
-    Scene->ShapeNames.push_back(AMesh->mName.C_Str());
-    // Reserve memory for Positions, Normals, and texture coordinates
-    Shape.Positions.reserve(AMesh->mNumVertices);
-    Shape.Normals.reserve(AMesh->mNumVertices);
-    Shape.TexCoords.reserve(AMesh->mNumVertices );
-
-    // Load Positions
-    for (unsigned int i = 0; i < AMesh->mNumVertices; ++i) {
-        Shape.Positions.push_back(glm::vec3(AMesh->mVertices[i].x, AMesh->mVertices[i].y, AMesh->mVertices[i].z));
-
-        // Load Normals if they exist
-        if (AMesh->HasNormals()) {
-            Shape.Normals.push_back(glm::vec3(AMesh->mNormals[i].x, AMesh->mNormals[i].y, AMesh->mNormals[i].z));
-        }
-
-        // Load texture coordinates if they exist
-        if (AMesh->HasTextureCoords(0)) {
-            Shape.TexCoords.push_back(glm::vec2(AMesh->mTextureCoords[0][i].x, AMesh->mTextureCoords[0][i].y));
-        }
-    }
-
-    // Load indices
-    Shape.Triangles.reserve(AMesh->mNumFaces * 3);
-    for (unsigned int i = 0; i < AMesh->mNumFaces; ++i) {
-        aiFace face = AMesh->mFaces[i];
-        Shape.Triangles.push_back(glm::ivec3(face.mIndices[0], face.mIndices[1], face.mIndices[2]));
-    }
-}    
 }

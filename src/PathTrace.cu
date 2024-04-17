@@ -19,7 +19,7 @@ __device__ triangle *TriangleBuffer;
 __device__ bvhNode *BVHBuffer;
 __device__ u32 *IndicesBuffer;
 __device__ indexData *IndexDataBuffer;
-__device__ bvhInstance *TLASInstancesBuffer;
+__device__ instance *TLASInstancesBuffer;
 __device__ tlasNode *TLASNodes;
 __device__ camera *Cameras;
 __device__ tracingParameters *Parameters;
@@ -39,7 +39,7 @@ __device__ int EnvTexturesHeight;
 
 #define MAIN() \
 __global__ void TraceKernel(glm::vec4 *RenderImage, int _Width, int _Height, \
-                            triangle *_AllTriangles, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, bvhInstance *_Instances, tlasNode *_TLASNodes,\
+                            triangle *_AllTriangles, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, instance *_Instances, tlasNode *_TLASNodes,\
                             camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures, int _TexturesWidth, int _TexturesHeight, light *_Lights, float *_LightsCDF, int _LightsCount,\
                             environment *_Environments, int _EnvironmentsCount, cudaTextureObject_t _EnvTextures, int _EnvTexturesWidth, int _EnvTexturesHeight)
 

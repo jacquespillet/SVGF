@@ -8,6 +8,5 @@ namespace gpupt
 struct scene;
 
 void LoadAssimp(std::string FilePath, scene *Scene, bool DoLoadInstances, bool DoLoadMaterials, bool DoLoadTextures);
-void LoadAssimpShapeOnly(std::string FilePath, scene *Scene, int ShapeInx);
 
 }

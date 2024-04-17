@@ -21,6 +21,7 @@ class textureArrayGL;
 class textureArrayCu;
 struct sceneBVH;
 struct lights;
+struct blas;
 
 static const int InvalidID = -1;
 
@@ -79,27 +80,63 @@ struct material
 };
 
 
-struct instance
+struct aabb
 {
-    glm::mat4 ModelMatrix;
-    int Shape = InvalidID;
-    int Material = InvalidID;
-    glm::mat4 GetModelMatrix() const;
+    glm::vec3 Min =glm::vec3(1e30f);
+    float pad0;
+    glm::vec3 Max =glm::vec3(-1e30f);
+    float pad1;
+    float Area();
+    void Grow(glm::vec3 Position);
+    void Grow(aabb &AABB);
 };
 
+
+struct instance
+{
+    glm::mat4 Transform;
+    glm::mat4 InverseTransform;
+    glm::mat4 NormalTransform;
+    aabb Bounds;
+
+    uint32_t Shape;
+    uint32_t Index=0;
+    uint32_t Material;
+    uint32_t Selected=0;  
+};
+
+struct triangle
+{
+    glm::vec4 PositionUvX0;
+    glm::vec4 PositionUvX1;
+    glm::vec4 PositionUvX2;
+    
+    glm::vec4 NormalUvY0; 
+    glm::vec4 NormalUvY1; 
+    glm::vec4 NormalUvY2;
+    
+    glm::vec4 Tangent0;
+    glm::vec4 Tangent1;  
+    glm::vec4 Tangent2;
+    
+    glm::vec3 Centroid;
+    float padding3; 
+};
 
 struct shape
 {
 
-    std::vector<glm::vec3> Positions;
-    std::vector<glm::vec3> Normals;
-    std::vector<glm::vec2> TexCoords;
-    std::vector<glm::vec4> Colours;
-    std::vector<glm::vec4> Tangents;
+    std::vector<glm::vec3> PositionsTmp;
+    std::vector<glm::vec3> NormalsTmp;
+    std::vector<glm::vec2> TexCoordsTmp;
+    std::vector<glm::vec4> TangentsTmp;
+    std::vector<glm::ivec3> IndicesTmp;
 
-    std::vector<glm::ivec3> Triangles;
+    std::vector<triangle> Triangles;
 
     glm::vec3 Centroid;
+
+    blas *BVH;
 
     void PreProcess();
     void CalculateTangents();
@@ -152,6 +189,9 @@ struct scene
     void PreProcess();
     void CheckNames();
     void UpdateLights();
+    void RemoveInstance(int InstanceInx);
+
+    void CalculateInstanceTransform(int InstanceInx);
 #if API==API_GL
     std::shared_ptr<bufferGL> CamerasBuffer;
     std::shared_ptr<bufferGL> EnvironmentsBuffer;

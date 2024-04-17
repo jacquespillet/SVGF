@@ -201,7 +201,7 @@ FN_DECL void IntersectBVH(ray Ray, INOUT(sceneIntersection) Isect, uint Instance
     uint NodeStartInx = IndexData.BVHNodeDataStartInx;
     uint TriangleStartInx = IndexData.triangleDataStartInx;
     uint IndexStartInx = IndexData.IndicesDataStartInx;
-    uint MaterialIndex = TLASInstancesBuffer[InstanceIndex].MaterialIndex;
+    uint MaterialIndex = TLASInstancesBuffer[InstanceIndex].Material;
 
     //We start with the root node of the shape 
     while(t)
@@ -269,7 +269,7 @@ FN_DECL void IntersectInstance(ray Ray, INOUT(sceneIntersection) Isect, uint Ins
     Ray.Direction = vec3((InverseTransform * vec4(Ray.Direction, 0)));
     Ray.InverseDirection = 1.0f / Ray.Direction;
 
-    IntersectBVH(Ray, Isect, TLASInstancesBuffer[InstanceIndex].Index, TLASInstancesBuffer[InstanceIndex].MeshIndex);
+    IntersectBVH(Ray, Isect, TLASInstancesBuffer[InstanceIndex].Index, TLASInstancesBuffer[InstanceIndex].Shape);
 }
 
 FN_DECL void IntersectTLAS(ray Ray, INOUT(sceneIntersection) Isect)
@@ -545,8 +545,8 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
     // Returns a vector that points to a light in the scene.
     if(Lights[LightID].Instance != INVALID_ID)
     {
-        bvhInstance Instance = TLASInstancesBuffer[Lights[LightID].Instance];
-        indexData IndexData = IndexDataBuffer[Instance.MeshIndex];
+        instance Instance = TLASInstancesBuffer[Lights[LightID].Instance];
+        indexData IndexData = IndexDataBuffer[Instance.Shape];
         uint TriangleStartInx = IndexData.triangleDataStartInx;
         uint TriangleCount = IndexData.TriangleCount;
         
@@ -1293,13 +1293,6 @@ MAIN()
                     {
                         if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
                         {
-                            Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                            if(Incoming == vec3(0,0,0)) break;
-                            Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
-                                    vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
-                        }
-                        else
-                        {
                             Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
                             if(Incoming == vec3(0,0,0)) break;
                             float PDF = SampleLightsPDF(Position, Incoming);
@@ -1311,6 +1304,13 @@ MAIN()
                             {
                                 break;
                             }
+                        }
+                        else
+                        {
+                            Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                            if(Incoming == vec3(0,0,0)) break;
+                            Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                                    vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
                         }
 
                     }
