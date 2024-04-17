@@ -202,17 +202,17 @@ scene::scene()
     this->Materials.emplace_back();
     material &BaseMaterial = this->Materials.back(); 
     BaseMaterial.Colour = {0.725f, 0.71f, 0.68f};
+    this->MaterialNames.push_back("Base");
 
     
-    {
-        this->Instances.emplace_back();
-        instance &FloorInstance = this->Instances.back();
-        FloorInstance.Shape = (int)this->Shapes.size()-1;
-        FloorInstance.Material = (int)this->Materials.size()-1;
-        FloorInstance.Transform = glm::scale(glm::vec3(4, 4, 4));
-        this->InstanceNames.push_back("Floor");
-        this->MaterialNames.push_back("Floor");
-    }
+    // {
+    //     this->Instances.emplace_back();
+    //     instance &FloorInstance = this->Instances.back();
+    //     FloorInstance.Shape = (int)this->Shapes.size()-1;
+    //     FloorInstance.Material = (int)this->Materials.size()-1;
+    //     FloorInstance.Transform = glm::scale(glm::vec3(4, 4, 4));
+    //     this->InstanceNames.push_back("Floor");
+    // }
     
     {
         this->Instances.emplace_back();
@@ -221,7 +221,6 @@ scene::scene()
         FloorInstance.Material = (int)this->Materials.size()-1;
         FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(2, 0, 0));
         this->InstanceNames.push_back("Floor");
-        this->MaterialNames.push_back("Floor");
     }
 
     {
@@ -231,7 +230,6 @@ scene::scene()
         FloorInstance.Material = (int)this->Materials.size()-1;
         FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(0, 0, 2));
         this->InstanceNames.push_back("Floor");
-        this->MaterialNames.push_back("Floor");
     }
 
     {
@@ -241,7 +239,6 @@ scene::scene()
         FloorInstance.Material = (int)this->Materials.size()-1;
         FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(-2, 0, 2));
         this->InstanceNames.push_back("Floor");
-        this->MaterialNames.push_back("Floor");
     }
 
     
@@ -255,6 +252,7 @@ scene::scene()
     LightInstance.Transform = glm::translate(glm::vec3(0, 2, 0));
     this->InstanceNames.push_back("Light");
     this->MaterialNames.push_back("Light");
+    
 }
 
 void scene::CheckNames()
@@ -280,7 +278,6 @@ void scene::UploadMaterial(int MaterialInx)
 
 void scene::RemoveInstance(int InstanceInx)
 {
-    Instances.erase(Instances.begin() + InstanceInx);
     InstanceNames.erase(InstanceNames.begin() + InstanceInx);
     BVH->RemoveInstance(InstanceInx);
     Lights->RemoveInstance(this, InstanceInx);

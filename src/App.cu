@@ -271,7 +271,9 @@ void application::Run()
 
 void application::Cleanup()
 {
+#if API==API_GL
     cudaFree(DenoisedBufferData);
+#endif
 }
 
 

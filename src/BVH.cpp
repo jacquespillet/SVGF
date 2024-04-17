@@ -395,6 +395,7 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
 
 void sceneBVH::UpdateShape(uint32_t InstanceInx, uint32_t ShapeInx)
 {
+    Scene->CalculateInstanceTransform(InstanceInx);
     Scene->Instances[InstanceInx].Shape = ShapeInx;
     TLAS.Build();
     this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(instance));
@@ -421,7 +422,7 @@ void sceneBVH::AddInstance(uint32_t InstanceInx)
     for(int i=0; i<Scene->Instances.size(); i++)
     {
         Scene->Instances[i].Index = i;   
-    }        
+    }
     TLAS.Build();
     this->TLASInstancesBuffer =std::make_shared<buffer>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<buffer>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
@@ -443,29 +444,27 @@ void sceneBVH::RemoveInstance(uint32_t InstanceInx)
 
 void sceneBVH::AddShape(uint32_t ShapeInx)
 {
-    shape &Shape = this->Scene->Shapes[this->Scene->Shapes.size()-1];
+    shape &Shape = this->Scene->Shapes[ShapeInx];
     uint32_t RunningTriangleCount = AllTriangles.size();
     uint32_t RunningIndicesCount = AllTriangleIndices.size();
     uint32_t RunningBVHNodeCount = AllBVHNodes.size();
     
-    uint32_t Inx = Scene->Shapes.size()-1;
-
     AllTriangles.resize(AllTriangles.size() + Shape.Triangles.size());
     AllTriangleIndices.resize(AllTriangleIndices.size() + Shape.BVH->TriangleIndices.size());
     AllBVHNodes.resize(AllBVHNodes.size() + Shape.BVH->NodesUsed);
     IndexData.resize(Scene->Shapes.size());
 
 
-    memcpy((void*)(AllTriangles.data() + RunningTriangleCount), Scene->Shapes[Inx].Triangles.data(), Scene->Shapes[Inx].Triangles.size() * sizeof(triangle));
-    memcpy((void*)(AllTriangleIndices.data() + RunningIndicesCount), Scene->Shapes[Inx].BVH->TriangleIndices.data(), Scene->Shapes[Inx].BVH->TriangleIndices.size() * sizeof(uint32_t));
-    memcpy((void*)(AllBVHNodes.data() + RunningBVHNodeCount), Scene->Shapes[Inx].BVH->BVHNodes.data(), Scene->Shapes[Inx].BVH->NodesUsed * sizeof(bvhNode));
+    memcpy((void*)(AllTriangles.data() + RunningTriangleCount), Scene->Shapes[ShapeInx].Triangles.data(), Scene->Shapes[ShapeInx].Triangles.size() * sizeof(triangle));
+    memcpy((void*)(AllTriangleIndices.data() + RunningIndicesCount), Scene->Shapes[ShapeInx].BVH->TriangleIndices.data(), Scene->Shapes[ShapeInx].BVH->TriangleIndices.size() * sizeof(uint32_t));
+    memcpy((void*)(AllBVHNodes.data() + RunningBVHNodeCount), Scene->Shapes[ShapeInx].BVH->BVHNodes.data(), Scene->Shapes[ShapeInx].BVH->NodesUsed * sizeof(bvhNode));
 
-    IndexData[Inx] = 
+    IndexData[ShapeInx] = 
     {
         RunningTriangleCount,
         RunningIndicesCount,
         RunningBVHNodeCount,
-        (uint32_t)Scene->Shapes[Inx].Triangles.size()
+        (uint32_t)Scene->Shapes[ShapeInx].Triangles.size()
     };
 
 

@@ -56,9 +56,8 @@ void LoadGeometry(const aiScene *AScene, scene *Scene)
     }
 }
 
-void ProcessNode(const aiNode *Node, const aiScene *AScene, scene *Scene, glm::mat4 ParentTransform)
+void ProcessNode(const aiNode *Node, const aiScene *AScene, scene *Scene, glm::mat4 ParentTransform, int MeshBaseIndex)
 {
-    int MeshBaseIndex = Scene->Shapes.size();
     int MaterialBaseIndex = Scene->Materials.size();
 
     glm::mat4 ChildTransform(1);
@@ -82,14 +81,14 @@ void ProcessNode(const aiNode *Node, const aiScene *AScene, scene *Scene, glm::m
 
     // Process all children nodes
     for (unsigned int i = 0; i < Node->mNumChildren; ++i) {
-        ProcessNode(Node->mChildren[i], AScene, Scene, WorldTransform);
+        ProcessNode(Node->mChildren[i], AScene, Scene, WorldTransform, MeshBaseIndex);
     }    
 }
 
-void LoadInstances(const aiScene *AScene, scene *Scene)
+void LoadInstances(const aiScene *AScene, scene *Scene, int MeshBaseIndex)
 {
     glm::mat4 RootTransform = glm::mat4(1);
-    ProcessNode(AScene->mRootNode, AScene, Scene, RootTransform);
+    ProcessNode(AScene->mRootNode, AScene, Scene, RootTransform, MeshBaseIndex);
 }
 
 std::string FileNameFromPath(const std::string& FullPath) {
@@ -176,12 +175,19 @@ void LoadAssimp(std::string FileName, scene *Scene, bool DoLoadInstances, bool D
     uint32_t Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices | aiProcess_CalcTangentSpace;
     const aiScene* AScene = Importer.ReadFile(FileName, Flags);
     
+    if (!AScene || AScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !AScene->mRootNode) {
+        std::string Error = Importer.GetErrorString();
+        std::cout << Error << std::endl;
+        return;
+    }
+
     std::string Path = PathFromFile(FileName);
 
     
 
-    if(DoLoadInstances) LoadInstances(AScene, Scene);
+    int MeshBaseIndex = Scene->Shapes.size();
     LoadGeometry(AScene, Scene);
+    if(DoLoadInstances) LoadInstances(AScene, Scene, MeshBaseIndex);
     if(DoLoadMaterials || DoLoadTextures) LoadMaterials(AScene, Scene, Path, DoLoadMaterials, DoLoadTextures);
     
 }    

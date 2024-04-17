@@ -3,7 +3,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(API_GL 0)
 set(API_CU 1)
-set(API ${API_GL})
+set(API ${API_CU})
 
 add_definitions(-DAPI_GL=${API_GL})
 add_definitions(-DAPI_CU=${API_CU})

@@ -33,6 +33,7 @@ void LoadTextures(tinygltf::Model &GLTFModel, scene *Scene)
         {
             TexName = GLTFImage.uri;
         }
+        TextureNames[BaseIndex] = TexName;
         
         assert(GLTFImage.component==4);
         assert(GLTFImage.bits==8);
@@ -220,7 +221,7 @@ void LoadGeometry(tinygltf::Model &GLTFModel, scene *Scene, std::vector<std::vec
             const uint8_t *IndicesBufferAddress = IndicesBuffer.data.data();
             int IndicesStride = tinygltf::GetComponentSizeInBytes(IndicesAccessor.componentType) * tinygltf::GetNumComponentsInType(IndicesAccessor.type); 
             
-            Shape.Triangles.resize(IndicesAccessor.count/3);
+            Shape.IndicesTmp.resize(IndicesAccessor.count/3);
             const uint8_t *baseAddress = IndicesBufferAddress + IndicesBufferView.byteOffset + IndicesAccessor.byteOffset;
             if(IndicesStride == 1)
             {
@@ -384,9 +385,7 @@ void LoadInstances(tinygltf::Model &GLTFModel, scene *Scene, std::vector<std::ve
     // glm::mat4 Scale = glm::scale(glm::mat4(1), glm::vec3(25));
     // glm::mat4 Translate = glm::translate(glm::mat4(1), glm::vec3(0, 0.4, 0));
     // glm::mat4 RootTransform =  Translate * Scale;
-    glm::mat4 Scale = glm::scale(glm::mat4(1), glm::vec3(0.5));
-    glm::mat4 Translate = glm::translate(glm::mat4(1), glm::vec3(0, 0.4, 0));
-    glm::mat4 RootTransform =  Translate * Scale;
+    glm::mat4 RootTransform = glm::scale(glm::mat4(1), glm::vec3(10.0f));
     // glm::mat4 RootTransform(0.3f);
     const tinygltf::Scene GLTFScene = GLTFModel.scenes[GLTFModel.defaultScene];
     for (size_t i = 0; i < GLTFScene.nodes.size(); i++)
@@ -424,7 +423,7 @@ void LoadGLTF(std::string FileName, scene *Scene, bool DoLoadInstances, bool DoL
     
     LoadGeometry(GLTFModel, Scene, InstanceMapping);
     if(DoLoadInstances) LoadInstances(GLTFModel, Scene, InstanceMapping);
-    if(DoLoadMaterials) LoadMaterials(GLTFModel, Scene, LoadTextures);
+    if(DoLoadMaterials) LoadMaterials(GLTFModel, Scene, DoLoadTextures);
     if(DoLoadTextures) LoadTextures(GLTFModel, Scene);
 }    
 

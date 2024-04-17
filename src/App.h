@@ -58,7 +58,6 @@ private:
     oidn::FilterRef Filter;
     cudaStream_t Stream;
     
-    void *DenoisedBufferData;
 
     bool Denoised=false;
     bool DoDenoise=false;
@@ -75,11 +74,13 @@ private:
     std::shared_ptr<textureGL> DenoisedTexture;
     std::shared_ptr<cudaTextureMapping> RenderMapping;
     std::shared_ptr<cudaTextureMapping> DenoiseMapping;
+    void *DenoisedBufferData;
 
 #elif API==API_CU
     std::shared_ptr<buffer> TracingParamsBuffer;
     std::shared_ptr<buffer> RenderBuffer;
     std::shared_ptr<buffer> TonemapBuffer;    
+    std::shared_ptr<buffer> DenoisedBuffer;    
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<cudaTextureMapping> RenderTextureMapping;
 #endif

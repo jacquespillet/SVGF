@@ -95,6 +95,64 @@ gui::gui(application *App) : App(App){}
 bool gui::InstancesMultipleGUI()
 {
     ImGui::Text("Multiple Instances");
+
+    // if(ImGui::CollapsingHeader("Transform"))
+    // {
+    //     // XForm
+    //     glm::vec3 Scale;
+    //     glm::vec3 Rotation;
+    //     glm::vec3 Translation;
+    //     DecomposeMatrixToComponents(App->Scene->Instances[InstanceInx].Transform, &Translation[0], &Rotation[0], &Scale[0]);
+
+    //     if (ImGui::IsKeyPressed(90))
+    //         CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+    //     if (ImGui::IsKeyPressed(69))
+    //         CurrentGizmoOperation = ImGuizmo::ROTATE;
+    //     if (ImGui::IsKeyPressed(82))
+    //         CurrentGizmoOperation = ImGuizmo::SCALE;
+    //     ImGui::Text("Gizmo Operation : ");
+    //     if (ImGui::RadioButton("Translate", CurrentGizmoOperation == ImGuizmo::TRANSLATE))
+    //         CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+    //     ImGui::SameLine();
+    //     if (ImGui::RadioButton("Rotate", CurrentGizmoOperation == ImGuizmo::ROTATE))
+    //         CurrentGizmoOperation = ImGuizmo::ROTATE;
+    //     ImGui::SameLine();
+    //     if (ImGui::RadioButton("Scale", CurrentGizmoOperation == ImGuizmo::SCALE))
+    //         CurrentGizmoOperation = ImGuizmo::SCALE;
+
+    //     if (CurrentGizmoOperation != ImGuizmo::SCALE)
+    //     {
+    //         ImGui::Text("Gizmo Space : ");
+    //         if (ImGui::RadioButton("Local", CurrentGizmoMode == ImGuizmo::LOCAL))
+    //             CurrentGizmoMode = ImGuizmo::LOCAL;
+    //         ImGui::SameLine();
+    //         if (ImGui::RadioButton("World", CurrentGizmoMode == ImGuizmo::WORLD))
+    //             CurrentGizmoMode = ImGuizmo::WORLD;
+    //     }        
+
+    //     TransformChanged |= ImGui::DragFloat3("Position", &Translation[0], 0.1);
+    //     TransformChanged |= ImGui::DragFloat3("Rotation", &Rotation[0], 1);
+
+    //     static bool UniformScale = false;
+    //     ImGui::Checkbox("Uniform Scale", &UniformScale);
+    //     if(UniformScale)
+    //     {
+    //         float ScaleUniform = (Scale.x + Scale.y + Scale.z) / 3.0f;
+    //         TransformChanged |= ImGui::DragFloat("Scale", &ScaleUniform, 0.1);
+    //         Scale = glm::vec3(ScaleUniform);
+    //     }
+    //     else
+    //         TransformChanged |= ImGui::DragFloat3("Scale", &Scale[0], 0.1);
+        
+
+    //     if(TransformChanged)
+    //     {
+    //         RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], App->Scene->Instances[InstanceInx].Transform);
+    //         App->Scene->BVH->UpdateTLAS(InstanceInx);
+    //         App->ResetRender=true;
+    //     }
+    // }
+    
     return false;
 }
 
@@ -109,6 +167,15 @@ void gui::InstanceGUI(int InstanceInx)
         SelectedInstanceIndices.erase(InstanceInx);
         App->ResetRender=true;
         return;
+    }
+
+    if(ImGui::Button("Duplicate"))
+    {
+        instance Instance = App->Scene->Instances[InstanceInx];
+        std::string Name = App->Scene->InstanceNames[InstanceInx];
+        App->Scene->Instances.push_back(Instance);
+        App->Scene->InstanceNames.push_back(Name + "_Duplicated");
+        App->Scene->BVH->AddInstance(App->Scene->Instances.size()-1);
     }
 
     if(ImGui::CollapsingHeader("Transform"))
@@ -279,12 +346,12 @@ bool gui::InstancesGUI()
     {
         ImGui::OpenPopup("Add_Instance_Popup");
     }
-    if(ImGui::BeginPopupModal("Add_Instance_Popup"))
+    if(ImGui::BeginPopupModal("Add_Instance_Popup", nullptr, ImGuiWindowFlags_NoTitleBar))
     {
         static int SelectedShape = -1;
         static int SelectedMaterial = -1;
         
-        static char Name[256];
+        static char Name[256] = "New Instance";
         ImGui::InputText("Instance Name : ", Name, 256);
 
         ImGui::Text("Select Shape");
@@ -297,27 +364,43 @@ bool gui::InstancesGUI()
         }            
 
         ImGui::Separator();
-        ImGui::Text("Select Material");
-        for (int i = 0; i < App->Scene->Materials.size(); i++)
+        static bool CreateMaterial = true;
+        ImGui::Checkbox("New Material", &CreateMaterial);
+        if(!CreateMaterial)
         {
-            ImGui::PushID(App->Scene->Shapes.size() + i);
-            if (ImGui::Selectable(App->Scene->MaterialNames[i].c_str(), SelectedMaterial == i, ImGuiSelectableFlags_DontClosePopups))
-                SelectedMaterial = i;
-            ImGui::PopID();
-        }      
+            ImGui::Text("Select Material");
+            for (int i = 0; i < App->Scene->Materials.size(); i++)
+            {
+                ImGui::PushID(App->Scene->Shapes.size() + i);
+                if (ImGui::Selectable(App->Scene->MaterialNames[i].c_str(), SelectedMaterial == i, ImGuiSelectableFlags_DontClosePopups))
+                    SelectedMaterial = i;
+                ImGui::PopID();
+            }
+        }
 
+        int MaterialInx = CreateMaterial ? App->Scene->Materials.size() : SelectedMaterial;
         if(ImGui::Button("Confirm"))
         {
-            if(SelectedShape != -1)
+            if(SelectedShape != -1 && MaterialInx != -1)
             {
+                if(CreateMaterial)
+                {
+                    App->Scene->Materials.emplace_back();
+                    material &NewMaterial = App->Scene->Materials.back(); 
+                    NewMaterial.Colour = {0.725f, 0.71f, 0.68f};            
+                    App->Scene->MaterialNames.push_back("New Material");
+                    App->Scene->MaterialBuffer->Reallocate(App->Scene->Materials.data(), App->Scene->Materials.size() * sizeof(material));
+                }
+
                 App->Scene->Instances.emplace_back();
                 instance &NewInstance = App->Scene->Instances.back(); 
                 NewInstance.Shape = SelectedShape;
-                NewInstance.Material = SelectedMaterial >= 0 ? SelectedMaterial : 0;
+                NewInstance.Material = MaterialInx;
                 App->Scene->InstanceNames.push_back(std::string(Name));      
                 App->Scene->BVH->AddInstance(App->Scene->Instances.size()-1);
                 App->ResetRender = true;
                 App->Scene->CheckNames();
+                
                 ImGui::CloseCurrentPopup();
             }
         }     
@@ -595,12 +678,7 @@ bool gui::ShapesGUI()
                 for (size_t i = 0; i < NFD_PathSet_GetCount(&ShapesPaths); ++i )
                 {
                     nfdchar_t *Path = NFD_PathSet_GetPath(&ShapesPaths, i);
-                    int PreviousShapesInx = App->Scene->Shapes.size();
                     LoadAsset(Path, App->Scene.get(), LoadInstances, LoadMaterials, LoadTextures);
-                    for(int i=PreviousShapesInx; i<App->Scene->Shapes.size(); i++)
-                    {
-                        App->Scene->BVH->AddShape(i);
-                    }
                 }
                 NFD_PathSet_Free(&ShapesPaths);            
             }   
