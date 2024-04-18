@@ -85,6 +85,7 @@ private:
     std::shared_ptr<cudaTextureMapping> RenderTextureMapping;
 #endif
 
+
     void Trace();
 
     void InitGpuObjects();

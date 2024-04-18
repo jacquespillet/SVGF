@@ -11,8 +11,48 @@
 #include "BVH.h"
 #include <unordered_map>
 
+#include "fstream"
+
 namespace gpupt
 {
+template<typename T>
+void SerializeVector(std::ofstream &Stream, const std::vector<T>& Vec) {
+    size_t VecSize = Vec.size();
+    Stream.write((char*)&VecSize, sizeof(size_t));
+    Stream.write((char*)Vec.data(), Vec.size() * sizeof(T));
+}
+
+template<typename T>
+void DeserializeVector(std::ifstream &Stream, std::vector<T>& Vec) {
+    size_t VecSize;
+    Stream.read((char*)&VecSize, sizeof(size_t));
+    Vec.resize(VecSize);
+    Stream.read((char*)Vec.data(), Vec.size() * sizeof(T));
+}
+
+void SerializeStrVector(std::ofstream &Stream, const std::vector<std::string>& Vec) {
+    size_t VecSize = Vec.size();
+    Stream.write((char*)&VecSize, sizeof(size_t));
+    for(int i=0; i<VecSize; i++)
+    {
+        size_t StrSize = Vec[i].size();
+        Stream.write((char*)&StrSize, sizeof(size_t));
+        Stream.write((char*)Vec[i].data(), Vec[i].size());
+    }
+}
+
+void DeserializeStrVector(std::ifstream &Stream, std::vector<std::string>& Vec) {
+    size_t VecSize = Vec.size();
+    Stream.read((char*)&VecSize, sizeof(size_t));
+    Vec.resize(VecSize);
+    for(int i=0; i<VecSize; i++)
+    {
+        size_t StrSize;
+        Stream.read((char*)&StrSize, sizeof(size_t));
+        Vec[i].resize(StrSize);
+        Stream.read((char*)Vec[i].data(), Vec[i].size());
+    }
+}
 
 
 void EnsureUnicity(std::vector<std::string> &Names, std::string DefaultName)
@@ -153,7 +193,29 @@ void shape::PreProcess()
     TangentsTmp.resize(0);
     IndicesTmp.resize(0);
 
-    BVH = new blas(this);
+    BVH = std::make_shared<blas>(this);
+}
+
+void shape::ToFile(std::ofstream &Stream)
+{
+    SerializeVector(Stream, PositionsTmp);
+    SerializeVector(Stream, NormalsTmp);
+    SerializeVector(Stream, TexCoordsTmp);
+    SerializeVector(Stream, TangentsTmp);
+    SerializeVector(Stream, IndicesTmp);
+    SerializeVector(Stream, Triangles);
+    Stream.write((char*)&Centroid, sizeof(glm::vec3));
+}
+
+void shape::FromFile(std::ifstream &Stream)
+{
+    DeserializeVector(Stream, PositionsTmp);
+    DeserializeVector(Stream, NormalsTmp);
+    DeserializeVector(Stream, TexCoordsTmp);
+    DeserializeVector(Stream, TangentsTmp);
+    DeserializeVector(Stream, IndicesTmp);
+    DeserializeVector(Stream, Triangles);
+    Stream.read((char*)&Centroid, sizeof(glm::vec3));
 }
 
 void scene::CalculateInstanceTransform(int Inx)
@@ -163,7 +225,7 @@ void scene::CalculateInstanceTransform(int Inx)
     Instance.InverseTransform = glm::inverse(Instance.Transform);
     Instance.NormalTransform = glm::inverseTranspose(Instance.Transform);
     
-    blas *BVH = Shapes[Instance.Shape].BVH;
+    blas *BVH = Shapes[Instance.Shape].BVH.get();
     glm::vec3 Min = BVH->BVHNodes[0].AABBMin;
     glm::vec3 Max = BVH->BVHNodes[0].AABBMax;
     Instance.Bounds = {};
@@ -534,6 +596,134 @@ void scene::ReloadTextureArray()
     }
 }
 
+
+
+void scene::ToFile(std::string FileName)
+{
+    std::ofstream OutStream;
+    OutStream.open(FileName, std::ios_base::binary);
+    if(!OutStream.is_open())
+    {
+        std::cout << "Could not open file" << FileName << std::endl;
+        return;
+    }
+
+    SerializeVector(OutStream, Cameras);
+    SerializeVector(OutStream, Materials);
+    SerializeVector(OutStream, Instances);
+    SerializeVector(OutStream, Environments);
+
+    size_t ShapesSize = Shapes.size();
+    OutStream.write((char*)&ShapesSize, sizeof(size_t));
+    for(int i=0; i<Shapes.size(); i++)
+    {
+        Shapes[i].ToFile(OutStream);
+    }
+    size_t EnvTexturesSize = EnvTextures.size();
+    OutStream.write((char*)&EnvTexturesSize, sizeof(size_t));
+    for(int i=0; i<EnvTextures.size(); i++)
+    {
+        EnvTextures[i].ToFile(OutStream);
+    }
+    size_t TexturesSize = Textures.size();
+    OutStream.write((char*)&TexturesSize, sizeof(size_t));
+    for(int i=0; i<Textures.size(); i++)
+    {
+        Textures[i].ToFile(OutStream);
+    }    
+    
+    SerializeStrVector(OutStream, CameraNames);
+    SerializeStrVector(OutStream, InstanceNames);
+    SerializeStrVector(OutStream, ShapeNames);
+    SerializeStrVector(OutStream, MaterialNames);
+    SerializeStrVector(OutStream, TextureNames);
+    SerializeStrVector(OutStream, EnvTextureNames);
+    SerializeStrVector(OutStream, EnvironmentNames);
+
+    OutStream.write((char*)&TextureWidth, sizeof(int));
+    OutStream.write((char*)&TextureHeight, sizeof(int));
+    OutStream.write((char*)&EnvTextureWidth, sizeof(int));
+    OutStream.write((char*)&EnvTextureHeight, sizeof(int));
+}
+
+void scene::FromFile(std::string FileName)
+{
+    std::ifstream InStream;
+    InStream.open(FileName, std::ios_base::binary);
+    if(!InStream.is_open())
+    {
+        std::cout << "Could not open file" << FileName << std::endl;
+        return;
+    }
+
+    DeserializeVector(InStream, Cameras);
+    DeserializeVector(InStream, Materials);
+    DeserializeVector(InStream, Instances);
+    DeserializeVector(InStream, Environments);
+    
+    
+    size_t ShapesSize;
+    InStream.read((char*)&ShapesSize, sizeof(size_t));
+    Shapes.resize(ShapesSize);
+    for(int i=0; i<Shapes.size(); i++)
+    {
+        Shapes[i].FromFile(InStream);
+    }
+    size_t EnvTexturesSize;
+    InStream.read((char*)&EnvTexturesSize, sizeof(size_t));
+    EnvTextures.resize(EnvTexturesSize);
+    for(int i=0; i<EnvTextures.size(); i++)
+    {
+        EnvTextures[i].FromFile(InStream);
+    }
+    size_t TexturesSize;
+    InStream.read((char*)&TexturesSize, sizeof(size_t));
+    Textures.resize(TexturesSize);
+    for(int i=0; i<Textures.size(); i++)
+    {
+        Textures[i].FromFile(InStream);
+    }        
+    
+    DeserializeStrVector(InStream, CameraNames);
+    DeserializeStrVector(InStream, InstanceNames);
+    DeserializeStrVector(InStream, ShapeNames);
+    DeserializeStrVector(InStream, MaterialNames);
+    DeserializeStrVector(InStream, TextureNames);
+    DeserializeStrVector(InStream, EnvTextureNames);
+    DeserializeStrVector(InStream, EnvironmentNames);
+
+    InStream.read((char*)&TextureWidth, sizeof(int));
+    InStream.read((char*)&TextureHeight, sizeof(int));
+    InStream.read((char*)&EnvTextureWidth, sizeof(int));
+    InStream.read((char*)&EnvTextureHeight, sizeof(int));
+
+    for(int i=0; i<Shapes.size(); i++)
+    {
+        Shapes[i].BVH = std::make_shared<blas>(&Shapes[i]);
+    }
+}
+
+void scene::Clear()
+{
+    Cameras.clear();
+    Instances.clear();
+    Shapes.clear();
+    Materials.clear();
+    Textures.clear();
+    EnvTextures.clear();
+    Environments.clear();
+
+    
+    CameraNames.clear();
+    InstanceNames.clear();
+    ShapeNames.clear();
+    MaterialNames.clear();
+    TextureNames.clear();
+    EnvTextureNames.clear();
+    EnvironmentNames.clear();
+}
+
+
 glm::vec4 texture::Sample(glm::ivec2 Coords)
 {
     glm::vec4 Res;
@@ -572,6 +762,24 @@ void texture::SetFromFile(const std::string &FileName, int Width, int Height)
         this->Width = Width;
         this->Height = Height;
     }
+}
+
+void texture::ToFile(std::ofstream &Stream)
+{
+    SerializeVector(Stream, Pixels);
+    SerializeVector(Stream, PixelsF);
+    Stream.write((char*)&Width, sizeof(int));
+    Stream.write((char*)&Height, sizeof(int));
+    Stream.write((char*)&NumChannels, sizeof(int));
+}
+
+void texture::FromFile(std::ifstream &Stream)
+{
+    DeserializeVector(Stream, Pixels);
+    DeserializeVector(Stream, PixelsF);
+    Stream.read((char*)&Width, sizeof(int));
+    Stream.read((char*)&Height, sizeof(int));
+    Stream.read((char*)&NumChannels, sizeof(int));
 }
 
 void texture::SetFromPixels(const std::vector<uint8_t> &PixelData, int Width, int Height)

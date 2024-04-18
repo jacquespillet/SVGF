@@ -483,10 +483,7 @@ sceneBVH::~sceneBVH()
 
 void sceneBVH::Destroy()
 {
-    for (size_t i = 0; i < this->Scene->Shapes.size(); i++)
-    {
-        delete this->Scene->Shapes[i].BVH;
-    }
+    
 }
 
 }

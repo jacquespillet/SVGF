@@ -1209,6 +1209,7 @@ MAIN()
     if (GlobalID.x < Width && GlobalID.y < Height) {
         vec4 PrevCol = imageLoad(RenderImage, ivec2(GlobalID));
         vec4 NewCol;
+        
         for(int Sample=0; Sample < GET_ATTR(Parameters, Batch); Sample++)
         {
             randomState RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277) + uint(GET_ATTR(Parameters,CurrentSample) + Sample) * uint(26699)) | uint(1) ); 
@@ -1291,7 +1292,7 @@ MAIN()
                     vec3 Incoming = vec3(0);
                     if(!IsDelta(Material))
                     {
-                        if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
+                        if(GET_ATTR(Parameters, SamplingMode) == SAMPLING_MODE_LIGHT)
                         {
                             Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
                             if(Incoming == vec3(0,0,0)) break;
@@ -1305,12 +1306,36 @@ MAIN()
                                 break;
                             }
                         }
-                        else
+                        else if(GET_ATTR(Parameters, SamplingMode) == SAMPLING_MODE_BSDF)
                         {
                             Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
                             if(Incoming == vec3(0,0,0)) break;
                             Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
                                     vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
+                        }
+                        else
+                        {
+                            if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
+                            {
+                                Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                                if(Incoming == vec3(0,0,0)) break;
+                                float PDF = SampleLightsPDF(Position, Incoming);
+                                if(PDF > 0)
+                                {
+                                    Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / vec3(PDF);   
+                                }
+                                else
+                                {
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                                if(Incoming == vec3(0,0,0)) break;
+                                Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                                        vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
+                            }
                         }
 
                     }

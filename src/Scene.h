@@ -53,6 +53,8 @@ struct texture
     void SetFromPixels(const std::vector<uint8_t> &PixelData, int Width = -1, int Height = -1);
     glm::vec4 Sample(glm::ivec2 Coords);
     glm::vec4 SampleF(glm::ivec2 Coords);
+    void ToFile(std::ofstream &Stream);
+    void FromFile(std::ifstream &Stream);
 };
 
 
@@ -135,10 +137,12 @@ struct shape
 
     glm::vec3 Centroid;
 
-    blas *BVH;
+    std::shared_ptr<blas> BVH;
 
     void PreProcess();
     void CalculateTangents();
+    void ToFile(std::ofstream &Stream);
+    void FromFile(std::ifstream &Stream);
 };
 
 struct environment
@@ -189,6 +193,10 @@ struct scene
     void CheckNames();
     void UpdateLights();
     void RemoveInstance(int InstanceInx);
+
+    void ToFile(std::string FileName);
+    void FromFile(std::string FileName);
+    void Clear();
 
     void CalculateInstanceTransform(int InstanceInx);
 #if API==API_GL

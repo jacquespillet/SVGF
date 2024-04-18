@@ -7,6 +7,11 @@
 
 namespace gpupt
 {
+#define SAMPLING_MODE_BSDF 0
+#define SAMPLING_MODE_LIGHT 1
+#define SAMPLING_MODE_BOTH 2
+#define SAMPLING_MODE_MIS 3
+
 struct scene;
 class buffer;
 
@@ -17,9 +22,12 @@ struct tracingParameters
     int Batch;
     int Bounces;
 
-    glm::vec2 Pad;
+    glm::vec2 Pad0;
     float CurrentCamera;    
     float Clamp;
+
+    glm::ivec3 Pad1;
+    int SamplingMode;
 };
 
 inline tracingParameters GetTracingParameters()
@@ -31,6 +39,7 @@ inline tracingParameters GetTracingParameters()
     Params.Bounces = 5;
     Params.Clamp = 10;
     Params.CurrentCamera=0;
+    Params.SamplingMode = SAMPLING_MODE_BOTH;
     return Params;
 }
 

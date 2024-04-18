@@ -43,6 +43,8 @@ public:
     int SelectedEnvironment = -1;
     int SelectedCamera = -1;
 
+    std::string LoadedFile = "";
+
     
     ImGuizmo::OPERATION CurrentGizmoOperation = (ImGuizmo::TRANSLATE);
     ImGuizmo::MODE CurrentGizmoMode = (ImGuizmo::WORLD);    

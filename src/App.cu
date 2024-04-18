@@ -120,6 +120,8 @@ void application::Init()
     Window->OnResize = OnResizeWindow;
 
     InitImGui();
+
+    // 
     Scene = CreateCornellBox();
     Scene->PreProcess();
     

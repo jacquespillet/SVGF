@@ -186,19 +186,11 @@ void gui::InstanceGUI(int InstanceInx)
         glm::vec3 Translation;
         DecomposeMatrixToComponents(App->Scene->Instances[InstanceInx].Transform, &Translation[0], &Rotation[0], &Scale[0]);
 
-        if (ImGui::IsKeyPressed(90))
-            CurrentGizmoOperation = ImGuizmo::TRANSLATE;
-        if (ImGui::IsKeyPressed(69))
-            CurrentGizmoOperation = ImGuizmo::ROTATE;
-        if (ImGui::IsKeyPressed(82))
-            CurrentGizmoOperation = ImGuizmo::SCALE;
         ImGui::Text("Gizmo Operation : ");
         if (ImGui::RadioButton("Translate", CurrentGizmoOperation == ImGuizmo::TRANSLATE))
             CurrentGizmoOperation = ImGuizmo::TRANSLATE;
-        ImGui::SameLine();
         if (ImGui::RadioButton("Rotate", CurrentGizmoOperation == ImGuizmo::ROTATE))
             CurrentGizmoOperation = ImGuizmo::ROTATE;
-        ImGui::SameLine();
         if (ImGui::RadioButton("Scale", CurrentGizmoOperation == ImGuizmo::SCALE))
             CurrentGizmoOperation = ImGuizmo::SCALE;
 
@@ -346,7 +338,7 @@ bool gui::InstancesGUI()
     {
         ImGui::OpenPopup("Add_Instance_Popup");
     }
-    if(ImGui::BeginPopupModal("Add_Instance_Popup", nullptr, ImGuiWindowFlags_NoTitleBar))
+    if(ImGui::BeginPopup("Add_Instance_Popup"))
     {
         static int SelectedShape = -1;
         static int SelectedMaterial = -1;
@@ -618,7 +610,6 @@ bool gui::MaterialsGUI()
         if(ImGui::Button("Create"))
         {
             App->Scene->Materials.emplace_back();
-            material Mat = App->Scene->Materials.back(); 
             App->Scene->MaterialNames.push_back(Name);
             App->Scene->MaterialBuffer->Reallocate(App->Scene->Materials.data(), App->Scene->Materials.size() * sizeof(material));
             ImGui::CloseCurrentPopup();
@@ -628,6 +619,20 @@ bool gui::MaterialsGUI()
 
     if(SelectedMaterial != -1)
     {
+        if(ImGui::Button("Delete"))
+        {
+            App->Scene->Materials.erase(App->Scene->Materials.begin() + SelectedMaterial);
+            App->Scene->MaterialNames.erase(App->Scene->MaterialNames.begin() + SelectedMaterial);
+            App->Scene->MaterialBuffer->Reallocate(App->Scene->Materials.data(), App->Scene->Materials.size() * sizeof(material));
+            ImGui::CloseCurrentPopup();
+        }
+        if(ImGui::Button("Duplicate"))
+        {
+            App->Scene->Materials.push_back(App->Scene->Materials[SelectedMaterial]);
+            App->Scene->MaterialNames.push_back(App->Scene->MaterialNames[SelectedMaterial] + "_Duplicate");
+            App->Scene->MaterialBuffer->Reallocate(App->Scene->Materials.data(), App->Scene->Materials.size() * sizeof(material));
+            ImGui::CloseCurrentPopup();
+        }
         Changed |= MaterialGUI(SelectedMaterial);
     }
 
@@ -723,7 +728,19 @@ bool gui::CameraGUI(int CameraInx)
         Changed = true;
     }
 
-    ImGui::Checkbox("Controlled", (bool*)&App->Scene->Cameras[CameraInx].Controlled);
+    if(ImGui::Checkbox("Controlled", (bool*)&App->Scene->Cameras[CameraInx].Controlled))
+    {
+        if(App->Scene->Cameras[CameraInx].Controlled)
+        {
+            for(int i=0; i<App->Scene->Cameras.size(); i++)
+            {
+                if(i != CameraInx)
+                {
+                    App->Scene->Cameras[i].Controlled=0;
+                }
+            }
+        }
+    }
     
     return Changed;
 }
@@ -879,12 +896,64 @@ bool gui::TracingGUI()
         App->CalculateWindowSizes();
     }
 
+    Changed |= ImGui::Combo("Type", &App->Params.SamplingMode, "BSDF\0Light\0Bsdf + Light\0MIS\0\0");
+
+    if(ImGui::Button("Save"))
+    {
+        nfdchar_t *SavePath = 0;
+        nfdresult_t Result = NFD_SaveDialog(NULL, NULL, &SavePath);
+
+        if(Result == NFD_OKAY)
+        {
+            App->Scene->ToFile(SavePath);
+            this->LoadedFile = SavePath;
+        }
+    }
+
+    if(ImGui::Button("Load"))
+    {
+        nfdchar_t *LoadPath = 0;
+        nfdresult_t Result = NFD_OpenDialog(NULL, NULL, &LoadPath);
+        if(Result == NFD_OKAY)
+        {
+            App->Scene->Clear();
+            App->Scene->FromFile(LoadPath);
+            App->Scene->PreProcess();
+            App->ResetRender=true;
+            this->LoadedFile = LoadPath;
+        }
+    }
+
     return Changed;
 }
 
 
 void gui::GUI()
 {
+    if (ImGui::IsKeyPressed(84))
+        CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+    if (ImGui::IsKeyPressed(82))
+        CurrentGizmoOperation = ImGuizmo::ROTATE;
+    if (ImGui::IsKeyPressed(83))
+        CurrentGizmoOperation = ImGuizmo::SCALE;    
+    ImGuiIO &io = ImGui::GetIO();
+    if(ImGui::IsKeyPressed(83) && io.KeyCtrl)
+    {
+        if(LoadedFile != "")
+            App->Scene->ToFile(LoadedFile);
+        else
+        {
+            nfdchar_t *SavePath = 0;
+            nfdresult_t Result = NFD_SaveDialog(NULL, NULL, &SavePath);
+
+            if(Result == NFD_OKAY)
+            {
+                App->Scene->ToFile(SavePath);
+                this->LoadedFile = SavePath;
+            }            
+        }
+    }
+    
     this->SelectedInstances.resize(App->Scene->Instances.size(), false);
     
     App->CalculateWindowSizes(); 

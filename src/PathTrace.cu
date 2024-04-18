@@ -8,9 +8,6 @@ using namespace gpupt;
 #define INVALID_ID -1
 
 
-#define MATERIAL_TYPE_MATTE 0
-#define MATERIAL_TYPE_PBR   1
-
 #define MAX_LENGTH 1e30f
 
 __device__ u32 Width;
