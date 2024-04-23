@@ -82,7 +82,7 @@ FN_DECL int SampleUniform(int Size, float Rand)
     return clamp(int(Rand * Size), 0, Size-1);
 }
 
-FN_DECL int UpperBound(int CDFStart, int CDFCount, int X)
+FN_DECL int UpperBound(int CDFStart, int CDFCount, float X)
 {
     int Mid;
     int Low = CDFStart;
@@ -118,7 +118,8 @@ FN_DECL int SampleDiscrete(int LightInx, float R)
 
     R = clamp(R * LastValue, 0.0f, LastValue - 0.00001f);
     // Returns the first element in the array that's greater than R.#
-    int Inx= UpperBound(CDFStart, CDFCount, int(R));
+    int Inx= UpperBound(CDFStart, CDFCount, R);
+    Inx -= CDFStart;
     return clamp(Inx, 0, CDFCount-1);
 }
 
@@ -146,6 +147,39 @@ FN_DECL float SampleDiscretePDF(int CDFStart, int CDFCount, int Inx) {
          LightsCDF[CDFStart + CDFCount -1];
 }
 
+
+
+// Random
+FN_DECL uint AdvanceState(INOUT(randomState) RNG)
+{
+    RNG.State ^= RNG.State << 13u;
+    RNG.State ^= RNG.State >> 17u;
+    RNG.State ^= RNG.State << 5u;
+    return RNG.State;    
+}
+
+FN_DECL randomState CreateRNG(uint Seed)
+{
+    randomState State;
+    State.State = Seed;
+    return State;
+}
+
+FN_DECL int Rand1i(INOUT(randomState) RNG, int n)
+{
+    return int(AdvanceState(RNG) % n);
+}
+
+FN_DECL float RandomUnilateral(INOUT(randomState) RNG)
+{
+    uint u = (AdvanceState(RNG) >> 9) | 0x3f800000u;
+    return uintBitsToFloat(u) - 1.0f;
+}
+
+FN_DECL vec2 Random2F(INOUT(randomState) State)
+{
+    return vec2(RandomUnilateral(State), RandomUnilateral(State));
+}
 
 // BVH
 
@@ -272,8 +306,13 @@ FN_DECL void IntersectInstance(ray Ray, INOUT(sceneIntersection) Isect, uint Ins
     IntersectBVH(Ray, Isect, TLASInstancesBuffer[InstanceIndex].Index, TLASInstancesBuffer[InstanceIndex].Shape);
 }
 
-FN_DECL void IntersectTLAS(ray Ray, INOUT(sceneIntersection) Isect)
+
+FN_DECL sceneIntersection IntersectTLAS(ray Ray, int Sample, int Bounce)
 {
+    sceneIntersection Isect;
+    Isect.Distance = MAX_LENGTH;
+    Isect.RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(Bounce + GET_ATTR(Parameters,CurrentSample) + Sample) * uint(117191)) | uint(1)); 
+                
     Ray.InverseDirection = 1.0f / Ray.Direction;
     uint NodeInx = 0;
     uint Stack[64];
@@ -318,6 +357,7 @@ FN_DECL void IntersectTLAS(ray Ray, INOUT(sceneIntersection) Isect)
         }
 
     }
+    return Isect;
 }
 
 // Geometry
@@ -330,6 +370,15 @@ FN_DECL ray MakeRay(vec3 Origin, vec3 Direction, vec3 InverseDirection)
     Ray.InverseDirection = InverseDirection;
     return Ray;
 }
+
+FN_DECL sceneIntersection MakeIsect(int Sample)
+{
+    sceneIntersection Isect;
+    Isect.Distance = MAX_LENGTH;
+    Isect.RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277) + uint(GET_ATTR(Parameters,CurrentSample) + Sample) * uint(26699)) | uint(1) ); 
+    return Isect;
+}
+
 
 FN_DECL vec3 TransformPoint(mat4 A, vec3 B)
 {
@@ -536,7 +585,9 @@ FN_DECL vec3 EvalEnvironment(vec3 Direction)
 
 
 // Region lights
-
+// Multiple problems : 
+// The LightSample function doesn't work when the lights are scaled at runtime.
+// Then, get MIS to work
 
 FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 RandUV)
 {
@@ -561,7 +612,6 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
             vec3(Tri.PositionUvX2) * UV.y +
             vec3(Tri.PositionUvX0) * (1 - UV.x - UV.y);
         LightPos = TransformPoint(Instance.Transform, LightPos);
-
         // return the normalized direction
         return normalize(LightPos - Position);
     }
@@ -594,13 +644,13 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
     float PDF = 0;
 
     // Loop through all the lights
-    for(int i=0; i<1; i++)
+    for(int i=0; i<LightsCount; i++)
     {
         if(Lights[i].Instance != INVALID_ID)
         {
             float LightPDF = 0.0f;
             vec3 NextPosition = Position;
-            for(int Bounce=0; Bounce<100; Bounce++)
+            for(int Bounce=0; Bounce<1; Bounce++)
             {
                 // Check if the ray intersects the light. If it doesn't, we break. 
                 ray Ray;
@@ -664,7 +714,7 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
     }
 
     // Multiply the PDF with the probability to pick one light in the scene.
-    // PDF *= SampleUniformPDF(int(LightsCount));
+    PDF *= SampleUniformPDF(int(LightsCount));
     
     return PDF;
 }
@@ -1158,41 +1208,392 @@ FN_DECL vec3 SampleDelta(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOU
     }    
 }
 
-
-// Random
-// Random
-FN_DECL uint AdvanceState(INOUT(randomState) RNG)
+// MIS
+FN_DECL float PowerHeuristic(float PDF0, float PDF1)
 {
-    RNG.State ^= RNG.State << 13u;
-    RNG.State ^= RNG.State >> 17u;
-    RNG.State ^= RNG.State << 5u;
-    return RNG.State;    
-}
-
-FN_DECL randomState CreateRNG(uint Seed)
-{
-    randomState State;
-    State.State = Seed;
-    return State;
-}
-
-FN_DECL int Rand1i(INOUT(randomState) RNG, int n)
-{
-    return int(AdvanceState(RNG) % n);
-}
-
-FN_DECL float RandomUnilateral(INOUT(randomState) RNG)
-{
-    uint u = (AdvanceState(RNG) >> 9) | 0x3f800000u;
-    return uintBitsToFloat(u) - 1.0f;
-}
-
-FN_DECL vec2 Random2F(INOUT(randomState) State)
-{
-    return vec2(RandomUnilateral(State), RandomUnilateral(State));
+    return (PDF0 * PDF0) / (PDF0 * PDF0 + PDF1 * PDF1);
 }
 
 
+
+FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV)
+{
+    randomState RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277) + uint(GET_ATTR(Parameters,CurrentSample) + Sample) * uint(26699)) | uint(1) ); 
+    ray Ray = GetRay(UV, Random2F(RandomState));
+    
+
+    vec3 Radiance = vec3(0,0,0);
+    vec3 Weight = vec3(1,1,1);
+    uint OpacityBounces=0;
+    materialPoint VolumeMaterial;
+    bool HasVolumeMaterial=false;
+
+    bool UseMisIntersection = false;
+    sceneIntersection MisIntersection = MakeIsect(Sample);
+
+    for(int Bounce=0; Bounce < GET_ATTR(Parameters, Bounces); Bounce++)
+    {
+        sceneIntersection Isect = UseMisIntersection ?  MisIntersection : IntersectTLAS(Ray, Sample, Bounce);
+        if(Isect.Distance == MAX_LENGTH)
+        {
+            Radiance += Weight * EvalEnvironment(Ray.Direction);
+            break;
+        }
+
+        // get all the necessary geometry information
+        triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];    
+        Isect.InstanceTransform = TLASInstancesBuffer[Isect.InstanceIndex].Transform;
+        mat4 NormalTransform = TLASInstancesBuffer[Isect.InstanceIndex].NormalTransform;
+        vec3 HitNormal = vec3(Tri.NormalUvY1) * Isect.U + vec3(Tri.NormalUvY2) * Isect.V +vec3(Tri.NormalUvY0) * (1 - Isect.U - Isect.V);
+        vec4 Tangent = Tri.Tangent1 * Isect.U + Tri.Tangent2 * Isect.V + Tri.Tangent0 * (1 - Isect.U - Isect.V);
+        Isect.Normal = TransformDirection(NormalTransform, HitNormal);
+        Isect.Tangent = TransformDirection(NormalTransform, vec3(Tangent));
+        Isect.Bitangent = TransformDirection(NormalTransform, normalize(cross(Isect.Normal, vec3(Tangent)) * Tangent.w));    
+
+        bool StayInVolume=false;
+        if(HasVolumeMaterial)
+        {
+            // If we're in a volume, we sample the distance that the ray's gonna intersect.
+            // The transmittance is based on the colour of the object. The higher, the thicker.
+            float Distance = SampleTransmittance(VolumeMaterial.Density, Isect.Distance, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState));
+            // float Distance = 0.1f;
+            Weight *= EvalTransmittance(VolumeMaterial.Density, Distance) / 
+                    SampleTransmittancePDF(VolumeMaterial.Density, Distance, Isect.Distance);
+            
+            
+            //If the distance is higher than the next intersection, it means that we're stepping out of the volume
+            StayInVolume = Distance < Isect.Distance;
+            
+            Isect.Distance = Distance;
+        }
+
+        if(!StayInVolume)
+        {
+
+            vec3 OutgoingDir = -Ray.Direction;
+            vec3 Position = EvalShadingPosition(OutgoingDir, Isect);
+            vec3 Normal = EvalShadingNormal(OutgoingDir, Isect);
+            
+            // Material evaluation
+            materialPoint Material = EvalMaterial(Isect);
+            
+            // Opacity
+            if(Material.Opacity < 1 && RandomUnilateral(Isect.RandomState) >= Material.Opacity)
+            {
+                if(OpacityBounces++ > 128) break;
+                Ray.Origin = Position + Ray.Direction * 1e-2f;
+                Bounce--;
+                continue;
+            }
+
+            
+
+            if(!UseMisIntersection)
+            {
+                Radiance += Weight * EvalEmission(Material, Normal, OutgoingDir);
+            }
+
+            vec3 Incoming = vec3(0);
+            if(!IsDelta(Material))
+            {
+                {
+                    Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                    if (Incoming == vec3{0, 0, 0}) break;
+                    vec3 BSDFCos   = EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
+                    float LightPDF = SampleLightsPDF(Position, Incoming); 
+                    float BSDFPDF = SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
+                    float MisWeight = PowerHeuristic(LightPDF, BSDFPDF) / LightPDF;
+                    if (BSDFCos != vec3(0, 0, 0) && MisWeight != 0) 
+                    {
+                        sceneIntersection Isect = IntersectTLAS(MakeRay(Position, Incoming, 1.0f / Incoming), Sample, 0); 
+                        vec3 Emission = vec3(0, 0, 0);
+                        if (Isect.Distance == MAX_LENGTH) {
+                            Emission = EvalEnvironment(Incoming);
+                        } else {
+                            materialPoint Material = EvalMaterial(Isect);
+                            Emission      = EvalEmission(Material, EvalShadingNormal(-Incoming, Isect), -Incoming);
+                        }
+                        Radiance += Weight * BSDFCos * Emission * MisWeight;
+                    }
+                }
+                {
+                    Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                    if (Incoming == vec3{0, 0, 0}) break;
+                    vec3 BSDFCos   = EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
+                    float LightPDF = SampleLightsPDF(Position, Incoming);
+                    float BSDFPDF = SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
+                    float MisWeight = PowerHeuristic(BSDFPDF, LightPDF) / BSDFPDF;
+                    if (BSDFCos != vec3(0, 0, 0) && MisWeight != 0) {
+                        MisIntersection = IntersectTLAS(MakeRay(Position, Incoming, 1.0f / Incoming), Sample, 0); 
+                        vec3 Emission = vec3(0, 0, 0);
+                        if (Isect.Distance == MAX_LENGTH) {
+                            Emission = EvalEnvironment(Incoming);
+                        } else {
+                            materialPoint Material = EvalMaterial(Isect);
+                            Emission      = Material.Emission;
+                        }
+                        Radiance += Weight * BSDFCos * Emission * MisWeight; 
+                    }
+                }
+                // indirect
+                Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) /
+                        vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
+                UseMisIntersection = true;
+            }
+            else
+            {
+                Incoming = SampleDelta(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState));
+                Weight *= EvalDelta(Material, Normal, OutgoingDir, Incoming) / 
+                        SampleDeltaPDF(Material, Normal, OutgoingDir, Incoming);       
+                UseMisIntersection=false;
+            }
+
+            
+            //If the hit material is volumetric
+            // And the ray keeps going in the same direction (It always does for volumetric materials)
+            // we add the volume material into the stack 
+            if(IsVolumetric(Material)   && dot(Normal, OutgoingDir) * dot(Normal, Incoming) < 0)
+            {
+                VolumeMaterial = Material;
+                HasVolumeMaterial = !HasVolumeMaterial;
+            }
+
+            Ray.Origin = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
+            Ray.Direction = Incoming;
+        }
+        else
+        {
+            vec3 Outgoing = -Ray.Direction;
+            vec3 Position = Ray.Origin + Ray.Direction * Isect.Distance;
+
+            vec3 Incoming = vec3(0);
+            if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
+            {
+                // Sample a scattering direction inside the volume using the phase function
+                Incoming = SamplePhase(VolumeMaterial, Outgoing, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                UseMisIntersection=false;
+            }
+            else
+            {
+                Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));                
+                UseMisIntersection=false;
+            }
+
+            if(Incoming == vec3(0)) break;
+        
+            Weight *= EvalPhase(VolumeMaterial, Outgoing, Incoming) / 
+                    ( 
+                    0.5f * SamplePhasePDF(VolumeMaterial, Outgoing, Incoming) + 
+                    0.5f * SampleLightsPDF(Position, Incoming)
+                    );
+                    
+            Ray.Origin = Position;
+            Ray.Direction = Incoming;
+        }
+
+        if(Weight == vec3(0,0,0) || !IsFinite(Weight)) break;
+
+        if(Bounce > 3)
+        {
+            float RussianRouletteProb = min(0.99f, max3(Weight));
+            if(RandomUnilateral(Isect.RandomState) >= RussianRouletteProb) break;
+            Weight *= 1.0f / RussianRouletteProb;
+        }                
+    }
+
+    if(!IsFinite(Radiance)) Radiance = vec3(0,0,0);
+    if(max3(Radiance) > GET_ATTR(Parameters, Clamp)) Radiance = Radiance * (GET_ATTR(Parameters, Clamp) / max3(Radiance)); 
+    return Radiance;
+}
+
+FN_DECL vec3 PathTrace(int Sample, vec2 UV)
+{
+    randomState RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277) + uint(GET_ATTR(Parameters,CurrentSample) + Sample) * uint(26699)) | uint(1) ); 
+    ray Ray = GetRay(UV, Random2F(RandomState));
+    
+
+    vec3 Radiance = vec3(0,0,0);
+    vec3 Weight = vec3(1,1,1);
+    uint OpacityBounces=0;
+    materialPoint VolumeMaterial;
+    bool HasVolumeMaterial=false;
+
+    bool NextEmission = true;
+    sceneIntersection MisIntersection = MakeIsect(Sample);
+
+    for(int Bounce=0; Bounce < GET_ATTR(Parameters, Bounces); Bounce++)
+    {
+        sceneIntersection Isect = IntersectTLAS(Ray, Sample, Bounce);
+        if(Isect.Distance == MAX_LENGTH)
+        {
+            Radiance += Weight * EvalEnvironment(Ray.Direction);
+            break;
+        }
+
+        // get all the necessary geometry information
+        triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];    
+        Isect.InstanceTransform = TLASInstancesBuffer[Isect.InstanceIndex].Transform;
+        mat4 NormalTransform = TLASInstancesBuffer[Isect.InstanceIndex].NormalTransform;
+        vec3 HitNormal = vec3(Tri.NormalUvY1) * Isect.U + vec3(Tri.NormalUvY2) * Isect.V +vec3(Tri.NormalUvY0) * (1 - Isect.U - Isect.V);
+        vec4 Tangent = Tri.Tangent1 * Isect.U + Tri.Tangent2 * Isect.V + Tri.Tangent0 * (1 - Isect.U - Isect.V);
+        Isect.Normal = TransformDirection(NormalTransform, HitNormal);
+        Isect.Tangent = TransformDirection(NormalTransform, vec3(Tangent));
+        Isect.Bitangent = TransformDirection(NormalTransform, normalize(cross(Isect.Normal, vec3(Tangent)) * Tangent.w));    
+
+        bool StayInVolume=false;
+        if(HasVolumeMaterial)
+        {
+            // If we're in a volume, we sample the distance that the ray's gonna intersect.
+            // The transmittance is based on the colour of the object. The higher, the thicker.
+            float Distance = SampleTransmittance(VolumeMaterial.Density, Isect.Distance, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState));
+            // float Distance = 0.1f;
+            Weight *= EvalTransmittance(VolumeMaterial.Density, Distance) / 
+                    SampleTransmittancePDF(VolumeMaterial.Density, Distance, Isect.Distance);
+            
+            
+            //If the distance is higher than the next intersection, it means that we're stepping out of the volume
+            StayInVolume = Distance < Isect.Distance;
+            
+            Isect.Distance = Distance;
+        }
+
+        if(!StayInVolume)
+        {
+
+            vec3 OutgoingDir = -Ray.Direction;
+            vec3 Position = EvalShadingPosition(OutgoingDir, Isect);
+            vec3 Normal = EvalShadingNormal(OutgoingDir, Isect);
+
+            // Material evaluation
+            materialPoint Material = EvalMaterial(Isect);
+            
+            // Opacity
+            if(Material.Opacity < 1 && RandomUnilateral(Isect.RandomState) >= Material.Opacity)
+            {
+                if(OpacityBounces++ > 128) break;
+                Ray.Origin = Position + Ray.Direction * 1e-2f;
+                Bounce--;
+                continue;
+            }
+
+            
+
+            Radiance += Weight * EvalEmission(Material, Normal, OutgoingDir);
+
+            vec3 Incoming = vec3(0);
+            if(!IsDelta(Material))
+            {
+                if(GET_ATTR(Parameters, SamplingMode) == SAMPLING_MODE_LIGHT)
+                {
+                    Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                    if(Incoming == vec3(0,0,0)) break;
+                    float PDF = SampleLightsPDF(Position, Incoming);
+                    if(PDF > 0)
+                    {
+                        Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / vec3(PDF);   
+                    } 
+                    else  
+                    {
+                        break;
+                    }
+                }
+                else if(GET_ATTR(Parameters, SamplingMode) == SAMPLING_MODE_BSDF)
+                {
+                    Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                    if(Incoming == vec3(0,0,0)) break;
+                    Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                            vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
+                }
+                else
+                {
+                    if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
+                    {
+                        Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                        if(Incoming == vec3(0,0,0)) break;
+                        float PDF = SampleLightsPDF(Position, Incoming);
+                        if(PDF > 0)
+                        {
+                            Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / vec3(PDF);   
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                        if(Incoming == vec3(0,0,0)) break;
+                        Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
+                                vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
+                    }
+                }
+
+            }
+            else
+            {
+                Incoming = SampleDelta(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState));
+                Weight *= EvalDelta(Material, Normal, OutgoingDir, Incoming) / 
+                        SampleDeltaPDF(Material, Normal, OutgoingDir, Incoming);                        
+            }
+
+            
+            //If the hit material is volumetric
+            // And the ray keeps going in the same direction (It always does for volumetric materials)
+            // we add the volume material into the stack 
+            if(IsVolumetric(Material)   && dot(Normal, OutgoingDir) * dot(Normal, Incoming) < 0)
+            {
+                VolumeMaterial = Material;
+                HasVolumeMaterial = !HasVolumeMaterial;
+            }
+
+            Ray.Origin = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
+            Ray.Direction = Incoming;
+        }
+        else
+        {
+            vec3 Outgoing = -Ray.Direction;
+            vec3 Position = Ray.Origin + Ray.Direction * Isect.Distance;
+
+            vec3 Incoming = vec3(0);
+            if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
+            {
+                // Sample a scattering direction inside the volume using the phase function
+                Incoming = SamplePhase(VolumeMaterial, Outgoing, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+            }
+            else
+            {
+                Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));                
+            }
+
+            if(Incoming == vec3(0)) break;
+        
+            Weight *= EvalPhase(VolumeMaterial, Outgoing, Incoming) / 
+                    ( 
+                    0.5f * SamplePhasePDF(VolumeMaterial, Outgoing, Incoming) + 
+                    0.5f * SampleLightsPDF(Position, Incoming)
+                    );
+                    
+            Ray.Origin = Position;
+            Ray.Direction = Incoming;
+        }
+
+        if(Weight == vec3(0,0,0) || !IsFinite(Weight)) break;
+
+        if(Bounce > 3)
+        {
+            float RussianRouletteProb = min(0.99f, max3(Weight));
+            if(RandomUnilateral(Isect.RandomState) >= RussianRouletteProb) break;
+            Weight *= 1.0f / RussianRouletteProb;
+        }                
+    }
+
+    if(!IsFinite(Radiance)) Radiance = vec3(0,0,0);
+    if(max3(Radiance) > GET_ATTR(Parameters, Clamp)) Radiance = Radiance * (GET_ATTR(Parameters, Clamp) / max3(Radiance)); 
+
+
+    return Radiance;
+}
 
 MAIN()
 {
@@ -1209,201 +1610,20 @@ MAIN()
     if (GlobalID.x < Width && GlobalID.y < Height) {
         vec4 PrevCol = imageLoad(RenderImage, ivec2(GlobalID));
         vec4 NewCol;
-        
         for(int Sample=0; Sample < GET_ATTR(Parameters, Batch); Sample++)
         {
-            randomState RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277) + uint(GET_ATTR(Parameters,CurrentSample) + Sample) * uint(26699)) | uint(1) ); 
-            ray Ray = GetRay(UV, Random2F(RandomState));
-            
-
-            vec3 Radiance = vec3(0,0,0);
-            vec3 Weight = vec3(1,1,1);
-            uint OpacityBounces=0;
-            materialPoint VolumeMaterial;
-            bool HasVolumeMaterial=false;
-
-            for(int Bounce=0; Bounce < GET_ATTR(Parameters, Bounces); Bounce++)
+            vec3 Radiance;
+            if(GET_ATTR(Parameters, SamplingMode) == SAMPLING_MODE_MIS)
             {
-                sceneIntersection Isect;
-                Isect.Distance = MAX_LENGTH;
-                Isect.RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(Bounce + GET_ATTR(Parameters,CurrentSample) + Sample) * uint(117191)) | uint(1)); 
-                
-                IntersectTLAS(Ray, Isect);
-                if(Isect.Distance == MAX_LENGTH)
-                {
-                    Radiance += Weight * EvalEnvironment(Ray.Direction);
-                    break;
-                }
-
-                // get all the necessary geometry information
-                triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];    
-                Isect.InstanceTransform = TLASInstancesBuffer[Isect.InstanceIndex].Transform;
-                mat4 NormalTransform = TLASInstancesBuffer[Isect.InstanceIndex].NormalTransform;
-                vec3 HitNormal = vec3(Tri.NormalUvY1) * Isect.U + vec3(Tri.NormalUvY2) * Isect.V +vec3(Tri.NormalUvY0) * (1 - Isect.U - Isect.V);
-                vec4 Tangent = Tri.Tangent1 * Isect.U + Tri.Tangent2 * Isect.V + Tri.Tangent0 * (1 - Isect.U - Isect.V);
-                Isect.Normal = TransformDirection(NormalTransform, HitNormal);
-                Isect.Tangent = TransformDirection(NormalTransform, vec3(Tangent));
-                Isect.Bitangent = TransformDirection(NormalTransform, normalize(cross(Isect.Normal, vec3(Tangent)) * Tangent.w));    
-
-                // bool IsSelected = TLASInstancesBuffer[Isect.InstanceIndex].Selected>0;
-                // if(IsSelected)
-                //     Radiance += vec3(1, 1, 0);
-
-                bool StayInVolume=false;
-                if(HasVolumeMaterial)
-                {
-                    // If we're in a volume, we sample the distance that the ray's gonna intersect.
-                    // The transmittance is based on the colour of the object. The higher, the thicker.
-                    float Distance = SampleTransmittance(VolumeMaterial.Density, Isect.Distance, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState));
-                    // float Distance = 0.1f;
-                    Weight *= EvalTransmittance(VolumeMaterial.Density, Distance) / 
-                            SampleTransmittancePDF(VolumeMaterial.Density, Distance, Isect.Distance);
-                    
-                    
-                    //If the distance is higher than the next intersection, it means that we're stepping out of the volume
-                    StayInVolume = Distance < Isect.Distance;
-                    
-                    Isect.Distance = Distance;
-                }
-
-                if(!StayInVolume)
-                {
-
-                    vec3 OutgoingDir = -Ray.Direction;
-                    vec3 Position = EvalShadingPosition(OutgoingDir, Isect);
-                    vec3 Normal = EvalShadingNormal(OutgoingDir, Isect);
-                    
-                    // Material evaluation
-                    materialPoint Material = EvalMaterial(Isect);
-                    
-                    // Opacity
-                    if(Material.Opacity < 1 && RandomUnilateral(Isect.RandomState) >= Material.Opacity)
-                    {
-                        if(OpacityBounces++ > 128) break;
-                        Ray.Origin = Position + Ray.Direction * 1e-2f;
-                        Bounce--;
-                        continue;
-                    }
-
-                    
-
-                    Radiance += Weight * EvalEmission(Material, Normal, OutgoingDir);
-
-                    vec3 Incoming = vec3(0);
-                    if(!IsDelta(Material))
-                    {
-                        if(GET_ATTR(Parameters, SamplingMode) == SAMPLING_MODE_LIGHT)
-                        {
-                            Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                            if(Incoming == vec3(0,0,0)) break;
-                            float PDF = SampleLightsPDF(Position, Incoming);
-                            if(PDF > 0)
-                            {
-                                Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / vec3(PDF);   
-                            }
-                            else
-                            {
-                                break;
-                            }
-                        }
-                        else if(GET_ATTR(Parameters, SamplingMode) == SAMPLING_MODE_BSDF)
-                        {
-                            Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                            if(Incoming == vec3(0,0,0)) break;
-                            Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
-                                    vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
-                        }
-                        else
-                        {
-                            if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
-                            {
-                                Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                                if(Incoming == vec3(0,0,0)) break;
-                                float PDF = SampleLightsPDF(Position, Incoming);
-                                if(PDF > 0)
-                                {
-                                    Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / vec3(PDF);   
-                                }
-                                else
-                                {
-                                    break;
-                                }
-                            }
-                            else
-                            {
-                                Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                                if(Incoming == vec3(0,0,0)) break;
-                                Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) / 
-                                        vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
-                            }
-                        }
-
-                    }
-                    else
-                    {
-                        Incoming = SampleDelta(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState));
-                        Weight *= EvalDelta(Material, Normal, OutgoingDir, Incoming) / 
-                                SampleDeltaPDF(Material, Normal, OutgoingDir, Incoming);                        
-                    }
-
-                    
-                    //If the hit material is volumetric
-                    // And the ray keeps going in the same direction (It always does for volumetric materials)
-                    // we add the volume material into the stack 
-                    if(IsVolumetric(Material)   && dot(Normal, OutgoingDir) * dot(Normal, Incoming) < 0)
-                    {
-                        VolumeMaterial = Material;
-                        HasVolumeMaterial = !HasVolumeMaterial;
-                    }
-
-                    Ray.Origin = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
-                    Ray.Direction = Incoming;
-                }
-                else
-                {
-                    vec3 Outgoing = -Ray.Direction;
-                    vec3 Position = Ray.Origin + Ray.Direction * Isect.Distance;
-
-                    vec3 Incoming = vec3(0);
-                    if(GET_ATTR(Parameters, CurrentSample) % 2 ==0)
-                    {
-                        // Sample a scattering direction inside the volume using the phase function
-                        Incoming = SamplePhase(VolumeMaterial, Outgoing, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                    }
-                    else
-                    {
-                        Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));                
-                    }
-
-                    if(Incoming == vec3(0)) break;
-                
-                    Weight *= EvalPhase(VolumeMaterial, Outgoing, Incoming) / 
-                            ( 
-                            0.5f * SamplePhasePDF(VolumeMaterial, Outgoing, Incoming) + 
-                            0.5f * SampleLightsPDF(Position, Incoming)
-                            );
-                            
-                    Ray.Origin = Position;
-                    Ray.Direction = Incoming;
-                }
-
-                if(Weight == vec3(0,0,0) || !IsFinite(Weight)) break;
-
-                if(Bounce > 3)
-                {
-                    float RussianRouletteProb = min(0.99f, max3(Weight));
-                    if(RandomUnilateral(Isect.RandomState) >= RussianRouletteProb) break;
-                    Weight *= 1.0f / RussianRouletteProb;
-                }                
+                Radiance = PathTraceMIS(Sample, UV);
             }
-
-            if(!IsFinite(Radiance)) Radiance = vec3(0,0,0);
-            if(max3(Radiance) > GET_ATTR(Parameters, Clamp)) Radiance = Radiance * (GET_ATTR(Parameters, Clamp) / max3(Radiance)); 
-
+            else
+            {
+                Radiance = PathTrace(Sample, UV);
+            }
             float SampleWeight = 1.0f / (float(GET_ATTR(Parameters,CurrentSample) + Sample) + 1);
-
             NewCol = mix(PrevCol, vec4(Radiance.x, Radiance.y, Radiance.z, 1.0f), SampleWeight);
-            PrevCol = NewCol;
+            PrevCol = NewCol;    
         }
         imageStore(RenderImage, ivec2(GlobalID), NewCol);
     }

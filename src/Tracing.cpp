@@ -2,6 +2,7 @@
 #include "Scene.h"
 #include "ImageLoader.h"
 #include "Buffer.h"
+#include <iostream>
 
 #define PI_F 3.141592653589
 
@@ -22,81 +23,6 @@ float MaxElem(const glm::vec4 &A)
     return std::max(A.x, std::max(A.y, A.z));
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
-
-
-int UpperBound(std::vector<float> &LightsCDF, int CDFStart, int CDFCount, int X)
-{
-    int Mid;
-    int Low = CDFStart;
-    int High = CDFStart + CDFCount;
- 
-    while (Low < High) {
-        Mid = Low + (High - Low) / 2;
-        if (X >= LightsCDF[Mid]) {
-            Low = Mid + 1;
-        }
-        else {
-            High = Mid;
-        }
-    }
-   
-    // if X is greater than arr[n-1]
-    if(Low < CDFStart + CDFCount && LightsCDF[Low] <= X) {
-       Low++;
-    }
- 
-    // Return the upper_bound index
-    return Low;
-}
- 
-
-int SampleDiscrete(lights &Lights, std::shared_ptr<scene> Scene, int LightInx, float R)
-{
-    //Remap R from 0 to the size of the distribution
-    int CDFStart = Lights.Lights[LightInx].CDFStart;
-    int CDFCount = Lights.Lights[LightInx].CDFCount;
-
-    float LastValue = Lights.LightsCDF[CDFStart + CDFCount-1];
-
-    R = glm::clamp(R * LastValue, 0.0f, LastValue - 0.00001f);
-    // Returns the first element in the array that's greater than R.#
-    int Inx= UpperBound(Lights.LightsCDF, CDFStart, CDFCount, R);
-    return glm::clamp(Inx, 0, CDFCount-1);
-}
-
-float RandF()
-{
-    return float(rand()) / float(RAND_MAX);
-}
-
-void Test_SampleEnvMap(lights &Lights, std::shared_ptr<scene> Scene)
-{
-    for(int i=0; i<Scene->EnvTextures[0].PixelsF.size(); i+=4)
-    {
-        Scene->EnvTextures[0].PixelsF[i+0] *= glm::clamp(Scene->EnvTextures[0].PixelsF[i+0], 0.0f, 0.5f);
-        Scene->EnvTextures[0].PixelsF[i+1] *= glm::clamp(Scene->EnvTextures[0].PixelsF[i+1], 0.0f, 0.5f);
-        Scene->EnvTextures[0].PixelsF[i+2] *= glm::clamp(Scene->EnvTextures[0].PixelsF[i+2], 0.0f, 0.5f);
-        
-    }
-    for(int i=0; i<10000000; i++)
-    {
-        int SampleInx = SampleDiscrete(Lights, Scene, 0, RandF());
-        glm::vec2 UV = glm::vec2((SampleInx % Scene->EnvTextureWidth) ,
-            (SampleInx / Scene->EnvTextureWidth));
-        
-        Scene->EnvTextures[0].PixelsF[(UV.y * Scene->EnvTextureWidth + UV.x) * 4+0] += 10.0f;
-        Scene->EnvTextures[0].PixelsF[(UV.y * Scene->EnvTextureWidth + UV.x) * 4+4] = 1.0f;
-
-
-
-        glm::vec3 dir = glm::normalize(glm::vec3(cos(UV.x * 2 * PI_F) * sin(UV.y * PI_F), 
-                    cos(UV.y * PI_F),
-                    sin(UV.x * 2 * PI_F) * sin(UV.y * PI_F)));            
-    }    
-}
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
@@ -138,8 +64,36 @@ void lights::RecreateBuffers()
     }
 }
 
+int UpperBound(int CDFStart, int CDFCount, float X, std::vector<float> &LightsCDF)
+{
+    int Mid;
+    int Low = CDFStart;
+    int High = CDFStart + CDFCount;
+ 
+    while (Low < High) {
+        Mid = Low + (High - Low) / 2;
+        if (X >= LightsCDF[Mid]) {
+            Low = Mid + 1;
+        }
+        else {
+            High = Mid;
+        }
+    }
+   
+    // if X is greater than arr[n-1]
+    if(Low < CDFStart + CDFCount && LightsCDF[Low] <= X) {
+       Low++;
+    }
+ 
+    // Return the upper_bound index
+    return Low;
+}
+ 
+
 void lights::Build(scene *Scene)
 {
+    LightsCDF.clear();
+    Lights.clear();
     for (size_t i = 0; i < Scene->Instances.size(); i++)
     {
 
@@ -166,9 +120,10 @@ void lights::Build(scene *Scene)
             LightsCDF.resize(LightsCDF.size() + Light.CDFCount);
             for(size_t j=0; j<Light.CDFCount; j++)
             {
-                const glm::vec3 &Pos0 = Shape.Triangles[j].PositionUvX0;
-                const glm::vec3 &Pos1 = Shape.Triangles[j].PositionUvX1;
-                const glm::vec3 &Pos2 = Shape.Triangles[j].PositionUvX2;
+                glm::mat4 InstanceTransform = Instance.Transform;
+                const glm::vec3 &Pos0 = glm::vec3(InstanceTransform * glm::vec4(glm::vec3(Shape.Triangles[j].PositionUvX0), 1));
+                const glm::vec3 &Pos1 = glm::vec3(InstanceTransform * glm::vec4(glm::vec3(Shape.Triangles[j].PositionUvX1), 1));
+                const glm::vec3 &Pos2 = glm::vec3(InstanceTransform * glm::vec4(glm::vec3(Shape.Triangles[j].PositionUvX2), 1));
 
                 LightsCDF[Light.CDFStart + j] = TriangleArea(Pos0, Pos1, Pos2);
                 if(j != 0) LightsCDF[Light.CDFStart + j] += LightsCDF[Light.CDFStart + j-1]; 
@@ -201,10 +156,6 @@ void lights::Build(scene *Scene)
         }
 
     }    
-#if 0
-    Test_SampleEnvMap(Lights, Scene);
-    ImageToFile("Test.hdr", Scene->EnvTextures[0].PixelsF, Scene->EnvTextureWidth, Scene->EnvTextureHeight, 4);
-#endif
 
     RecreateBuffers();
 }

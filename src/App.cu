@@ -123,9 +123,14 @@ void application::Init()
 
     // 
     Scene = CreateCornellBox();
+    
+    Scene->Clear();
+    Scene->FromFile("C:\\Users\\jacqu\\Documents\\Boulot\\MIS");
+    
     Scene->PreProcess();
     
     Params =  GetTracingParameters();
+    Params.SamplingMode = SAMPLING_MODE_MIS;
 
     InitGpuObjects();
     CreateOIDNFilter();

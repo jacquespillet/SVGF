@@ -223,7 +223,14 @@ void gui::InstanceGUI(int InstanceInx)
         {
             RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], App->Scene->Instances[InstanceInx].Transform);
             App->Scene->BVH->UpdateTLAS(InstanceInx);
+
+            if(glm::length(App->Scene->Materials[App->Scene->Instances[InstanceInx].Material].Emission) > 1e-3f)
+            {
+                App->Scene->Lights->Build(App->Scene.get());
+            }
+
             App->ResetRender=true;
+
         }
     }
 
@@ -936,8 +943,9 @@ void gui::GUI()
         CurrentGizmoOperation = ImGuizmo::ROTATE;
     if (ImGui::IsKeyPressed(83))
         CurrentGizmoOperation = ImGuizmo::SCALE;    
-    ImGuiIO &io = ImGui::GetIO();
-    if(ImGui::IsKeyPressed(83) && io.KeyCtrl)
+    
+    
+    if(ImGui::IsKeyPressed(83) && ImGui::GetIO().KeyCtrl)
     {
         if(LoadedFile != "")
             App->Scene->ToFile(LoadedFile);
@@ -950,7 +958,7 @@ void gui::GUI()
             {
                 App->Scene->ToFile(SavePath);
                 this->LoadedFile = SavePath;
-            }            
+            }
         }
     }
     
@@ -1055,6 +1063,12 @@ void gui::GUI()
         {
             App->Scene->Instances[SelectedInstance].Transform = glm::translate(CorrectedTransform, -App->Scene->Shapes[Instance.Shape].Centroid);
             App->Scene->BVH->UpdateTLAS(SelectedInstance);
+            
+            if(glm::length(App->Scene->Materials[App->Scene->Instances[SelectedInstance].Material].Emission) > 1e-3f)
+            {
+                App->Scene->Lights->Build(App->Scene.get());
+            }
+                        
             App->ResetRender=true;
         }
     }
