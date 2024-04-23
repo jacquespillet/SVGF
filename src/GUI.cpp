@@ -931,6 +931,17 @@ bool gui::TracingGUI()
         }
     }
 
+    if(ImGui::Button("Save Render"))
+    {
+        nfdchar_t *SavePath = 0;
+        nfdresult_t Result = NFD_SaveDialog(NULL, NULL, &SavePath);
+
+        if(Result == NFD_OKAY)
+        {
+            App->SaveRender(SavePath);
+        }
+    }
+
     return Changed;
 }
 

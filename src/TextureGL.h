@@ -10,7 +10,7 @@ public:
     textureGL(int Width, int Height, int NChannels);
     ~textureGL();
     void Destroy();
-
+    void Download(void *Ptr);
     GLuint TextureID;
     int Width, Height;
 };

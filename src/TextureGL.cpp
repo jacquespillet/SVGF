@@ -1,5 +1,7 @@
 #include "TextureGL.h"
 
+#include "assert.h"
+
 namespace gpupt
 {
 
@@ -22,6 +24,18 @@ textureGL::textureGL(int Width, int Height, int NChannels) : Width(Width), Heigh
     glTexImage2D(GL_TEXTURE_2D, 0, InternalFormat, Width, Height, 0, Format, Type, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
+
+void textureGL::Download(void *Ptr) {
+    glBindTexture(GL_TEXTURE_2D, TextureID);
+    glGetTexImage(GL_TEXTURE_2D,
+                0,
+                GL_RGBA,
+                GL_FLOAT,
+                Ptr);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    GLenum error = glGetError();
+}
+
 
 // Destructor
 textureGL::~textureGL() {

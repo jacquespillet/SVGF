@@ -1326,10 +1326,10 @@ FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV)
                     if (BSDFCos != vec3(0, 0, 0) && MisWeight != 0) {
                         MisIntersection = IntersectTLAS(MakeRay(Position, Incoming, 1.0f / Incoming), Sample, 0); 
                         vec3 Emission = vec3(0, 0, 0);
-                        if (Isect.Distance == MAX_LENGTH) {
+                        if (MisIntersection.Distance == MAX_LENGTH) {
                             Emission = EvalEnvironment(Incoming);
                         } else {
-                            materialPoint Material = EvalMaterial(Isect);
+                            materialPoint Material = EvalMaterial(MisIntersection);
                             Emission      = Material.Emission;
                         }
                         Radiance += Weight * BSDFCos * Emission * MisWeight; 
@@ -1418,8 +1418,6 @@ FN_DECL vec3 PathTrace(int Sample, vec2 UV)
     materialPoint VolumeMaterial;
     bool HasVolumeMaterial=false;
 
-    bool NextEmission = true;
-    sceneIntersection MisIntersection = MakeIsect(Sample);
 
     for(int Bounce=0; Bounce < GET_ATTR(Parameters, Bounces); Bounce++)
     {

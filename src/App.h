@@ -87,7 +87,7 @@ private:
 
 
     void Trace();
-
+    void SaveRender(std::string ImagePath);
     void InitGpuObjects();
     void InitImGui();
     void ResizeRenderTextures();

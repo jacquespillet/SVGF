@@ -20,8 +20,10 @@
 #include "TextureArrayCu.cuh"
 #endif
 #include "GLTexToCuBuffer.cu"
-#include <ImGuizmo.h>
+#include "ImageLoader.h"
 
+#include <ImGuizmo.h>
+#include <algorithm>
 
 #include <iostream>
 #define CUDA_CHECK_ERROR(err) \
@@ -166,6 +168,21 @@ void application::Denoise()
     Filter.execute();
 #endif
     Denoised = true;
+}
+
+void application::SaveRender(std::string ImagePath)
+{
+    std::vector<float> DataF;
+    std::vector<uint8_t> DataU8;
+    DataF.resize(RenderWidth * RenderHeight * 4);
+    DataU8.resize(RenderWidth * RenderHeight * 4);
+    TonemapTexture->Download(DataF.data());
+    for (size_t i = 0; i < DataF.size(); i++)
+    {
+        float f = std::min(1.0f, std::max(0.0f, DataF[i]));
+        DataU8[i] = (uint8_t)(f * 255.0f);
+    }
+    ImageToFile(ImagePath, DataU8, RenderWidth, RenderHeight, 4);
 }
 
 void application::Trace()

@@ -126,12 +126,16 @@ void ImageFromFile(const std::string &FileName, std::vector<float> &Data, int &W
         }
     }
 } 
-
 void ImageToFile(const std::string &FileName, std::vector<float> &Data, int Width, int Height, int NumChannels)
 {
     stbi_write_hdr(FileName.c_str(), Width, Height, NumChannels,Data.data());
-    
 }
+
+void ImageToFile(const std::string &FileName, std::vector<uint8_t> &Data, int Width, int Height, int NumChannels)
+{
+    stbi_write_png(FileName.c_str(), Width, Height, NumChannels,Data.data(), Width * 4);
+}
+
 
 
 
