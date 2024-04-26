@@ -94,9 +94,8 @@ Here's a summary of all the episodes in the series :
 
 ---
 
-[Here](https://raw.githubusercontent.com/jacquespillet/gpupt_blog/Part_13/resources/Gallery/Credits.txt?token=GHSAT0AAAAAACQGK7WP7XR5AOFYFSPGP44AZRKLF3A) are the credits for each scene :
+[Here](https://raw.githubusercontent.com/jacquespillet/gpupt_blog/Part_13/resources/Gallery/Credits.txt?token=GHSAT0AAAAAACQGK7WOIKO7MZZ27VZGYZOYZRLNYYQ) are the credits for each scene :
 
-```
 [Anime Class Room by AnixMoonLight](https://sketchfab.com/3d-models/anime-class-room-4faa1d57304d446995bc3a01af763239)
 [Salle de bain from McGuire Computer Graphics Archive, Model by Nacimus Ait Cherif](https://casual-effects.com/data)
 [Bedroom from McGuire Computer Graphics Archive, Model by fhernand](https://casual-effects.com/data)
@@ -117,7 +116,6 @@ Here's a summary of all the episodes in the series :
 [Renderman's Teapot by Dylan Sisson and Leif Pedersen](https://renderman.pixar.com/official-swatch)
 [Vokselia Spawn from McGuire Computere Graphics Archive, Model by Vokselia](https://casual-effects.com/data/)
 
-```
 
 --- 
 Helpful resources that helped creating the tutorials, it would not have been possible without these !
