@@ -5,6 +5,6 @@ namespace gpupt
 {
 struct scene;
 
-void LoadAsset(std::string FilePath, scene *Scene, bool LoadInstances, bool LoadMaterials, bool LoadTextures);
+void LoadAsset(std::string FilePath, scene *Scene, bool LoadInstances, bool LoadMaterials, bool LoadTextures, float GlobalScale);
 
 }

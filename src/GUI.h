@@ -9,6 +9,7 @@
 namespace gpupt
 {
 struct application;
+class texture;
 class gui
 {
 public:
@@ -19,12 +20,12 @@ public:
     bool InstancesMultipleGUI();
     bool MaterialGUI(int MaterialInx);
     bool MaterialsGUI();
-    bool TexturePickerGUI(std::string Name, int &TextureInx);
+    bool TexturePickerGUI(std::string Name, int &TextureInx, std::vector<std::string> &TexNames);
     bool ShapeGUI(int ShapeInx);
     bool ShapesGUI();
     bool CameraGUI(int CameraInx);
     bool CamerasGUI();
-    void TextureGUI(int TextureInx);
+    void TextureGUI(int TextureInx, std::vector<texture> &Textures, std::vector<std::string> &TextureNames);
     void TexturesGUI();
     bool EnvironmentGUI(int EnvironmentInx);
     bool EnvironmentsGUI();
@@ -40,6 +41,7 @@ public:
     std::vector<bool> SelectedInstances;
     std::set<int> SelectedInstanceIndices;
     int SelectedTexture = -1;
+    int SelectedEnvTexture = -1;
     int SelectedEnvironment = -1;
     int SelectedCamera = -1;
 

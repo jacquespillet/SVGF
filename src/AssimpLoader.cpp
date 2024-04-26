@@ -85,9 +85,9 @@ void ProcessNode(const aiNode *Node, const aiScene *AScene, scene *Scene, glm::m
     }    
 }
 
-void LoadInstances(const aiScene *AScene, scene *Scene, int MeshBaseIndex)
+void LoadInstances(const aiScene *AScene, scene *Scene, int MeshBaseIndex, float GlobalScale)
 {
-    glm::mat4 RootTransform = glm::mat4(1);
+    glm::mat4 RootTransform = glm::scale(glm::mat4(1), glm::vec3(GlobalScale));
     ProcessNode(AScene->mRootNode, AScene, Scene, RootTransform, MeshBaseIndex);
 }
 
@@ -169,7 +169,7 @@ std::string PathFromFile(const std::string &FullPath)
 }
 
 
-void LoadAssimp(std::string FileName, scene *Scene, bool DoLoadInstances, bool DoLoadMaterials, bool DoLoadTextures)
+void LoadAssimp(std::string FileName, scene *Scene, bool DoLoadInstances, bool DoLoadMaterials, bool DoLoadTextures, float GlobalScale)
 {
     Assimp::Importer Importer;
     uint32_t Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices | aiProcess_CalcTangentSpace;
@@ -187,7 +187,7 @@ void LoadAssimp(std::string FileName, scene *Scene, bool DoLoadInstances, bool D
 
     int MeshBaseIndex = Scene->Shapes.size();
     LoadGeometry(AScene, Scene);
-    if(DoLoadInstances) LoadInstances(AScene, Scene, MeshBaseIndex);
+    if(DoLoadInstances) LoadInstances(AScene, Scene, MeshBaseIndex, GlobalScale);
     if(DoLoadMaterials || DoLoadTextures) LoadMaterials(AScene, Scene, Path, DoLoadMaterials, DoLoadTextures);
     
 }    

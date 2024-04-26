@@ -380,13 +380,9 @@ void TraverseNodes(tinygltf::Model &GLTFModel, uint32_t nodeIndex, glm::mat4 Par
     }
 }
 
-void LoadInstances(tinygltf::Model &GLTFModel, scene *Scene, std::vector<std::vector<uint32_t>> &InstanceMapping)
+void LoadInstances(tinygltf::Model &GLTFModel, scene *Scene, std::vector<std::vector<uint32_t>> &InstanceMapping, float GlobalScale)
 {
-    // glm::mat4 Scale = glm::scale(glm::mat4(1), glm::vec3(25));
-    // glm::mat4 Translate = glm::translate(glm::mat4(1), glm::vec3(0, 0.4, 0));
-    // glm::mat4 RootTransform =  Translate * Scale;
-    glm::mat4 RootTransform = glm::scale(glm::mat4(1), glm::vec3(10.0f));
-    // glm::mat4 RootTransform(0.3f);
+    glm::mat4 RootTransform = glm::scale(glm::mat4(1), glm::vec3(GlobalScale));
     const tinygltf::Scene GLTFScene = GLTFModel.scenes[GLTFModel.defaultScene];
     for (size_t i = 0; i < GLTFScene.nodes.size(); i++)
     {
@@ -394,7 +390,7 @@ void LoadInstances(tinygltf::Model &GLTFModel, scene *Scene, std::vector<std::ve
     }
 }
 
-void LoadGLTF(std::string FileName, scene *Scene, bool DoLoadInstances, bool DoLoadMaterials, bool DoLoadTextures)
+void LoadGLTF(std::string FileName, scene *Scene, bool DoLoadInstances, bool DoLoadMaterials, bool DoLoadTextures, float GlobalScale)
 {
     tinygltf::Model GLTFModel;
     tinygltf::TinyGLTF ModelLoader;
@@ -422,7 +418,7 @@ void LoadGLTF(std::string FileName, scene *Scene, bool DoLoadInstances, bool DoL
     std::vector<std::vector<uint32_t>> InstanceMapping;
     
     LoadGeometry(GLTFModel, Scene, InstanceMapping);
-    if(DoLoadInstances) LoadInstances(GLTFModel, Scene, InstanceMapping);
+    if(DoLoadInstances) LoadInstances(GLTFModel, Scene, InstanceMapping, GlobalScale);
     if(DoLoadMaterials) LoadMaterials(GLTFModel, Scene, DoLoadTextures);
     if(DoLoadTextures) LoadTextures(GLTFModel, Scene);
 }    

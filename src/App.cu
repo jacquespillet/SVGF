@@ -126,13 +126,9 @@ void application::Init()
     // 
     Scene = CreateCornellBox();
     
-    Scene->Clear();
-    Scene->FromFile("C:\\Users\\jacqu\\Documents\\Boulot\\MIS");
-    
     Scene->PreProcess();
     
     Params =  GetTracingParameters();
-    Params.SamplingMode = SAMPLING_MODE_MIS;
 
     InitGpuObjects();
     CreateOIDNFilter();
@@ -172,16 +168,8 @@ void application::Denoise()
 
 void application::SaveRender(std::string ImagePath)
 {
-    std::vector<float> DataF;
     std::vector<uint8_t> DataU8;
-    DataF.resize(RenderWidth * RenderHeight * 4);
-    DataU8.resize(RenderWidth * RenderHeight * 4);
-    TonemapTexture->Download(DataF.data());
-    for (size_t i = 0; i < DataF.size(); i++)
-    {
-        float f = std::min(1.0f, std::max(0.0f, DataF[i]));
-        DataU8[i] = (uint8_t)(f * 255.0f);
-    }
+    TonemapTexture->Download(DataU8);
     ImageToFile(ImagePath, DataU8, RenderWidth, RenderHeight, 4);
 }
 
@@ -196,45 +184,47 @@ void application::Trace()
         Params.CurrentSample=0;
     }
 
-    if(Params.CurrentSample < Params.TotalSamples)
+    if(Scene->Instances.size() != 0 && Scene->Lights->Lights.size() != 0)
     {
-        Denoised=false;
+        if(Params.CurrentSample < Params.TotalSamples)
+        {
+            Denoised=false;
 
-        TracingParamsBuffer->updateData(&Params, sizeof(tracingParameters));
-        Scene->CamerasBuffer->updateData(0 * sizeof(camera), Scene->Cameras.data(), Scene->Cameras.size() * sizeof(camera));
-
-    #if API==API_GL
-        PathTracingShader->Use();
-        PathTracingShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
-        PathTracingShader->SetSSBO(Scene->BVH->TrianglesBuffer, 1);
-        PathTracingShader->SetSSBO(Scene->BVH->BVHBuffer, 3);
-        PathTracingShader->SetSSBO(Scene->BVH->IndicesBuffer, 4);
-        PathTracingShader->SetSSBO(Scene->BVH->IndexDataBuffer, 5);
-        PathTracingShader->SetSSBO(Scene->BVH->TLASInstancesBuffer, 6);
-        PathTracingShader->SetSSBO(Scene->BVH->TLASNodeBuffer, 7);        
-        PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
-        PathTracingShader->SetUBO(TracingParamsBuffer, 9);
-        PathTracingShader->SetSSBO(Scene->Lights->LightsBuffer, 10);
-        PathTracingShader->SetSSBO(Scene->EnvironmentsBuffer, 11);
-        PathTracingShader->SetSSBO(Scene->MaterialBuffer, 12);
-        PathTracingShader->SetTextureArray(Scene->TexArray, 13, "SceneTextures");
-        PathTracingShader->SetTextureArray(Scene->EnvTexArray, 14, "EnvTextures");
-        PathTracingShader->SetSSBO(Scene->Lights->LightsCDFBuffer, 15);
-        PathTracingShader->SetInt("EnvironmentsCount", Scene->Environments.size());
-        PathTracingShader->SetInt("LightsCount", Scene->Lights->Lights.size());
-        PathTracingShader->SetInt("EnvTexturesWidth", Scene->EnvTextureWidth);
-        PathTracingShader->SetInt("EnvTexturesHeight", Scene->EnvTextureHeight);
-  
-        PathTracingShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 +1, 1);
-#elif API==API_CU
-        dim3 blockSize(16, 16);
-        dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
-        TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, RenderWidth, RenderHeight,
-                                            (triangle*)Scene->BVH->TrianglesBuffer->Data, (bvhNode*) Scene->BVH->BVHBuffer->Data, (uint32_t*) Scene->BVH->IndicesBuffer->Data, (indexData*) Scene->BVH->IndexDataBuffer->Data, (instance*)Scene->BVH->TLASInstancesBuffer->Data, (tlasNode*) Scene->BVH->TLASNodeBuffer->Data,
-                                            (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)Scene->MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)Scene->Lights->LightsBuffer->Data, (float*)Scene->Lights->LightsCDFBuffer->Data, (int)Scene->Lights->Lights.size(), 
-                                            (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight);
-#endif
-        Params.CurrentSample+= Params.Batch;
+            TracingParamsBuffer->updateData(&Params, sizeof(tracingParameters));
+            Scene->CamerasBuffer->updateData(0 * sizeof(camera), Scene->Cameras.data(), Scene->Cameras.size() * sizeof(camera));
+        #if API==API_GL
+            PathTracingShader->Use();
+            PathTracingShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
+            PathTracingShader->SetSSBO(Scene->BVH->TrianglesBuffer, 1);
+            PathTracingShader->SetSSBO(Scene->BVH->BVHBuffer, 3);
+            PathTracingShader->SetSSBO(Scene->BVH->IndicesBuffer, 4);
+            PathTracingShader->SetSSBO(Scene->BVH->IndexDataBuffer, 5);
+            PathTracingShader->SetSSBO(Scene->BVH->TLASInstancesBuffer, 6);
+            PathTracingShader->SetSSBO(Scene->BVH->TLASNodeBuffer, 7);        
+            PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
+            PathTracingShader->SetUBO(TracingParamsBuffer, 9);
+            PathTracingShader->SetSSBO(Scene->Lights->LightsBuffer, 10);
+            PathTracingShader->SetSSBO(Scene->EnvironmentsBuffer, 11);
+            PathTracingShader->SetSSBO(Scene->MaterialBuffer, 12);
+            PathTracingShader->SetTextureArray(Scene->TexArray, 13, "SceneTextures");
+            PathTracingShader->SetTextureArray(Scene->EnvTexArray, 14, "EnvTextures");
+            PathTracingShader->SetSSBO(Scene->Lights->LightsCDFBuffer, 15);
+            PathTracingShader->SetInt("EnvironmentsCount", Scene->Environments.size());
+            PathTracingShader->SetInt("LightsCount", Scene->Lights->Lights.size());
+            PathTracingShader->SetInt("EnvTexturesWidth", Scene->EnvTextureWidth);
+            PathTracingShader->SetInt("EnvTexturesHeight", Scene->EnvTextureHeight);
+    
+            PathTracingShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 +1, 1);
+    #elif API==API_CU
+            dim3 blockSize(16, 16);
+            dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
+            TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, RenderWidth, RenderHeight,
+                                                (triangle*)Scene->BVH->TrianglesBuffer->Data, (bvhNode*) Scene->BVH->BVHBuffer->Data, (uint32_t*) Scene->BVH->IndicesBuffer->Data, (indexData*) Scene->BVH->IndexDataBuffer->Data, (instance*)Scene->BVH->TLASInstancesBuffer->Data, (tlasNode*) Scene->BVH->TLASNodeBuffer->Data,
+                                                (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)Scene->MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)Scene->Lights->LightsBuffer->Data, (float*)Scene->Lights->LightsCDFBuffer->Data, (int)Scene->Lights->Lights.size(), 
+                                                (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight);
+    #endif
+            Params.CurrentSample+= Params.Batch;
+        }
     }
 
     if(DoDenoise && !Denoised)
@@ -242,15 +232,17 @@ void application::Trace()
         Denoise();
     }
 
+    bool DoClear = (Scene->Instances.size()==0 || Scene->Lights->Lights.size()==0);
 #if API==API_GL
     TonemapShader->Use();
     TonemapShader->SetTexture(0, Denoised ? DenoisedTexture->TextureID : RenderTexture->TextureID, GL_READ_WRITE);
     TonemapShader->SetTexture(1, TonemapTexture->TextureID, GL_READ_WRITE);
+    TonemapShader->SetInt("DoClear", (int)DoClear);
     TonemapShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 + 1, 1);
 #elif API==API_CU
     dim3 blockSize(16, 16);
     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
-    TonemapKernel<<<gridSize, blockSize>>>(Denoised ? (glm::vec4*)DenoisedBuffer->Data : (glm::vec4*)RenderBuffer->Data, (glm::vec4*)TonemapBuffer->Data, RenderWidth, RenderHeight);
+    TonemapKernel<<<gridSize, blockSize>>>(Denoised ? (glm::vec4*)DenoisedBuffer->Data : (glm::vec4*)RenderBuffer->Data, (glm::vec4*)TonemapBuffer->Data, RenderWidth, RenderHeight, DoClear);
     cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, TonemapBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
     CUDA_CHECK_ERROR(cudaGetLastError());
 #endif
@@ -271,7 +263,7 @@ void application::Run()
         ResetRender=false;
 
         
-        if(Scene->Cameras[int(Params.CurrentCamera)].Controlled)
+        if(Scene->Cameras.size() > 0 &&  Scene->Cameras[int(Params.CurrentCamera)].Controlled)
         {
             ResetRender |= Controller.Update();        
             Scene->Cameras[int(Params.CurrentCamera)].Frame = Controller.ModelMatrix;
@@ -345,6 +337,8 @@ void application::ResizeRenderTextures()
 void application::CalculateWindowSizes()
 {
     if(!Inited) return;
+    if(Scene->Cameras.size() == 0) return;
+    
     
     // GUIWindow size
     RenderWindowWidth = Window->Width - GUI->GuiWidth;

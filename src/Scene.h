@@ -11,6 +11,7 @@
 #define MATERIAL_TYPE_GLASS   3
 #define MATERIAL_TYPE_SUBSURFACE   4
 #define ENV_TEX_WIDTH 2048
+#define TEX_WIDTH 1024
 
 
 namespace gpupt
@@ -177,8 +178,8 @@ struct scene
     std::vector<std::string> EnvironmentNames = {};
 
 
-    int TextureWidth = 512;
-    int TextureHeight = 512;
+    int TextureWidth = TEX_WIDTH;
+    int TextureHeight = TEX_WIDTH;
 
     int EnvTextureWidth = ENV_TEX_WIDTH;
     int EnvTextureHeight = ENV_TEX_WIDTH/2;
@@ -197,6 +198,7 @@ struct scene
     void ToFile(std::string FileName);
     void FromFile(std::string FileName);
     void Clear();
+    void ClearInstances();
 
     void CalculateInstanceTransform(int InstanceInx);
 #if API==API_GL

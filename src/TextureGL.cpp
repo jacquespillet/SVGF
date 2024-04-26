@@ -25,15 +25,23 @@ textureGL::textureGL(int Width, int Height, int NChannels) : Width(Width), Heigh
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void textureGL::Download(void *Ptr) {
+void textureGL::Download(std::vector<uint8_t> &Output) {
+    std::vector<float> DataF(Width * Height * 4);
+    if(Output.size() != DataF.size()) Output.resize(DataF.size());
+    GLuint PBO;
+    glGenBuffers(1, &PBO);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, PBO);
+    glBufferData(GL_PIXEL_PACK_BUFFER, DataF.size() * sizeof(float), 0, GL_STATIC_READ);
     glBindTexture(GL_TEXTURE_2D, TextureID);
-    glGetTexImage(GL_TEXTURE_2D,
-                0,
-                GL_RGBA,
-                GL_FLOAT,
-                Ptr);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    GLenum error = glGetError();
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (void*)(0));
+    float * Ptr =(float*) glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+    for (size_t i = 0; i < DataF.size(); i++)
+    {
+        float f = std::min(1.0f, std::max(0.0f, Ptr[i]));
+        Output[i] = (uint8_t)(f * 255.0f);
+    }
+    glUnmapBuffer(GL_PIXEL_PACK_BUFFER);    
+    glDeleteBuffers(1, &PBO);
 }
 
 

@@ -153,14 +153,14 @@ __device__ glm::vec3 ToSRGB(glm::vec3 Col)
     );
 }
 
-__global__ void TonemapKernel(glm::vec4 *Input,glm::vec4 *Output, int Width, int Height)
+__global__ void TonemapKernel(glm::vec4 *Input,glm::vec4 *Output, int Width, int Height, int DoClear)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x < Width && y < Height) {    
         int index = y * Width + x;
 
-        glm::vec3 Col = ToSRGB(Input[y * Width + x]);
+        glm::vec3 Col = DoClear ? vec4(0,0,0,0) : ToSRGB(Input[y * Width + x]);
         Output[y * Width + x] = vec4(Col, 1);    
     }
 }

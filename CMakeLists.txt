@@ -100,7 +100,7 @@ set (sourceFiles
 )
 
 cuda_add_executable(PathTracer ${sourceFiles})
-target_link_libraries(PathTracer glfw3 glew32 opengl32 OpenImageDenoise assimp-vc141-mt)
+target_link_libraries(PathTracer glfw3 glew32 opengl32 OpenImageDenoise assimp-vc143-mt)
 target_link_libraries(PathTracer ${CUDA_LIBRARIES})
 
 install(TARGETS PathTracer RUNTIME)
@@ -109,4 +109,4 @@ install(FILES ${OIDN_DLL_DIR}/OpenImageDenoise.dll DESTINATION bin)
 install(FILES ${OIDN_DLL_DIR}/OpenImageDenoise_core.dll DESTINATION bin)
 install(FILES ${OIDN_DLL_DIR}/OpenImageDenoise_device_cuda.dll DESTINATION bin)
 install(FILES ${GLEW_DLL_DIR}/glew32.dll DESTINATION bin)
-install(FILES ${ASSIMP_DLL_DIR}/assimp-vc141-mt.dll DESTINATION bin)
+install(FILES ${ASSIMP_DLL_DIR}/assimp-vc143-mt.dll DESTINATION bin)

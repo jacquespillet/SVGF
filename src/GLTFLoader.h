@@ -7,6 +7,6 @@ namespace gpupt
 {
 struct scene;
 
-void LoadGLTF(std::string FilePath, scene *Scene, bool LoadInstances, bool LoadMaterials, bool LoadTextures);
+void LoadGLTF(std::string FilePath, scene *Scene, bool LoadInstances, bool LoadMaterials, bool LoadTextures, float GlobalScale);
 
 }

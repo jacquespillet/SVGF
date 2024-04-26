@@ -254,12 +254,12 @@ scene::scene()
     Camera.Controlled = 1;  
     this->CameraNames.push_back("Main Camera");
     
-    LoadAssimp("resources/models/BaseShapes/Cube/Cube.obj", this, false, false, false);
-    LoadAssimp("resources/models/BaseShapes/Cone/Cone.obj", this, false, false, false);
-    LoadAssimp("resources/models/BaseShapes/Cylinder/Cylinder.obj", this, false, false, false);
-    LoadAssimp("resources/models/BaseShapes/Sphere/Sphere.obj", this, false, false, false);
-    LoadAssimp("resources/models/BaseShapes/Torus/Torus.obj", this, false, false, false);
-    LoadAssimp("resources/models/BaseShapes/Plane/Plane.obj", this, false, false, false);
+    LoadAssimp("resources/models/BaseShapes/Cube/Cube.obj", this, false, false, false, 1.0f);
+    LoadAssimp("resources/models/BaseShapes/Cone/Cone.obj", this, false, false, false, 1.0f);
+    LoadAssimp("resources/models/BaseShapes/Cylinder/Cylinder.obj", this, false, false, false, 1.0f);
+    LoadAssimp("resources/models/BaseShapes/Sphere/Sphere.obj", this, false, false, false, 1.0f);
+    LoadAssimp("resources/models/BaseShapes/Torus/Torus.obj", this, false, false, false, 1.0f);
+    LoadAssimp("resources/models/BaseShapes/Plane/Plane.obj", this, false, false, false, 1.0f);
 
     this->Materials.emplace_back();
     material &BaseMaterial = this->Materials.back(); 
@@ -281,28 +281,9 @@ scene::scene()
         instance &FloorInstance = this->Instances.back();
         FloorInstance.Shape = (int)this->Shapes.size()-1;
         FloorInstance.Material = (int)this->Materials.size()-1;
-        FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(2, 0, 0));
+        FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(0, -1, 0));
         this->InstanceNames.push_back("Floor");
     }
-
-    {
-        this->Instances.emplace_back();
-        instance &FloorInstance = this->Instances.back();
-        FloorInstance.Shape = (int)this->Shapes.size()-1;
-        FloorInstance.Material = (int)this->Materials.size()-1;
-        FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(0, 0, 2));
-        this->InstanceNames.push_back("Floor");
-    }
-
-    {
-        this->Instances.emplace_back();
-        instance &FloorInstance = this->Instances.back();
-        FloorInstance.Shape = (int)this->Shapes.size()-1;
-        FloorInstance.Material = (int)this->Materials.size()-1;
-        FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(-2, 0, 2));
-        this->InstanceNames.push_back("Floor");
-    }
-
     
     this->Materials.emplace_back();
     material &LightMaterial = this->Materials.back();
@@ -723,6 +704,12 @@ void scene::Clear()
     EnvironmentNames.clear();
 }
 
+void scene::ClearInstances()
+{
+    Instances.clear();
+    InstanceNames.clear();
+    Lights->Build(this);
+}
 
 glm::vec4 texture::Sample(glm::ivec2 Coords)
 {

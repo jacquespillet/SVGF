@@ -158,6 +158,8 @@ bool gui::InstancesMultipleGUI()
 
 void gui::InstanceGUI(int InstanceInx)
 {
+    if(InstanceInx >= App->Scene->Instances.size()) return;
+
     bool TransformChanged = false;
 
     if(ImGui::Button("Delete"))
@@ -309,6 +311,13 @@ void gui::InstanceGUI(int InstanceInx)
 
 bool gui::InstancesGUI()
 {
+    if(ImGui::Button("Reset Project"))
+    {
+        App->Scene->Clear();
+        App->ResetRender=true;
+    }
+    ImGui::Separator();
+    
     bool Changed = false;
     for (int i = 0; i < App->Scene->Instances.size(); i++)
     {
@@ -344,6 +353,11 @@ bool gui::InstancesGUI()
     if(ImGui::Button("Add"))
     {
         ImGui::OpenPopup("Add_Instance_Popup");
+    }
+    if(ImGui::Button("Clear"))
+    {
+        App->Scene->ClearInstances();
+        App->ResetRender=true;
     }
     if(ImGui::BeginPopup("Add_Instance_Popup"))
     {
@@ -424,10 +438,10 @@ bool gui::InstancesGUI()
 }
 
 
-bool gui::TexturePickerGUI(std::string Name, int &TextureInx)
+bool gui::TexturePickerGUI(std::string Name, int &TextureInx, std::vector<std::string> &TextureNames)
 {
     bool Changed = false;
-    std::string TextureName = TextureInx >=0 ? App->Scene->TextureNames[TextureInx] : "Empty";
+    std::string TextureName = TextureInx >=0 ? TextureNames[TextureInx] : "Empty";
     ImGui::Text(Name.c_str()); ImGui::SameLine(); 
     ImGui::Text(TextureName.c_str()); ImGui::SameLine(); 
     
@@ -446,9 +460,9 @@ bool gui::TexturePickerGUI(std::string Name, int &TextureInx)
         {
             TextureInx=-1;
         }
-        for (int i = 0; i < App->Scene->Textures.size(); i++)
+        for (int i = 0; i < TextureNames.size(); i++)
         {
-            if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), TextureInx == i, ImGuiSelectableFlags_DontClosePopups))
+            if (ImGui::Selectable(TextureNames[i].c_str(), TextureInx == i, ImGuiSelectableFlags_DontClosePopups))
                 TextureInx = i;
         }
 
@@ -464,6 +478,8 @@ bool gui::TexturePickerGUI(std::string Name, int &TextureInx)
 
 bool gui::MaterialGUI(int MaterialInx)
 {
+    if(MaterialInx >= App->Scene->Materials.size()) return false;
+    
     bool Changed = false;
 
     ImGui::Text(App->Scene->MaterialNames[MaterialInx].c_str());
@@ -495,10 +511,10 @@ bool gui::MaterialGUI(int MaterialInx)
     ImGui::Separator();
     ImGui::Text("Textures : ");
 
-    Changed |= TexturePickerGUI("Colour", Mat.ColourTexture);
-    Changed |= TexturePickerGUI("Roughness", Mat.RoughnessTexture);
-    Changed |= TexturePickerGUI("Normal", Mat.NormalTexture);
-    Changed |= TexturePickerGUI("Emission", Mat.EmissionTexture);
+    Changed |= TexturePickerGUI("Colour", Mat.ColourTexture, App->Scene->TextureNames);
+    Changed |= TexturePickerGUI("Roughness", Mat.RoughnessTexture, App->Scene->TextureNames);
+    Changed |= TexturePickerGUI("Normal", Mat.NormalTexture, App->Scene->TextureNames);
+    Changed |= TexturePickerGUI("Emission", Mat.EmissionTexture, App->Scene->TextureNames);
 
     // // Colour
   
@@ -648,6 +664,8 @@ bool gui::MaterialsGUI()
 
 bool gui::ShapeGUI(int ShapeInx)
 {
+    if(ShapeInx >= App->Scene->Shapes.size()) return false;
+
     bool Changed = false;
 
     ImGui::Text(App->Scene->ShapeNames[ShapeInx].c_str());
@@ -676,11 +694,12 @@ bool gui::ShapesGUI()
 
     if (ImGui::BeginPopup("Instance_Shape_Selection"))
     {
-        static bool LoadInstances = false;
-        static bool LoadMaterials = false;
-        static bool LoadTextures = false;
+        static bool LoadInstances = true;
+        static bool LoadMaterials = true;
+        static bool LoadTextures = true;
+        static float GlobalScale = 1.0f;
         ImGui::Checkbox("Load Instances", &LoadInstances); ImGui::SameLine(); ImGui::Checkbox("Load Materials", &LoadMaterials); ImGui::SameLine(); ImGui::Checkbox("Load Textures", &LoadTextures);
-
+        ImGui::DragFloat("Global Scale", &GlobalScale, 0.01f, 0, 1);
         if(ImGui::Button("Add"))
         {
             nfdpathset_t ShapesPaths;
@@ -690,7 +709,7 @@ bool gui::ShapesGUI()
                 for (size_t i = 0; i < NFD_PathSet_GetCount(&ShapesPaths); ++i )
                 {
                     nfdchar_t *Path = NFD_PathSet_GetPath(&ShapesPaths, i);
-                    LoadAsset(Path, App->Scene.get(), LoadInstances, LoadMaterials, LoadTextures);
+                    LoadAsset(Path, App->Scene.get(), LoadInstances, LoadMaterials, LoadTextures, GlobalScale);
                 }
                 NFD_PathSet_Free(&ShapesPaths);            
             }   
@@ -711,6 +730,8 @@ bool gui::ShapesGUI()
 
 bool gui::CameraGUI(int CameraInx)
 {
+    if(CameraInx >= App->Scene->Cameras.size()) return false;
+
     bool Changed = false;
 
     ImGui::Text(App->Scene->CameraNames[CameraInx].c_str());
@@ -770,59 +791,117 @@ bool gui::CamerasGUI()
     
     if(ImGui::Button("Add"))
     {
-        // TODO
+        App->Scene->Cameras.emplace_back();
+        camera &Camera = App->Scene->Cameras.back();
+        Camera.Lens = 0.035f;
+        Camera.Aperture = 0.0f;
+        Camera.Focus = 3.9f;
+        Camera.Film = 0.024f;
+        Camera.Aspect = (float)App->RenderWindowWidth / (float)App->RenderWindowWidth;
+        Camera.Controlled = 1;  
+        App->Scene->CameraNames.push_back("New Camera");
+        App->Scene->PreProcess();
+                    
     }
 
     return Changed;        
 }
 
-void gui::TextureGUI(int TextureInx)
+void gui::TextureGUI(int TextureInx, std::vector<texture> &Textures, std::vector<std::string> &TextureNames)
 {
-    ImGui::Text(App->Scene->TextureNames[TextureInx].c_str());
-    ImGui::Text("Width : "); ImGui::SameLine(); ImGui::Text(std::to_string(App->Scene->Textures[TextureInx].Width).c_str());
-    ImGui::Text("Height : "); ImGui::SameLine(); ImGui::Text(std::to_string(App->Scene->Textures[TextureInx].Height).c_str());
-    ImGui::Text("Channels : "); ImGui::SameLine(); ImGui::Text(std::to_string(App->Scene->Textures[TextureInx].Height).c_str());
+    if(TextureInx >= Textures.size()) return;
+
+    ImGui::Text(TextureNames[TextureInx].c_str());
+    ImGui::Text("Width : "); ImGui::SameLine(); ImGui::Text(std::to_string(Textures[TextureInx].Width).c_str());
+    ImGui::Text("Height : "); ImGui::SameLine(); ImGui::Text(std::to_string(Textures[TextureInx].Height).c_str());
+    ImGui::Text("Channels : "); ImGui::SameLine(); ImGui::Text(std::to_string(Textures[TextureInx].Height).c_str());
 }
 
 void gui::TexturesGUI()
 {
     bool Changed = false;
-
-    for (int i = 0; i < App->Scene->Textures.size(); i++)
+    
+    if (ImGui::BeginTabBar("", ImGuiTabBarFlags_None))
     {
-        if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), SelectedTexture == i))
-            SelectedTexture = i;
-    }
-
-    if(ImGui::Button("Add"))
-    {
-        nfdpathset_t ImagePaths;
-        nfdresult_t Result = NFD_OpenDialogMultiple(NULL, NULL, &ImagePaths);
-        if ( Result == NFD_OKAY ) 
+        if (ImGui::BeginTabItem("Textures"))
         {
-            for (size_t i = 0; i < NFD_PathSet_GetCount(&ImagePaths); ++i )
-            {
-                nfdchar_t *Path = NFD_PathSet_GetPath(&ImagePaths, i);
-                App->Scene->Textures.emplace_back();
-                texture &Texture = App->Scene->Textures.back(); 
-                Texture.SetFromFile(Path, App->Scene->TextureWidth, App->Scene->TextureHeight);
-                App->Scene->TextureNames.push_back(ExtractFilename(Path));
-            }
-            App->Scene->ReloadTextureArray();
-            NFD_PathSet_Free(&ImagePaths);            
-        }             
-    }
-    ImGui::Separator();
 
-    if(SelectedTexture != -1)
-    {
-        TextureGUI(SelectedTexture);
+            for (int i = 0; i < App->Scene->Textures.size(); i++)
+            {
+                if (ImGui::Selectable(App->Scene->TextureNames[i].c_str(), SelectedTexture == i))
+                    SelectedTexture = i;
+            }
+
+            if(ImGui::Button("Add"))
+            {
+                nfdpathset_t ImagePaths;
+                nfdresult_t Result = NFD_OpenDialogMultiple(NULL, NULL, &ImagePaths);
+                if ( Result == NFD_OKAY ) 
+                {
+                    for (size_t i = 0; i < NFD_PathSet_GetCount(&ImagePaths); ++i )
+                    {
+                        nfdchar_t *Path = NFD_PathSet_GetPath(&ImagePaths, i);
+                        App->Scene->Textures.emplace_back();
+                        texture &Texture = App->Scene->Textures.back(); 
+                        Texture.SetFromFile(Path, App->Scene->TextureWidth, App->Scene->TextureHeight);
+                        App->Scene->TextureNames.push_back(ExtractFilename(Path));
+                    }
+                    App->Scene->ReloadTextureArray();
+                    NFD_PathSet_Free(&ImagePaths);            
+                }             
+            }
+            ImGui::Separator();
+
+            if(SelectedTexture != -1)
+            {
+                TextureGUI(SelectedTexture, App->Scene->Textures, App->Scene->TextureNames);
+            }
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Environment Textures"))
+        {
+
+            for (int i = 0; i < App->Scene->EnvTextures.size(); i++)
+            {
+                if (ImGui::Selectable(App->Scene->EnvTextureNames[i].c_str(), SelectedEnvTexture == i))
+                    SelectedEnvTexture = i;
+            }
+
+            if(ImGui::Button("Add"))
+            {
+                nfdpathset_t ImagePaths;
+                nfdresult_t Result = NFD_OpenDialogMultiple(NULL, NULL, &ImagePaths);
+                if ( Result == NFD_OKAY ) 
+                {
+                    for (size_t i = 0; i < NFD_PathSet_GetCount(&ImagePaths); ++i )
+                    {
+                        nfdchar_t *Path = NFD_PathSet_GetPath(&ImagePaths, i);
+                        App->Scene->EnvTextures.emplace_back();
+                        texture &Texture = App->Scene->EnvTextures.back(); 
+                        Texture.SetFromFile(Path, App->Scene->EnvTextureWidth, App->Scene->EnvTextureHeight);
+                        App->Scene->EnvTextureNames.push_back(ExtractFilename(Path));
+                    }
+                    App->Scene->ReloadTextureArray();
+                    NFD_PathSet_Free(&ImagePaths);            
+                }             
+            }
+            ImGui::Separator();
+
+            if(SelectedEnvTexture != -1)
+            {
+                TextureGUI(SelectedEnvTexture, App->Scene->EnvTextures, App->Scene->EnvTextureNames);
+            }
+            ImGui::EndTabItem();
+        }        
+        ImGui::EndTabBar();
     }
 
 }
 
 bool gui::EnvironmentGUI(int EnvironmentInx)
 {
+    if(EnvironmentInx >= App->Scene->Environments.size()) return false;
+
     bool Changed=false;
     environment &Env = App->Scene->Environments[EnvironmentInx];
     
@@ -854,9 +933,13 @@ bool gui::EnvironmentGUI(int EnvironmentInx)
         RecomposeMatrixFromComponents(&Translation[0], &Rotation[0], &Scale[0], Env.Transform);
     }
 
-    if((glm::length(PrevEmission) <= 1e-3f && glm::length(Env.Emission) > 1e-3f) || (glm::length(PrevEmission) > 1e-3f && glm::length(Env.Emission)<= 1e-3f))
+    bool TextureChanged = TexturePickerGUI("Texture", Env.EmissionTexture, App->Scene->EnvTextureNames);
+    
+
+    if((glm::length(PrevEmission) <= 1e-3f && glm::length(Env.Emission) > 1e-3f) || (glm::length(PrevEmission) > 1e-3f && glm::length(Env.Emission)<= 1e-3f) || TextureChanged)
     {
         App->Scene->UpdateLights();
+        Changed = true;
     }
 
     return Changed;
@@ -872,6 +955,18 @@ bool gui::EnvironmentsGUI()
             SelectedEnvironment = i;
     }
 
+    if(ImGui::Button("Add"))
+    {
+        App->Scene->Environments.emplace_back();
+        App->Scene->EnvironmentNames.push_back("Sky");
+        environment &Env = App->Scene->Environments.back();
+        Env.Emission = {1,1,1};
+        Env.EmissionTexture = -1;
+        Env.Transform = glm::mat4(1);
+        App->Scene->Lights->Build(App->Scene.get());
+        App->Scene->EnvironmentsBuffer = std::make_shared<buffer>(App->Scene->Environments.size() * sizeof(environment), App->Scene->Environments.data());
+        App->ResetRender=true;
+    }
 
     ImGui::Separator();
 

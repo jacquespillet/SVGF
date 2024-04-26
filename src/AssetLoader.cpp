@@ -8,7 +8,7 @@
 namespace gpupt
 {
      
-void LoadAsset(std::string FilePath, scene *Scene, bool LoadInstances, bool LoadMaterials, bool LoadTextures)
+void LoadAsset(std::string FilePath, scene *Scene, bool LoadInstances, bool LoadMaterials, bool LoadTextures, float GlobalScale)
 {
     std::string Extension = FilePath.substr(FilePath.find_last_of(".") + 1);
     
@@ -16,11 +16,11 @@ void LoadAsset(std::string FilePath, scene *Scene, bool LoadInstances, bool Load
     int PrevShapesCount = Scene->Shapes.size();
     if(Extension == "gltf" || Extension == "glb")
     {
-        LoadGLTF(FilePath, Scene, LoadInstances, LoadMaterials, LoadTextures);
+        LoadGLTF(FilePath, Scene, LoadInstances, LoadMaterials, LoadTextures, GlobalScale);
     }
     else
     {
-        LoadAssimp(FilePath, Scene, LoadInstances, LoadMaterials, LoadTextures);
+        LoadAssimp(FilePath, Scene, LoadInstances, LoadMaterials, LoadTextures, GlobalScale);
     }
 
     for(int i=PrevShapesCount; i<Scene->Shapes.size(); i++)

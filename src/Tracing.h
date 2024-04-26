@@ -36,10 +36,10 @@ inline tracingParameters GetTracingParameters()
     Params.CurrentSample = 0;
     Params.Batch = 1;
     Params.TotalSamples = 4096;
-    Params.Bounces = 5;
+    Params.Bounces = 12;
     Params.Clamp = 10;
     Params.CurrentCamera=0;
-    Params.SamplingMode = SAMPLING_MODE_BOTH;
+    Params.SamplingMode = SAMPLING_MODE_LIGHT;
     return Params;
 }
 

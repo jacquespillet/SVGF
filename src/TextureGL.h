@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GL/glew.h>
+#include <vector>
 
 namespace gpupt
 {
@@ -10,7 +11,7 @@ public:
     textureGL(int Width, int Height, int NChannels);
     ~textureGL();
     void Destroy();
-    void Download(void *Ptr);
+    void Download(std::vector<uint8_t> &Output);
     GLuint TextureID;
     int Width, Height;
 };
