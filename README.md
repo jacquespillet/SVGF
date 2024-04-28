@@ -94,31 +94,52 @@ Here's a summary of all the episodes in the series :
 
 ---
 
-[Here](https://raw.githubusercontent.com/jacquespillet/gpupt_blog/Part_13/resources/Gallery/Credits.txt?token=GHSAT0AAAAAACQGK7WOIKO7MZZ27VZGYZOYZRLNYYQ) are the credits for each scene :
+[Here](https://raw.githubusercontent.com/jacquespillet/gpupt_blog/Part_13/resources/Gallery/Credits.txt?token=GHSAT0AAAAAACQGK7WP7XR5AOFYFSPGP44AZRKLF3A) are the credits for each scene :
 
+```
 [Anime Class Room by AnixMoonLight](https://sketchfab.com/3d-models/anime-class-room-4faa1d57304d446995bc3a01af763239)
+
 [Salle de bain from McGuire Computer Graphics Archive, Model by Nacimus Ait Cherif](https://casual-effects.com/data)
+
 [Bedroom from McGuire Computer Graphics Archive, Model by fhernand](https://casual-effects.com/data)
+
 [Ship in a bottle by Loïc Norgeot](https://sketchfab.com/3d-models/ship-in-a-bottle-9ddbc5b32da94bafbfdb56e1f6be9a38)
+
 [Breakfast Room from McGuire Computer Graphics Archive, Model by Wig42](https://casual-effects.com/data)
+
 [Breakfast Room from McGuire Computer Graphics Archive, Model by Wig42](https://casual-effects.com/data)
+
 [Cathedral by patrix](https://sketchfab.com/3d-models/cathedral-faed84a829114e378be255414a7826ca)
+
 [Coffee Maker from cekuhnen](www.blendswap.com/user/cekuhnen)
+
 [Conference Room from McGuire Computer Graphics Archive, Model by Anat Grynberg and Greg Ward](https://casual-effects.com/data)
+
 [Fireplace Room from McGuire Computer Graphics Archive, Model by Wig42](https://casual-effects.com/data)
+
 [List Empire from McGuire Computer Graphics Archive, Model by Morgan McGuire](https://casual-effects.com/data)
+
 [Rhetorician Maker from engine9](https://sketchfab.com/3d-models/rhetorician-a89f035291d843069d73988cc0e25399)
+
 [Robo Maker from Artem Shupa-Dubrova](https://sketchfab.com/3d-models/robo-obj-pose4-uaeYu2fwakD1e1bWp5Cxu3XAqrt)
+
 [Loie Fuller from Minneapolis Institute of Art, by Joseph Kratina](https://sketchfab.com/3d-models/loie-fuller-sculpture-by-joseph-kratina-05ba00cefb5b4a7e8cecda2a91d6a568)
+
 [Sea Keep "Lonely Watcher" by Artjoms Horosilovs](https://sketchfab.com/3d-models/sea-keep-lonely-watcher-09a15a0c14cb4accaf060a92bc70413d)
+
 [Sea House by Alyona Shek](https://sketchfab.com/3d-models/sea-house-bc4782005e9646fb9e6e18df61bfd28d)
+
 [Sponza from McGuire Computer Graphics Archive, by Frank Meinl, Crytek](https://casual-effects.com/data/)
+
 [Renderman's Teapot by Dylan Sisson and Leif Pedersen](https://renderman.pixar.com/official-swatch)
+
 [Vokselia Spawn from McGuire Computere Graphics Archive, Model by Vokselia](https://casual-effects.com/data/)
 
 
+```
+
 --- 
-Helpful resources that helped creating the tutorials, it would not have been possible without these !
+Helpful resources that helped creating the tutorials
 
 [Physically Based Rendering online edition](https://pbr-book.org/)
 [Jacco Bikker Blog](https://jacco.ompf2.com/), especially the posts about BVH that we're using in our code
