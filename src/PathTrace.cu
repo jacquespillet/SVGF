@@ -6,7 +6,7 @@ using namespace gpupt;
 
 #define PI_F 3.141592653589
 #define INVALID_ID -1
-
+#define MIN_ROUGHNESS (0.03f * 0.03f)
 
 #define MAX_LENGTH 1e30f
 

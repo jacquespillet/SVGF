@@ -5,9 +5,15 @@
 #define MATERIAL_TYPE_SUBSURFACE   4
 
 
+#define SAMPLING_MODE_BSDF 0
+#define SAMPLING_MODE_LIGHT 1
+#define SAMPLING_MODE_BOTH 2
+#define SAMPLING_MODE_MIS 3
 
 #define PI_F 3.141592653589
 #define INVALID_ID -1
+#define MIN_ROUGHNESS (0.03f * 0.03f)
+
 
 #define MAX_LENGTH 1e30f
 

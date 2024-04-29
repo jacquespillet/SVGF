@@ -559,6 +559,14 @@ FN_DECL materialPoint EvalMaterial(INOUT(sceneIntersection) Isect)
         Point.Density = -log(clamp(Point.Colour, 0.0001f, 1.0f)) / Point.TransmissionDepth;
     }
 
+    if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
+    {
+        Point.Roughness=0;
+    }
+    
+    if(Point.Roughness < MIN_ROUGHNESS) Point.Roughness=0;
+        
+
     return Point;
 }
 
@@ -866,6 +874,15 @@ FN_DECL vec3 SamplePbr(INOUT(vec3) Colour, float IOR, float Roughness,
     }
 }
 
+FN_DECL vec3 SamplePbr(INOUT(vec3) Colour, float IOR,
+    float Metallic, INOUT(vec3) Normal, INOUT(vec3) Outgoing, float Rand0) {
+    vec3 UpNormal    = dot(Normal, Outgoing) <= 0 ? -Normal : Normal;
+    vec3 Reflectivity = mix(EtaToReflectivity(vec3(IOR, IOR, IOR)), Colour, Metallic);
+    vec3 Incoming = reflect(-Outgoing, UpNormal);
+    if (!SameHemisphere(UpNormal, Outgoing, Incoming)) return vec3(0, 0, 0);
+    return Incoming;
+}
+
 FN_DECL vec3 EvalPbr(INOUT(vec3) Colour, float IOR, float Roughness, float Metallic, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming) {
     // Evaluate a specular BRDF lobe.
     if (dot(Normal, Incoming) * dot(Normal, Outgoing) <= 0) return vec3(0, 0, 0);
@@ -886,6 +903,20 @@ FN_DECL vec3 EvalPbr(INOUT(vec3) Colour, float IOR, float Roughness, float Metal
     return  Diffuse * Cosine + Specular * Cosine;
 }
 
+FN_DECL vec3 EvalPbr(INOUT(vec3) Colour, float IOR, float Metallic, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming) {
+    // Evaluate a specular BRDF lobe.
+    if (dot(Normal, Incoming) * dot(Normal, Outgoing) <= 0) return vec3(0, 0, 0);
+
+    vec3 Reflectivity = mix(EtaToReflectivity(vec3(IOR, IOR, IOR)), Colour, Metallic);
+    vec3 UpNormal = dot(Normal, Outgoing) <= 0 ? -Normal : Normal;
+    vec3 F         = FresnelSchlick(Reflectivity, UpNormal, Incoming);
+
+    float Cosine = abs(dot(UpNormal, Incoming));
+    vec3 Specular = F  / (4 * dot(UpNormal, Outgoing) * dot(UpNormal, Incoming));
+
+    return Specular * Cosine;
+}
+
 FN_DECL float SamplePbrPDF(INOUT(vec3) Colour, float IOR, float Roughness, float Metallic, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming) {
   if (dot(Normal, Incoming) * dot(Normal, Outgoing) <= 0) return 0;
   vec3 UpNormal    = dot(Normal, Outgoing) <= 0 ? -Normal : Normal;
@@ -895,6 +926,16 @@ FN_DECL float SamplePbrPDF(INOUT(vec3) Colour, float IOR, float Roughness, float
   return F * SampleMicrofacetPDF(Roughness, UpNormal, Halfway) /
              (4 * abs(dot(Outgoing, Halfway))) +
          (1 - F) * SampleHemisphereCosinePDF(UpNormal, Incoming);
+}
+
+FN_DECL float SamplePbrPDF(INOUT(vec3) Colour, float IOR, float Metallic, INOUT(vec3) Normal, INOUT(vec3) Outgoing, INOUT(vec3) Incoming) {
+  if (dot(Normal, Incoming) * dot(Normal, Outgoing) <= 0) return 0;
+  vec3 UpNormal    = dot(Normal, Outgoing) <= 0 ? -Normal : Normal;
+  vec3 Halfway      = normalize(Outgoing + Incoming);
+  vec3 Reflectivity = mix(EtaToReflectivity(vec3(IOR, IOR, IOR)), Colour, Metallic);
+  float F = Mean(FresnelSchlick(Reflectivity, UpNormal, Outgoing));
+  return F /
+             (4 * abs(dot(Outgoing, Halfway)));
 }
 
 
@@ -1029,6 +1070,25 @@ FN_DECL vec3 EvalGlass(vec3 Colour, float IOR, float Roughness, vec3 Normal, vec
     }
 }
 
+FN_DECL vec3 EvalGlass(vec3 Colour, float IOR, vec3 Normal, vec3 Outgoing, vec3 Incoming)
+{
+    bool Entering = dot(Normal, Outgoing) >= 0;
+    vec3 UpNormal = Entering ? Normal : -Normal;
+    float RelIOR = Entering ? IOR : 1 / IOR;
+    
+    if(dot(Normal, Incoming) * dot(Normal, Outgoing) >=0)
+    {
+        float F = FresnelDielectric(RelIOR, UpNormal, Outgoing);
+        return vec3(1) * F;
+    }
+    else
+    {
+        float F = FresnelDielectric(RelIOR, UpNormal, Outgoing);
+        return vec3(1) * (1 / (RelIOR * RelIOR)) * (1 - F);
+    }
+}
+
+
 FN_DECL vec3 SampleGlass(vec3 Colour, float IOR, float Roughness, vec3 Normal, vec3 Outgoing, float RNL, vec2 RN)
 {
     bool Entering = dot(Normal, Outgoing) >= 0;
@@ -1046,6 +1106,21 @@ FN_DECL vec3 SampleGlass(vec3 Colour, float IOR, float Roughness, vec3 Normal, v
         vec3 Incoming = refract(-Outgoing, Halfway, Entering ? (1 / IOR) : IOR);
         if(SameHemisphere(UpNormal, Outgoing, Incoming)) return vec3(0);
         return Incoming;
+    }
+}
+
+FN_DECL vec3 SampleGlass(vec3 Colour, float IOR, vec3 Normal, vec3 Outgoing, float RNL)
+{
+    bool Entering = dot(Normal, Outgoing) >= 0;
+    vec3 UpNormal = Entering ? Normal : -Normal;
+    float RelIOR = Entering ? IOR : (1/IOR);
+    if(RNL < FresnelDielectric(RelIOR, UpNormal, Outgoing))
+    {
+        return reflect(-Outgoing, UpNormal);
+    }
+    else
+    {
+        return refract(-Outgoing, UpNormal, 1 / RelIOR);
     }
 }
 
@@ -1068,6 +1143,21 @@ FN_DECL float SampleGlassPDF(vec3 Colour, float IOR, float Roughness, vec3 Norma
                SampleMicrofacetPDF(Roughness, UpNormal, Halfway) * 
                abs(dot(Halfway, Incoming)) / 
                pow(RelIOR * dot(Halfway, Incoming) + dot(Halfway, Outgoing), 2.0f);
+    }
+}
+
+FN_DECL float SampleGlassPDF(vec3 Colour, float IOR, vec3 Normal, vec3 Outgoing, vec3 Incoming)
+{
+    bool Entering = dot(Normal, Outgoing) >= 0;
+    vec3 UpNormal = Entering ? Normal : -Normal;
+    float RelIOR = Entering ? IOR : (1 / IOR);
+    if(dot(Normal, Incoming) * dot(Normal, Outgoing) >= 0)
+    {
+        return FresnelDielectric(RelIOR, UpNormal, Outgoing);
+    }
+    else
+    {
+        return (1 - FresnelDielectric(RelIOR, UpNormal, Outgoing));
     }
 }
 
@@ -1121,7 +1211,10 @@ FN_DECL float SamplePhasePDF(INOUT(materialPoint) Material, vec3 Outgoing, vec3 
 
 FN_DECL bool IsDelta(INOUT(materialPoint) Material)
 {
-    return Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC;
+    return 
+    ( Material.MaterialType == MATERIAL_TYPE_PBR && Material.Roughness==0) ||
+    ( Material.MaterialType == MATERIAL_TYPE_GLASS && Material.Roughness==0) ||
+    ( Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC);    
 }
 
 FN_DECL vec3 EvalBSDFCos(INOUT(materialPoint) Material, vec3 Normal, vec3 OutgoingDir, vec3 Incoming)
@@ -1199,26 +1292,57 @@ FN_DECL vec3 SampleBSDFCos(INOUT(materialPoint) Material, INOUT(vec3) Normal, IN
 // Delta
 FN_DECL vec3 EvalDelta(INOUT(materialPoint) Material, vec3 Normal, vec3 OutgoingDir, vec3 Incoming)
 {
+    if(Material.Roughness != 0) return vec3(0,0,0);
+
     if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
     {
         return EvalVolumetric(Material.Colour, Normal, OutgoingDir, Incoming);
     }    
+    if(Material.MaterialType == MATERIAL_TYPE_PBR)
+    {
+        return EvalPbr(Material.Colour, 1.5, Material.Metallic, Normal, OutgoingDir, Incoming);
+    }
+    if(Material.MaterialType == MATERIAL_TYPE_GLASS)
+    {
+        return EvalGlass(Material.Colour, 1.5, Normal, OutgoingDir, Incoming);
+    }
 }
 
 FN_DECL float SampleDeltaPDF(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) OutgoingDir, INOUT(vec3) Incoming)
 {
+    if(Material.Roughness != 0) return 0;
+
     if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
     {
         return SampleVolumetricPDF(Material.Colour, Normal, OutgoingDir, Incoming);
-    }    
+    }
+    if(Material.MaterialType == MATERIAL_TYPE_GLASS)
+    {
+        return SampleGlassPDF(Material.Colour, 1.5, Normal, OutgoingDir, Incoming);
+    }
+    if(Material.MaterialType == MATERIAL_TYPE_PBR)
+    {
+        return SamplePbrPDF(Material.Colour, 1.5, Material.Metallic, Normal, OutgoingDir, Incoming);
+    }
 }
 
 FN_DECL vec3 SampleDelta(INOUT(materialPoint) Material, INOUT(vec3) Normal, INOUT(vec3) OutgoingDir, float RNL)
 {
+    if(Material.Roughness != 0) return vec3(0,0,0);
+
+    if(Material.MaterialType == MATERIAL_TYPE_GLASS)
+    {
+        return SampleGlass(Material.Colour, 1.5, Normal, OutgoingDir, RNL);
+    }
+    if(Material.MaterialType == MATERIAL_TYPE_PBR)
+    {
+        return SamplePbr(Material.Colour, 1.5, Material.Metallic, Normal, OutgoingDir, RNL);
+    }
     if(Material.MaterialType == MATERIAL_TYPE_VOLUMETRIC)
     {
         return SampleVolumetric(OutgoingDir);
-    }    
+    }
+
 }
 
 // MIS

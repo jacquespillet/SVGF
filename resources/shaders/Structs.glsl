@@ -95,7 +95,10 @@ struct tracingParameters
 
     vec2 Pad;    
     float CurrentCamera;    
-    float Clamp;    
+    float Clamp;
+
+    ivec3 Pad1;
+    int SamplingMode;    
 };
 
 struct material
