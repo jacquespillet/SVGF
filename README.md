@@ -143,7 +143,11 @@ Here's a summary of all the episodes in the series :
 Helpful resources that helped creating the tutorials
 
 [Physically Based Rendering online edition](https://pbr-book.org/)
+
 [Jacco Bikker Blog](https://jacco.ompf2.com/), especially the posts about BVH that we're using in our code
+
 [A Graphics Guy's Note](https://agraphicsguynotes.com/posts/)
+
 [Scratchapixel](https://www.scratchapixel.com/)
+
 [Crash Course in BRDF Implementation](https://boksajak.github.io/blog/BRDF)
