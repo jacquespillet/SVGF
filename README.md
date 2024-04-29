@@ -4,6 +4,7 @@
 This is the repository accompanying the blog post series "Simple GPU Path Tracing". It contains all the code that we write throughout the series. Each branch in this repo corresponds to a blog post.
 
 Here's a summary of all the episodes in the series :
+
 [Simple GPU Path Tracing : Introduction ](https://jacquespillet.blogspot.com/2024/03/blog-post.html)
 
 [Simple GPU Path Tracing, Part. 1 : Project Setup](https://jacquespillet.blogspot.com/2024/03/simple-gpu-path-tracing-part-1-project.html)
