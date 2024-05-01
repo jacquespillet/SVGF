@@ -1,0 +1,30 @@
+[submodule "submodules/dearimgui"]
+	path = submodules/dearimgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "submodules/ImGuizmo"]
+	path = submodules/ImGuizmo
+	url = https://github.com/CedricGuillemet/ImGuizmo.git
+[submodule "submodules/glm"]
+	path = submodules/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "submodules/tinygltf"]
+	path = submodules/tinygltf
+	url = https://github.com/syoyo/tinygltf.git
+[submodule "submodules/stb"]
+	path = submodules/stb
+	url = https://github.com/nothings/stb
+[submodule "submodules/fileDialog"]
+	path = submodules/fileDialog
+	url = https://github.com/mlabbe/nativefiledialog.git
+[submodule "submodules/glfw"]
+	path = submodules/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "submodules/glad"]
+	path = submodules/glad
+	url = https://github.com/Dav1dde/glad.git
+[submodule "submodules/assimp"]
+	path = submodules/assimp
+	url = https://github.com/assimp/assimp.git
+[submodule "submodules/oidn"]
+	path = submodules/oidn
+	url = https://github.com/OpenImageDenoise/oidn.git

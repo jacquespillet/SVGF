@@ -1,10 +1,35 @@
+#Build
+## Requirements : 
+    Visual Studio (Tested only on Visual Studio 2019)
+    Cuda installed on the system
+    NVidia GPU (for Cuda)
+    CUDA_PATH environment variable set (example  "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8" )
+
+## Commands : 
+```
+### Clone the repo and checkout to the latest branch
+git clone --recursive https://github.com/jacquespillet/gpupt_blog.git
+cd gpupt_blog
+git checkout Part_13
+
+### Generate the solution
+mkdir build
+cd build
+cmake ../
+
+### Build
+cd ..
+BuildDebug.bat / BuildRelease.bat
+
+First build may take a while because it's going to build all the dependencies with the project.
+
+```
 
 # GPU Path Tracer
 
 This is the repository accompanying the blog post series "Simple GPU Path Tracing". It contains all the code that we write throughout the series. Each branch in this repo corresponds to a blog post.
 
 Here's a summary of all the episodes in the series :
-
 [Simple GPU Path Tracing : Introduction ](https://jacquespillet.blogspot.com/2024/03/blog-post.html)
 
 [Simple GPU Path Tracing, Part. 1 : Project Setup](https://jacquespillet.blogspot.com/2024/03/simple-gpu-path-tracing-part-1-project.html)
