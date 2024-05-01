@@ -1,4 +1,4 @@
-#Build
+# Build
 ## Requirements : 
     Visual Studio (Tested only on Visual Studio 2019)
     Cuda installed on the system
