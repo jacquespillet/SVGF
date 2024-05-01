@@ -22,6 +22,8 @@ BuildDebug.bat / BuildRelease.bat
 
 First build may take a while because it's going to build all the dependencies with the project.
 
+Please contact me if the build doesn't work.
+
 ```
 
 # GPU Path Tracer
