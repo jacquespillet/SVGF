@@ -3,8 +3,6 @@
 
 #include <iostream>
 
-#include <glm/gtx/quaternion.hpp>
-#include <glm/gtx/matrix_decompose.hpp>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -12,6 +10,7 @@
 
 #include <filesystem>
 #include <unordered_map>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace gpupt
 {

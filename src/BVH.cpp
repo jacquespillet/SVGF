@@ -1,5 +1,4 @@
 #include "BVH.h"
-#include <glm/ext.hpp>
 
 
 #include "Buffer.h"

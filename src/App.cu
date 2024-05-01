@@ -1,5 +1,6 @@
 #include "App.h"
-#include <GL/glew.h>
+
+#include <glad/gl.h>
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>

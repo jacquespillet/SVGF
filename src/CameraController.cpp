@@ -1,9 +1,10 @@
 #include "CameraController.h"
 
-#include <glm/ext.hpp>
 
 #include <imgui.h>
 #include <iostream>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_access.hpp>
 
 namespace gpupt
 {

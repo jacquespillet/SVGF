@@ -1,5 +1,4 @@
 #pragma once
-#include <GL/glew.h>
 #include <cuda_gl_interop.h>
 #include <memory>
 

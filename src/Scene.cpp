@@ -1,5 +1,4 @@
 #include "Scene.h"
-#include <glm/ext.hpp>
 
 #include "Buffer.h"
 #include "App.h"
@@ -11,7 +10,10 @@
 #include "BVH.h"
 #include <unordered_map>
 
+
 #include "fstream"
+#include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace gpupt
 {
@@ -281,7 +283,7 @@ scene::scene()
         instance &FloorInstance = this->Instances.back();
         FloorInstance.Shape = (int)this->Shapes.size()-1;
         FloorInstance.Material = (int)this->Materials.size()-1;
-        FloorInstance.Transform = glm::translate(glm::scale(glm::vec3(4, 4, 4)), glm::vec3(0, -1, 0));
+        FloorInstance.Transform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.0f, 0.0f)) * glm::scale(glm::mat4(1.0f), glm::vec3(4.0f, 4.0f, 4.0f));
         this->InstanceNames.push_back("Floor");
     }
     
@@ -292,7 +294,7 @@ scene::scene()
     instance &LightInstance = this->Instances.back(); 
     LightInstance.Shape = (int)this->Shapes.size()-1;
     LightInstance.Material = (int)this->Materials.size()-1;
-    LightInstance.Transform = glm::translate(glm::vec3(0, 2, 0));
+    LightInstance.Transform = glm::translate(glm::mat4(1.0f), glm::vec3(0, 2, 0));
     this->InstanceNames.push_back("Light");
     this->MaterialNames.push_back("Light");
     

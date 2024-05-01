@@ -2,8 +2,9 @@
 #include <vector>
 #include <string>
 #include <memory>
-#include <glm/glm.hpp>
 #include "Tracing.h"
+
+#include <glm/mat4x4.hpp>
 
 #define MATERIAL_TYPE_MATTE 0
 #define MATERIAL_TYPE_PBR   1

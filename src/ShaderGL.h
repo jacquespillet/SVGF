@@ -1,8 +1,7 @@
 #pragma once
 #include <string>
 #include <memory>
-
-#include "GL/glew.h"
+#include <glad/gl.h>
 
 namespace gpupt
 {

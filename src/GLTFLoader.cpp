@@ -4,13 +4,11 @@
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <tinygltf/tiny_gltf.h>
-#include "stb_image_resize.h"
+#include <tiny_gltf.h>
+#include <deprecated/stb_image_resize.h>
 
 #include <iostream>
-
-#include <glm/gtx/quaternion.hpp>
-#include <glm/gtx/matrix_decompose.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace gpupt
 {
@@ -345,7 +343,7 @@ void TraverseNodes(tinygltf::Model &GLTFModel, uint32_t nodeIndex, glm::mat4 Par
             if(GLTFNode.rotation.size() > 0)
             {
                 glm::quat Quat((float)GLTFNode.rotation[3], (float)GLTFNode.rotation[0], (float)GLTFNode.rotation[1], (float)GLTFNode.rotation[2]);
-                rotation = glm::toMat4(Quat);
+                rotation = glm::mat4_cast(Quat);
 
             }
             if(GLTFNode.scale.size() > 0)

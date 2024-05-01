@@ -11,10 +11,10 @@
 #include "Window.h"
 #include "AssetLoader.h"
 
-#include <glm/gtx/matrix_decompose.hpp>
-#include <glm/gtx/quaternion.hpp>
-#include <glm/ext.hpp>
+#include <glm/gtc/matrix_access.hpp>
+#include <glm/trigonometric.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 namespace gpupt
 {
     
@@ -54,7 +54,7 @@ void RecomposeMatrixFromComponents(const float* translation, const float* rotati
     };
     for (int i = 0; i < 3; i++)
     {
-        rot[i] = glm::rotate(glm::radians(rotation[i]), directionUnary[i]);
+        rot[i] = glm::rotate(glm::mat4(1.0f), glm::radians(rotation[i]), directionUnary[i]);
     }
 
     matrix = rot[0] * rot[1] * rot[2];
@@ -1043,15 +1043,15 @@ bool gui::TracingGUI()
 
 void gui::GUI()
 {
-    if (ImGui::IsKeyPressed(84))
+    if (ImGui::IsKeyPressed(ImGuiKey_T))
         CurrentGizmoOperation = ImGuizmo::TRANSLATE;
-    if (ImGui::IsKeyPressed(82))
+    if (ImGui::IsKeyPressed(ImGuiKey_R))
         CurrentGizmoOperation = ImGuizmo::ROTATE;
-    if (ImGui::IsKeyPressed(83))
+    if (ImGui::IsKeyPressed(ImGuiKey_S))
         CurrentGizmoOperation = ImGuizmo::SCALE;    
     
     
-    if(ImGui::IsKeyPressed(83) && ImGui::GetIO().KeyCtrl)
+    if(ImGui::IsKeyPressed(ImGuiKey_S) && ImGui::GetIO().KeyCtrl)
     {
         if(LoadedFile != "")
             App->Scene->ToFile(LoadedFile);
