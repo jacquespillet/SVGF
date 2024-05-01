@@ -9,10 +9,7 @@ add_definitions(-DAPI_GL=${API_GL})
 add_definitions(-DAPI_CU=${API_CU})
 add_definitions(-DAPI=${API})
 
-if(WIN32)
-    set(CMAKE_CXX_FLAGS_RELEASE ) # for static libs
-    set(CMAKE_CXX_FLAGS_DEBUG)
-endif(WIN32)
+set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_BINARY_DIR}/install)
 
 
 set(IMGUI_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/submodules/dearimgui ${CMAKE_CURRENT_SOURCE_DIR}/submodules/dearimgui/backends ${CMAKE_CURRENT_SOURCE_DIR}/submodules/ImGuizmo/)
@@ -47,6 +44,7 @@ include_directories(${FILEDIALOG_INC_DIR})
 
 
 # Glfw
+set(GLFW_INSTALL FALSE)
 add_subdirectory(submodules/glfw)
 include_directories(submodules/glfw/include)
 
@@ -57,28 +55,22 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}/gladsources/glad_gl_core_33/inc
 set(GLAD_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/gladsources/glad_gl_core_33/src/gl.c)
 
 # ASSIMP
+set(ASSIMP_INSTALL_PDB OFF)
 add_subdirectory(submodules/assimp)
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/submodules/assimp/include")
 include_directories(submodules/assimp/include)
-set(ASSIMP_INSTALL_PBD OFF)
 
 # # OIDN
 SET(OIDN_DEVICE_CPU FALSE)
 add_subdirectory(submodules/oidn)
-# set(OIDN_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/oidn/include)
-# set(OIDN_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/oidn/lib)
-# set(OIDN_DLL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/oidn/bin)
-# include_directories(${OIDN_INC_DIR})
-# link_directories(${OIDN_LIB_DIR})
-
-
 
 find_package(CUDA REQUIRED)
 enable_language(CUDA)
 
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -std=c++11)
 
-link_directories("C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.8\\lib\\x64")
+set(CUDA_LIB_DIR "$ENV{CUDA_PATH}/lib/x64")
+link_directories(${CUDA_LIB_DIR})
 
 set (sourceFiles
         src/Main.cpp
