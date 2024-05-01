@@ -10,7 +10,6 @@
 ### Clone the repo and checkout to the latest branch
 git clone --recursive https://github.com/jacquespillet/gpupt_blog.git
 cd gpupt_blog
-git checkout origin/Part_13
 
 ### Generate the solution
 mkdir build
