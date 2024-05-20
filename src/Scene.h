@@ -5,6 +5,8 @@
 #include "Tracing.h"
 
 #include <glm/mat4x4.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/trigonometric.hpp>
 
 #define MATERIAL_TYPE_MATTE 0
 #define MATERIAL_TYPE_PBR   1
@@ -18,29 +20,28 @@
 namespace gpupt
 {
 class buffer;
+class bufferGL;
 class textureArrayGL;
 class textureArrayCu;
 struct sceneBVH;
 struct lights;
 struct blas;
+struct vertexBuffer;
 
 static const int InvalidID = -1;
 
 struct camera
 {
     glm::mat4 Frame  = glm::mat4(1);
-    
-    float Lens = 0.050f;
-    float Film = 0.036f;
-    float Aspect = 1.5f;
-    float Focus = 1000;
-    
-    glm::vec3 Padding0;
-    float Aperture = 0;
-      
-    int Orthographic = 0;
+
+
+    float FOV = 60.0f;
+    float Aspect = 1.0f;
+    void CalculateProj();
+    void SetAspect(float Aspect);
+    glm::mat4 ProjectionMatrix = glm::perspective(glm::radians(60.0f), 1.0f, 0.001f, 1000.0f);
+
     int Controlled = true;
-    glm::ivec2 Padding;
 };
 
 struct texture
@@ -187,6 +188,8 @@ struct scene
 
     std::shared_ptr<sceneBVH> BVH;
     std::shared_ptr<lights> Lights;
+
+    std::shared_ptr<vertexBuffer> VertexBuffer;
     
     scene();
     void ReloadTextureArray();
@@ -211,10 +214,12 @@ struct scene
 #endif    
     std::shared_ptr<buffer> CamerasBuffer;
     std::shared_ptr<buffer> EnvironmentsBuffer;
+    
+    // TODO: Use single buffer here and use cuda interrop
     std::shared_ptr<buffer> MaterialBuffer;
+    std::shared_ptr<bufferGL> MaterialBufferGL;
 };
 
-std::shared_ptr<scene> CreateCornellBox();
 void CalculateTangents(shape &Shape);
 
 }

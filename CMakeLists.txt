@@ -1,9 +1,12 @@
-project(gpuPathTracing)
+project(gpuPathTracing CXX CUDA)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CUDA_STANDARD  17)
+set(CUDA_STANDARD_REQUIRED  ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(API_GL 0)
 set(API_CU 1)
-set(API ${API_GL})
+set(API ${API_CU})
 
 add_definitions(-DAPI_GL=${API_GL})
 add_definitions(-DAPI_CU=${API_CU})
@@ -61,7 +64,8 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}/submodules/assimp/include")
 include_directories(submodules/assimp/include)
 
 # # OIDN
-SET(OIDN_DEVICE_CPU FALSE)
+SET(OIDN_DEVICE_CPU OFF)
+SET(OIDN_DEVICE_CUDA ON)
 add_subdirectory(submodules/oidn)
 
 find_package(CUDA REQUIRED)
@@ -86,6 +90,8 @@ set (sourceFiles
         src/ImageLoader.cpp
         src/TextureArrayGL.cpp
         src/TextureArrayCu.cu
+        src/Framebuffer.cpp
+        src/VertexBuffer.cpp
         src/Scene.cpp
         src/Tracing.cpp
         src/GUI.cpp
@@ -98,6 +104,10 @@ set (sourceFiles
 cuda_add_executable(PathTracer ${sourceFiles})
 target_link_libraries(PathTracer glfw opengl32 OpenImageDenoise assimp)
 target_link_libraries(PathTracer ${CUDA_LIBRARIES})
+
+set_property(TARGET PathTracer PROPERTY CXX_STANDARD 17)
+set_property(TARGET PathTracer PROPERTY CXX_STANDARD_REQUIRED ON)
+set_property(TARGET PathTracer PROPERTY CUDA_STANDARD 17)
 
 install(TARGETS PathTracer RUNTIME)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/resources/ DESTINATION bin/resources)

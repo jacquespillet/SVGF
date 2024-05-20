@@ -22,6 +22,8 @@
 #endif
 #include "GLTexToCuBuffer.cu"
 #include "ImageLoader.h"
+#include "Framebuffer.h"
+#include "VertexBuffer.h"
 
 #include <ImGuizmo.h>
 #include <algorithm>
@@ -74,26 +76,15 @@ void application::InitImGui()
 
 void application::InitGpuObjects()
 {
-#if API==API_GL
-    PathTracingShader = std::make_shared<shaderGL>("resources/shaders/PathTrace.glsl");
-    TonemapShader = std::make_shared<shaderGL>("resources/shaders/Tonemap.glsl");
-
-    TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);    
-    RenderTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
-    DenoisedTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);    
-
-    DenoiseMapping = CreateMapping(DenoisedTexture, true);    
-    RenderMapping = CreateMapping(RenderTexture);    
-
-    TracingParamsBuffer = std::make_shared<uniformBufferGL>(sizeof(tracingParameters), &Params);    
-#elif API==API_CU  
     TonemapTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
+    RenderTexture = std::make_shared<textureGL>(Window->Width, Window->Height, 4);
     RenderBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
     TonemapBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
-    RenderTextureMapping = CreateMapping(TonemapTexture);
+    RenderTextureMapping = CreateMapping(RenderTexture);
+    NormalBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
+
 
     TracingParamsBuffer = std::make_shared<buffer>(sizeof(tracingParameters), &Params);
-#endif
 }
 
 void application::CreateOIDNFilter()
@@ -101,18 +92,22 @@ void application::CreateOIDNFilter()
     cudaStreamCreate(&Stream);
     Device = oidn::newCUDADevice(0, Stream);
     Device.commit();
+    CUDA_CHECK_ERROR(cudaGetLastError());
 
     Filter = Device.newFilter("RT");
     Filter.set("hdr", true);        
     Filter.set("cleanAux", true);           
     Filter.set("quality", OIDN_QUALITY_BALANCED);        
     Filter.commit();
+    CUDA_CHECK_ERROR(cudaGetLastError());
 }
 
 
     
 void application::Init()
 {
+    Time=0;
+
     this->GUI = std::make_shared<gui>(this);
 
     GUI->GuiWidth = 200;
@@ -124,15 +119,20 @@ void application::Init()
 
     InitImGui();
 
+    CUDA_CHECK_ERROR(cudaGetLastError());
+
     // 
-    Scene = CreateCornellBox();
-    
+    Scene = std::make_shared<scene>();
     Scene->PreProcess();
+
+    CUDA_CHECK_ERROR(cudaGetLastError());
     
     Params =  GetTracingParameters();
 
     InitGpuObjects();
+    CUDA_CHECK_ERROR(cudaGetLastError());
     CreateOIDNFilter();
+    CUDA_CHECK_ERROR(cudaGetLastError());
     Inited=true;
 }
 
@@ -167,6 +167,27 @@ void application::Denoise()
     Denoised = true;
 }
 
+void application::Tonemap()
+{
+//     bool DoClear = (Scene->Instances.size()==0 || Scene->Lights->Lights.size()==0);
+// #if API==API_GL
+//     TonemapShader->Use();
+//     TonemapShader->SetTexture(0, Denoised ? DenoisedTexture->TextureID : RenderTexture->TextureID, GL_READ_WRITE);
+//     TonemapShader->SetTexture(1, TonemapTexture->TextureID, GL_READ_WRITE);
+//     TonemapShader->SetInt("DoClear", (int)DoClear);
+//     TonemapShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 + 1, 1);
+// #elif API==API_CU
+//     dim3 blockSize(16, 16);
+//     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
+
+//     glm::vec4 *Buffer = Denoised ? (glm::vec4*)DenoisedBuffer->Data : (glm::vec4*)RenderBuffer->Data;
+
+//     TonemapKernel<<<gridSize, blockSize>>>(Buffer, (glm::vec4*)TonemapBuffer->Data, RenderWidth, RenderHeight, DoClear);
+//     if(!DoSVGF) cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, TonemapBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+
+// #endif
+}
+
 void application::SaveRender(std::string ImagePath)
 {
     std::vector<uint8_t> DataU8;
@@ -174,79 +195,116 @@ void application::SaveRender(std::string ImagePath)
     ImageToFile(ImagePath, DataU8, RenderWidth, RenderHeight, 4);
 }
 
-void application::Trace()
+void application::Render()
 {
-    const char* errorMessage;
-    if (Device.getError(errorMessage) != oidn::Error::None)
-        std::cout << "Error: " << errorMessage << std::endl;
+    Scene->CamerasBuffer->updateData(0 * sizeof(camera), Scene->Cameras.data(), Scene->Cameras.size() * sizeof(camera));
 
-    if(ResetRender) 
-    {
-        Params.CurrentSample=0;
-    }
 
-    if(Scene->Instances.size() != 0 && Scene->Lights->Lights.size() != 0)
+    // Rasterize scene
+    if(CameraMoved)
     {
-        if(Params.CurrentSample < Params.TotalSamples)
+        Framebuffer->Bind();
+        glViewport(0,0, RenderWidth, RenderHeight);
+        glClearColor(0, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST); 
+        glDepthMask(GL_TRUE);
+
+        for(int i=0; i<Scene->Instances.size(); i++)
         {
-            Denoised=false;
+            GBufferShader->Use();
 
-            TracingParamsBuffer->updateData(&Params, sizeof(tracingParameters));
-            Scene->CamerasBuffer->updateData(0 * sizeof(camera), Scene->Cameras.data(), Scene->Cameras.size() * sizeof(camera));
-        #if API==API_GL
-            PathTracingShader->Use();
-            PathTracingShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
-            PathTracingShader->SetSSBO(Scene->BVH->TrianglesBuffer, 1);
-            PathTracingShader->SetSSBO(Scene->BVH->BVHBuffer, 3);
-            PathTracingShader->SetSSBO(Scene->BVH->IndicesBuffer, 4);
-            PathTracingShader->SetSSBO(Scene->BVH->IndexDataBuffer, 5);
-            PathTracingShader->SetSSBO(Scene->BVH->TLASInstancesBuffer, 6);
-            PathTracingShader->SetSSBO(Scene->BVH->TLASNodeBuffer, 7);        
-            PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
-            PathTracingShader->SetUBO(TracingParamsBuffer, 9);
-            PathTracingShader->SetSSBO(Scene->Lights->LightsBuffer, 10);
-            PathTracingShader->SetSSBO(Scene->EnvironmentsBuffer, 11);
-            PathTracingShader->SetSSBO(Scene->MaterialBuffer, 12);
-            PathTracingShader->SetTextureArray(Scene->TexArray, 13, "SceneTextures");
-            PathTracingShader->SetTextureArray(Scene->EnvTexArray, 14, "EnvTextures");
-            PathTracingShader->SetSSBO(Scene->Lights->LightsCDFBuffer, 15);
-            PathTracingShader->SetInt("EnvironmentsCount", Scene->Environments.size());
-            PathTracingShader->SetInt("LightsCount", Scene->Lights->Lights.size());
-            PathTracingShader->SetInt("EnvTexturesWidth", Scene->EnvTextureWidth);
-            PathTracingShader->SetInt("EnvTexturesHeight", Scene->EnvTextureHeight);
-    
-            PathTracingShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 +1, 1);
-    #elif API==API_CU
-            dim3 blockSize(16, 16);
-            dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
-            TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, RenderWidth, RenderHeight,
-                                                (triangle*)Scene->BVH->TrianglesBuffer->Data, (bvhNode*) Scene->BVH->BVHBuffer->Data, (uint32_t*) Scene->BVH->IndicesBuffer->Data, (indexData*) Scene->BVH->IndexDataBuffer->Data, (instance*)Scene->BVH->TLASInstancesBuffer->Data, (tlasNode*) Scene->BVH->TLASNodeBuffer->Data,
-                                                (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)Scene->MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)Scene->Lights->LightsBuffer->Data, (float*)Scene->Lights->LightsCDFBuffer->Data, (int)Scene->Lights->Lights.size(), 
-                                                (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight);
-    #endif
-            Params.CurrentSample+= Params.Batch;
+            glm::mat4 MVP = Scene->Cameras[0].ProjectionMatrix * Controller.ViewMatrix * Scene->Instances[i].Transform;
+
+
+            GBufferShader->SetMat4("ModelMatrix", Scene->Instances[i].Transform);
+            GBufferShader->SetMat4("NormalMatrix", Scene->Instances[i].NormalTransform);
+            GBufferShader->SetMat4("MVP", MVP);
+
+            GBufferShader->SetInt("MaterialIndex", Scene->Instances[i].Material);
+            GBufferShader->SetInt("InstanceIndex", i);
+            GBufferShader->SetSSBO(Scene->MaterialBufferGL, 0);
+
+            Scene->VertexBuffer->Draw(Scene->Instances[i].Shape);
+
         }
+        Framebuffer->Unbind();
     }
 
-    if(DoDenoise && !Denoised)
-    {
-        Denoise();
-    }
-
-    bool DoClear = (Scene->Instances.size()==0 || Scene->Lights->Lights.size()==0);
-#if API==API_GL
-    TonemapShader->Use();
-    TonemapShader->SetTexture(0, Denoised ? DenoisedTexture->TextureID : RenderTexture->TextureID, GL_READ_WRITE);
-    TonemapShader->SetTexture(1, TonemapTexture->TextureID, GL_READ_WRITE);
-    TonemapShader->SetInt("DoClear", (int)DoClear);
-    TonemapShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 + 1, 1);
-#elif API==API_CU
     dim3 blockSize(16, 16);
     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
-    TonemapKernel<<<gridSize, blockSize>>>(Denoised ? (glm::vec4*)DenoisedBuffer->Data : (glm::vec4*)RenderBuffer->Data, (glm::vec4*)TonemapBuffer->Data, RenderWidth, RenderHeight, DoClear);
-    cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, TonemapBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
-    CUDA_CHECK_ERROR(cudaGetLastError());
-#endif
+    TraceKernel<<<gridSize, blockSize>>>(Framebuffer->CudaMappings[0]->TexObj, Framebuffer->CudaMappings[1]->TexObj, Framebuffer->CudaMappings[2]->TexObj,  
+                                        (glm::vec4*)RenderBuffer->Data, (glm::vec4*)NormalBuffer->Data, RenderWidth, RenderHeight,
+                                        (triangle*)Scene->BVH->TrianglesBuffer->Data, (bvhNode*) Scene->BVH->BVHBuffer->Data, (uint32_t*) Scene->BVH->IndicesBuffer->Data, (indexData*) Scene->BVH->IndexDataBuffer->Data, (instance*)Scene->BVH->TLASInstancesBuffer->Data, (tlasNode*) Scene->BVH->TLASNodeBuffer->Data,
+                                        (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)Scene->MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)Scene->Lights->LightsBuffer->Data, (float*)Scene->Lights->LightsCDFBuffer->Data, (int)Scene->Lights->Lights.size(), 
+                                        (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight, Time);
+    cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+
+    // const char* errorMessage;
+    // if (Device.getError(errorMessage) != oidn::Error::None)
+    //     std::cout << "Error: " << errorMessage << std::endl;
+
+    // if(ResetRender) 
+    // {
+    //     Params.CurrentSample=0;
+    // }
+
+    // if(Scene->Instances.size() != 0 && Scene->Lights->Lights.size() != 0)
+    // {
+    //     if(Params.CurrentSample < Params.TotalSamples || Params.RefreshEveryFrame>0)
+    //     {
+    //         Denoised=false;
+
+            // TracingParamsBuffer->updateData(&Params, sizeof(tracingParameters));
+    //     #if API==API_GL
+    //         PathTracingShader->Use();
+    //         PathTracingShader->SetTexture(0, RenderTexture->TextureID, GL_READ_WRITE);
+    //         PathTracingShader->SetSSBO(Scene->BVH->TrianglesBuffer, 1);
+    //         PathTracingShader->SetSSBO(Scene->BVH->BVHBuffer, 3);
+    //         PathTracingShader->SetSSBO(Scene->BVH->IndicesBuffer, 4);
+    //         PathTracingShader->SetSSBO(Scene->BVH->IndexDataBuffer, 5);
+    //         PathTracingShader->SetSSBO(Scene->BVH->TLASInstancesBuffer, 6);
+    //         PathTracingShader->SetSSBO(Scene->BVH->TLASNodeBuffer, 7);        
+    //         PathTracingShader->SetSSBO(Scene->CamerasBuffer, 8);
+    //         PathTracingShader->SetUBO(TracingParamsBuffer, 9);
+    //         PathTracingShader->SetSSBO(Scene->Lights->LightsBuffer, 10);
+    //         PathTracingShader->SetSSBO(Scene->EnvironmentsBuffer, 11);
+    //         PathTracingShader->SetSSBO(Scene->MaterialBuffer, 12);
+    //         PathTracingShader->SetTextureArray(Scene->TexArray, 13, "SceneTextures");
+    //         PathTracingShader->SetTextureArray(Scene->EnvTexArray, 14, "EnvTextures");
+    //         PathTracingShader->SetSSBO(Scene->Lights->LightsCDFBuffer, 15);
+    //         PathTracingShader->SetInt("EnvironmentsCount", Scene->Environments.size());
+    //         PathTracingShader->SetInt("LightsCount", Scene->Lights->Lights.size());
+    //         PathTracingShader->SetInt("EnvTexturesWidth", Scene->EnvTextureWidth);
+    //         PathTracingShader->SetInt("EnvTexturesHeight", Scene->EnvTextureHeight);
+    
+    //         PathTracingShader->Dispatch(RenderWidth / 16 + 1, RenderHeight / 16 +1, 1);
+    // #elif API==API_CU
+    //         dim3 blockSize(16, 16);
+    //         dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
+    //         TraceKernel<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer->Data, (glm::vec4*)NormalBuffer->Data, RenderWidth, RenderHeight,
+    //                                             (triangle*)Scene->BVH->TrianglesBuffer->Data, (bvhNode*) Scene->BVH->BVHBuffer->Data, (uint32_t*) Scene->BVH->IndicesBuffer->Data, (indexData*) Scene->BVH->IndexDataBuffer->Data, (instance*)Scene->BVH->TLASInstancesBuffer->Data, (tlasNode*) Scene->BVH->TLASNodeBuffer->Data,
+    //                                             (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)Scene->MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)Scene->Lights->LightsBuffer->Data, (float*)Scene->Lights->LightsCDFBuffer->Data, (int)Scene->Lights->Lights.size(), 
+    //                                             (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight, Time);
+    // #endif
+
+    //         if(Params.RefreshEveryFrame==0) Params.CurrentSample += Params.Batch;
+    //     }
+    // }
+
+    // if(DoDenoise && !Denoised)
+    // {
+    //     Denoise();
+    // }
+
+    // if(DoSVGF)
+    // {
+    // }
+    // else
+    // {
+    //     Tonemap();
+    // }
+
 }
 
 void application::Run()
@@ -259,20 +317,25 @@ void application::Run()
             Timer.Start();
         }
 
+        Time += 0.001f;
+
         Window->PollEvents();
         StartFrame();
         ResetRender=false;
-
+        
         
         if(Scene->Cameras.size() > 0 &&  Scene->Cameras[int(Params.CurrentCamera)].Controlled)
         {
-            ResetRender |= Controller.Update();        
+            CameraMoved = Controller.Update() || Frame==0;
+            ResetRender |= CameraMoved; 
             Scene->Cameras[int(Params.CurrentCamera)].Frame = Controller.ModelMatrix;
         }
 
 
+        CUDA_CHECK_ERROR(cudaGetLastError());
         GUI->GUI();
-        Trace();
+        
+        Render();
         
 
         EndFrame();
@@ -298,41 +361,41 @@ void application::Cleanup()
 void application::ResizeRenderTextures()
 {
     if(!Inited) return;
-#if API==API_GL
-    glMemoryBarrier(GL_ALL_BARRIER_BITS);
 
-    RenderTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
-    TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);    
-    DenoisedTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);    
-    
-    RenderMapping = CreateMapping(RenderTexture);    
-    DenoiseMapping = CreateMapping(DenoisedTexture, true);    
+    std::vector<framebufferDescriptor> Desc = 
+    {
+        {GL_RGBA32F, GL_RGBA, GL_FLOAT, sizeof(glm::vec4)}, //Position
+        {GL_RGBA32F, GL_RGBA, GL_FLOAT, sizeof(glm::vec4)}, //Normal 
+        {GL_RGBA32F, GL_RGBA, GL_FLOAT, sizeof(glm::vec4)}, //Barycentric coordinates
+    };
+    CUDA_CHECK_ERROR(cudaGetLastError());
+    Framebuffer = std::make_shared<framebuffer>(RenderWidth, RenderHeight, Desc);
+    CUDA_CHECK_ERROR(cudaGetLastError());
+    GBufferShader = std::make_shared<shaderGL>("resources/shaders/GBuffer.vert", "resources/shaders/GBuffer.frag");
+    CUDA_CHECK_ERROR(cudaGetLastError());
 
-    cudaFree(DenoisedBufferData);
-    cudaMalloc((void**)&DenoisedBufferData, RenderWidth * RenderHeight * sizeof(glm::vec4));
     
-    // Allocate cuda buffer for denoise
-    Filter.setImage("color",  RenderMapping->CudaBuffer,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-    Filter.setImage("output", DenoisedBufferData, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
-    Filter.commit();
-#elif API==API_CU
     cudaDeviceSynchronize();
     TonemapTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
+    RenderTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
     RenderBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     TonemapBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
-    RenderTextureMapping = CreateMapping(TonemapTexture);
-
+    RenderTextureMapping = CreateMapping(RenderTexture);
+    NormalBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    
+    CUDA_CHECK_ERROR(cudaGetLastError());
     DenoisedBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     Filter.setImage("color",  RenderBuffer->Data,   oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
     Filter.setImage("output", DenoisedBuffer->Data, oidn::Format::Float3, RenderWidth, RenderHeight, 0, sizeof(glm::vec4), sizeof(glm::vec4) * RenderWidth);
     Filter.commit();
-#endif
 
 
+    CUDA_CHECK_ERROR(cudaGetLastError());
     Params.CurrentSample=0;
-    Scene->Cameras[int(Params.CurrentCamera)].Aspect = (float)RenderWidth / (float)RenderHeight;
-
+    Scene->Cameras[int(Params.CurrentCamera)].SetAspect((float)RenderWidth / (float)RenderHeight);
+    
     ResetRender=true;
+    CUDA_CHECK_ERROR(cudaGetLastError());
 }
 
 void application::CalculateWindowSizes()
@@ -340,7 +403,8 @@ void application::CalculateWindowSizes()
     if(!Inited) return;
     if(Scene->Cameras.size() == 0) return;
     
-    
+    CUDA_CHECK_ERROR(cudaGetLastError());
+
     // GUIWindow size
     RenderWindowWidth = Window->Width - GUI->GuiWidth;
     RenderWindowHeight = Window->Height;
@@ -351,6 +415,7 @@ void application::CalculateWindowSizes()
     // Set the render width accordingly
     uint32_t NewRenderWidth, NewRenderHeight;
 
+    CUDA_CHECK_ERROR(cudaGetLastError());
     if(RenderAspectRatio > 1)
     {
         NewRenderWidth = RenderResolution * RenderAspectRatio;
@@ -362,9 +427,10 @@ void application::CalculateWindowSizes()
         NewRenderHeight = RenderResolution / RenderAspectRatio;
     }
 
+    CUDA_CHECK_ERROR(cudaGetLastError());
     if(Inited && Scene->Cameras[int(Params.CurrentCamera)].Aspect != RenderAspectRatio)
     {
-        Scene->Cameras[int(Params.CurrentCamera)].Aspect = RenderAspectRatio;
+        Scene->Cameras[int(Params.CurrentCamera)].SetAspect(RenderAspectRatio);
         ResetRender = true;
     }
 
@@ -373,7 +439,9 @@ void application::CalculateWindowSizes()
         RenderWidth = NewRenderWidth;
         RenderHeight = NewRenderHeight;
         ResizeRenderTextures();
+    
     }
+    CUDA_CHECK_ERROR(cudaGetLastError());
 }
 
 void application::OnResize(uint32_t NewWidth, uint32_t NewHeight)

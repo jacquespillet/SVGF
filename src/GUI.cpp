@@ -10,6 +10,7 @@
 #include "Buffer.h"
 #include "Window.h"
 #include "AssetLoader.h"
+#include "Framebuffer.h"
 
 #include <glm/gtc/matrix_access.hpp>
 #include <glm/trigonometric.hpp>
@@ -736,10 +737,7 @@ bool gui::CameraGUI(int CameraInx)
 
     ImGui::Text(App->Scene->CameraNames[CameraInx].c_str());
 
-    Changed |= ImGui::DragFloat("Lens", &App->Scene->Cameras[CameraInx].Lens, 0.005f, 0.0001f, 0.5f);
-    Changed |= ImGui::DragFloat("Film", &App->Scene->Cameras[CameraInx].Film, 0.005f, 0.0001f, 0.5f);
-    Changed |= ImGui::DragFloat("Focus", &App->Scene->Cameras[CameraInx].Focus, 0.1f);
-    Changed |= ImGui::DragFloat("Aperture", &App->Scene->Cameras[CameraInx].Aperture, 0.005f, 0.0001f, 0.5f);
+    Changed |= ImGui::DragFloat("Aperture", &App->Scene->Cameras[CameraInx].FOV, 0.5f, 10.0f, 180.0f);
     
     if(ImGui::Button("Duplicate"))
     {
@@ -793,10 +791,7 @@ bool gui::CamerasGUI()
     {
         App->Scene->Cameras.emplace_back();
         camera &Camera = App->Scene->Cameras.back();
-        Camera.Lens = 0.035f;
-        Camera.Aperture = 0.0f;
-        Camera.Focus = 3.9f;
-        Camera.Film = 0.024f;
+        Camera.FOV = 60.0f;
         Camera.Aspect = (float)App->RenderWindowWidth / (float)App->RenderWindowWidth;
         Camera.Controlled = 1;  
         App->Scene->CameraNames.push_back("New Camera");
@@ -991,7 +986,9 @@ bool gui::TracingGUI()
     ImGui::SliderInt("Batches", &App->Params.Batch, 0, 32);
     Changed |= ImGui::SliderInt("Bounces", &App->Params.Bounces, 0, 32);
     Changed |= ImGui::DragFloat("Clamp", &App->Params.Clamp, 0.1f, 0.0f, 32.0f);    
-    ImGui::Checkbox("Denoise", &App->DoDenoise);
+    if(!App->DoSVGF )ImGui::Checkbox("Denoise", &App->DoDenoise);
+    if(!App->DoDenoise) ImGui::Checkbox("SVGF", &App->DoSVGF);
+    
     
     if(ImGui::DragInt("Resolution", &App->RenderResolution, 10, 128, 3840))
     {
@@ -1145,7 +1142,8 @@ void gui::GUI()
 
     
 
-    ImGui::Image((ImTextureID)App->TonemapTexture->TextureID, ImVec2(RenderWindowWidth, RenderWindowHeight));
+    ImGui::Image((ImTextureID)App->RenderTexture->TextureID, ImVec2(RenderWindowWidth, RenderWindowHeight),ImVec2(0, 1), ImVec2(1, 0));
+    // ImGui::Image((ImTextureID)App->Framebuffer->GetTexture(1), ImVec2(RenderWindowWidth, RenderWindowHeight), ImVec2(0, 1), ImVec2(1, 0));
     if(SelectedInstanceIndices.size()==1)
     {
         int SelectedInstance = *SelectedInstanceIndices.begin();
@@ -1160,12 +1158,8 @@ void gui::GUI()
 
         ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList()); 
         
-        float A = Camera.Lens;
-        float O = Camera.Film/2;
-        float Theta = atan2(O, A) * 2;
-        glm::mat4 ProjMatrix = glm::perspective(Theta, Camera.Aspect, 0.001f, 100.0f);
         glm::mat4 CorrectedTransform = glm::translate(ModelMatrix, App->Scene->Shapes[Instance.Shape].Centroid);
-        if(ImGuizmo::Manipulate(glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix), CurrentGizmoOperation, CurrentGizmoMode, glm::value_ptr(CorrectedTransform), NULL, NULL))
+        if(ImGuizmo::Manipulate(glm::value_ptr(ViewMatrix), glm::value_ptr(Camera.ProjectionMatrix), CurrentGizmoOperation, CurrentGizmoMode, glm::value_ptr(CorrectedTransform), NULL, NULL))
         {
             App->Scene->Instances[SelectedInstance].Transform = glm::translate(CorrectedTransform, -App->Scene->Shapes[Instance.Shape].Centroid);
             App->Scene->BVH->UpdateTLAS(SelectedInstance);

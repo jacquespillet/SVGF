@@ -83,6 +83,19 @@
         "string_view": "cpp",
         "__hash_table": "cpp",
         "__split_buffer": "cpp",
-        "__tree": "cpp"
+        "__tree": "cpp",
+        "__config": "cpp",
+        "any": "cpp",
+        "cfenv": "cpp",
+        "cinttypes": "cpp",
+        "complex": "cpp",
+        "condition_variable": "cpp",
+        "future": "cpp",
+        "queue": "cpp",
+        "random": "cpp",
+        "regex": "cpp",
+        "typeindex": "cpp",
+        "unordered_set": "cpp",
+        "variant": "cpp"
     }
 }

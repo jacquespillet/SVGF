@@ -8,6 +8,7 @@
 
 namespace gpupt
 {
+
 buffer::buffer(size_t DataSize, const void* InitData) {
 #if API==API_GL
     glGenBuffers(1, &BufferID);
@@ -74,7 +75,49 @@ void buffer::updateData(size_t offset, const void* data, size_t DataSize) {
 #endif
 }
 
+// 
 
+
+bufferGL::bufferGL(size_t DataSize, const void* InitData) {
+    glGenBuffers(1, &BufferID);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, BufferID);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, DataSize, InitData, GL_DYNAMIC_COPY);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void bufferGL::Reallocate(const void* InitData, size_t DataSize)
+{
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, BufferID);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, DataSize, InitData, GL_DYNAMIC_COPY);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+bufferGL::~bufferGL() {
+    if(BufferID != (GLuint)-1)
+        Destroy();
+}
+
+void bufferGL::Destroy()
+{
+    glDeleteBuffers(1, &BufferID);
+    BufferID = (GLuint)-1;
+}
+
+void bufferGL::updateData(const void* data, size_t DataSize) {
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, BufferID);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, DataSize, data);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void bufferGL::updateData(size_t offset, const void* data, size_t DataSize) {
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, BufferID);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, offset, DataSize, data);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+
+
+// 
 
 uniformBufferGL::uniformBufferGL(size_t DataSize, const void* data) {
     glGenBuffers(1, &BufferID);

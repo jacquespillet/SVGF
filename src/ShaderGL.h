@@ -2,11 +2,12 @@
 #include <string>
 #include <memory>
 #include <glad/gl.h>
+#include <glm/mat4x4.hpp>
 
 namespace gpupt
 {
 
-class buffer;
+class bufferGL;
 class uniformBufferGL;
 class textureArrayGL;
 
@@ -14,12 +15,14 @@ class shaderGL {
 public:
     shaderGL() = default;
     shaderGL(const char* computePath);
+    shaderGL(const char* VertexPath, const char *FragmentPath);
     void Destroy();
     void Use();
     void SetInt(const std::string& name, int value);
+    void SetMat4(const std::string &Name, glm::mat4 &Matrix);
     void SetTexture(int ImageUnit, GLuint TextureID, GLenum Access);
     void SetTexture(int ImageUnit, GLuint TextureID) const;
-    void SetSSBO(std::shared_ptr<buffer> Buffer, int BindingPoint);
+    void SetSSBO(std::shared_ptr<bufferGL> Buffer, int BindingPoint);
     void SetUBO(std::shared_ptr<uniformBufferGL> Buffer, int BindingPoint);
     void SetTextureArray(std::shared_ptr<textureArrayGL> Texture, int Unit, std::string Name);
     void Dispatch(uint32_t X, uint32_t Y, uint32_t Z);

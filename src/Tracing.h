@@ -25,7 +25,8 @@ struct tracingParameters
     float CurrentCamera;    
     float Clamp;
 
-    glm::ivec3 Pad1;
+    glm::ivec2 Pad1;
+    int RefreshEveryFrame=1;
     int SamplingMode;
 };
 

@@ -1,4 +1,3 @@
-#if API==API_GL
 #include "ShaderGL.h"
 #include <fstream>
 #include <iostream>
@@ -6,6 +5,7 @@
 
 #include "Buffer.h"
 #include "TextureArrayGL.h"
+#include <glm/gtc/type_ptr.hpp>
 
 namespace gpupt
 {
@@ -14,6 +14,36 @@ shaderGL::shaderGL(const char* computePath) {
     GLuint Shader = CompileShader(GL_COMPUTE_SHADER, VShaderCode.c_str());
     ID = LinkShader(Shader);
     glDeleteShader(Shader);
+}
+
+shaderGL::shaderGL(const char* VertexPath, const char *FragmentPath) {
+    std::string VShaderCode = ReadFile(VertexPath);
+    GLuint VertexShader = CompileShader(GL_VERTEX_SHADER, VShaderCode.c_str());
+    std::string FShaderCode = ReadFile(FragmentPath);
+    GLuint FragmentShader = CompileShader(GL_FRAGMENT_SHADER, FShaderCode.c_str());
+    
+    if (!VertexShader || !FragmentShader) {
+        std::cerr << "Failed to create shader program." << std::endl;
+        exit(0);
+    }
+
+    ID = glCreateProgram();
+    glAttachShader(ID, VertexShader);
+    glAttachShader(ID, FragmentShader);
+    glLinkProgram(ID);
+
+    GLint success;
+    glGetProgramiv(ID, GL_LINK_STATUS, &success);
+    if (!success) {
+        GLchar infoLog[512];
+        glGetProgramInfoLog(ID, 512, NULL, infoLog);
+        std::cerr << "Shader program linking error:\n" << infoLog << std::endl;
+        glDeleteProgram(ID);
+        exit(0);
+    }
+
+    glDeleteShader(VertexShader);
+    glDeleteShader(FragmentShader);
 }
 
 shaderGL::~shaderGL()
@@ -35,6 +65,10 @@ void shaderGL::SetInt(const std::string& name, int value) {
     glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
 }
 
+void shaderGL::SetMat4(const std::string& name, glm::mat4 &Matrix) {
+    glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, glm::value_ptr(Matrix));
+}
+
 void shaderGL::SetTexture(int ImageUnit, GLuint TextureID, GLenum Access) {
     glBindImageTexture(ImageUnit, TextureID, 0, GL_FALSE, 0, Access, GL_RGBA32F);
 }
@@ -43,7 +77,7 @@ void shaderGL::SetTexture(int ImageUnit, GLuint TextureID) const {
     glBindTextureUnit(ImageUnit, TextureID);
 }
 
-void shaderGL::SetSSBO(std::shared_ptr<buffer> Buffer, int BindingPoint)
+void shaderGL::SetSSBO(std::shared_ptr<bufferGL> Buffer, int BindingPoint)
 {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, Buffer->BufferID);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BindingPoint, Buffer->BufferID);
@@ -159,4 +193,3 @@ GLuint shaderGL::LinkShader(GLuint ComputeShader) const {
     return Program;
 }
 }
-#endif

@@ -372,6 +372,10 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
         RunningIndicesCount += (uint32_t)Scene->Shapes[i].BVH->TriangleIndices.size();
         RunningBVHNodeCount += (uint32_t)Scene->Shapes[i].BVH->NodesUsed;
     }
+
+    // GL Objects
+    
+
     // BLAS
     Result->TrianglesBuffer =std::make_shared<buffer>(Result->AllTriangles.size() * sizeof(triangle), Result->AllTriangles.data());
     Result->BVHBuffer =std::make_shared<buffer>(Result->AllBVHNodes.size() * sizeof(bvhNode), Result->AllBVHNodes.data());
