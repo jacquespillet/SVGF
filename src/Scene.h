@@ -33,7 +33,7 @@ static const int InvalidID = -1;
 struct camera
 {
     glm::mat4 Frame  = glm::mat4(1);
-
+    glm::mat4 PreviousFrame = glm::mat4(1);
 
     float FOV = 60.0f;
     float Aspect = 1.0f;

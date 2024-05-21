@@ -1787,28 +1787,30 @@ MAIN()
     UV.y = 1 - UV.y;
     
     if (GlobalID.x < Width && GlobalID.y < Height) {
-        vec4 PrevCol = imageLoad(RenderImage, ivec2(GlobalID));
-        vec4 NewCol = vec4(1,0,0,1);
+        vec3 PrevCol = imageLoad(PreviousImage, ivec2(GlobalID));
         vec3 Normal;
+        float InverseSampleCount = 1.0f / float(GET_ATTR(Parameters, Batch));
+        vec3 Radiance = vec3(0);
         for(int Sample=0; Sample < GET_ATTR(Parameters, Batch); Sample++)
         {
-            vec3 Radiance;
             if(GET_ATTR(Parameters, SamplingMode) == SAMPLING_MODE_MIS)
             {
-                Radiance = PathTraceMIS(Sample, UV, Normal);
+                Radiance += PathTraceMIS(Sample, UV, Normal) * InverseSampleCount;
             }
             else
             {
-                Radiance = PathTrace(Sample, UV, Normal);
+                Radiance += PathTrace(Sample, UV, Normal) * InverseSampleCount;
             }
-            float SampleWeight = 1.0f / (float(GET_ATTR(Parameters,CurrentSample) + Sample) + 1);
-            NewCol = mix(PrevCol, vec4(Radiance.x, Radiance.y, Radiance.z, 1.0f), SampleWeight);
-            PrevCol = NewCol;    
         }
 
-        // float4 Colour = tex2D<float4>(PositionTexture, GlobalID.x, GlobalID.y);
-        // NewCol = vec4(Colour.x, Colour.y, Colour.z, 1.0f);
-        imageStore(RenderImage, ivec2(GlobalID), NewCol);
+
+        float Alpha = 1.0f / float(GET_ATTR(Parameters,CurrentSample) + 1);
+        // vec3 NewCol = mix(PrevCol, Radiance, Alpha);
+        // vec3 NewCol =  (1.0f - Alpha) * PrevCol + Alpha * Radiance;
+        vec3 NewCol = mix(PrevCol, Radiance, Alpha);
+
+
+        imageStore(RenderImage, ivec2(GlobalID), vec4(NewCol, 1.0f));
         imageStore(NormalImage, ivec2(GlobalID), vec4(Normal, 1.0f));
     }
 }

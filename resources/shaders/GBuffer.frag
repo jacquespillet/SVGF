@@ -4,10 +4,12 @@ in vec3 FragPosition;     // Fragment position in world space
 in vec3 FragNormal;      // Normal in world space
 in vec3 BarycentricCoord;      // Normal in world space
 flat in uint FragPrimitiveIndex;
+flat in vec2 MotionVector;
 
 layout (location = 0) out vec4 OutPosition;
 layout (location = 1) out vec4 OutNormal;
 layout (location = 2) out vec4 OutUV;
+layout (location = 3) out vec4 OutMotionVectors;
 
 struct material
 {
@@ -46,7 +48,9 @@ void main()
 
     OutUV.w = float(InstanceIndex);
     OutNormal.w = float(MaterialIndex);
-    // OutPosition.w = float(FragPrimitiveIndex);
     OutPosition.w = float(FragPrimitiveIndex);
+
+    OutMotionVectors = vec4(MotionVector, 0, 1);
+
     
 }

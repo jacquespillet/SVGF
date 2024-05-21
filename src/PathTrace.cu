@@ -47,8 +47,8 @@ __device__ cudaTextureObject_t UVTexture;
 struct rgba8 { uint8_t r, g, b, a; };
 
 #define MAIN() \
-__global__ void TraceKernel(cudaTextureObject_t _PositionTexture, cudaTextureObject_t _NormalTexture, cudaTextureObject_t _UVTexture, \
-                            vec4 *RenderImage, vec4 *NormalImage, int _Width, int _Height, \
+__global__ void TraceKernel(cudaTextureObject_t _PositionTexture, cudaTextureObject_t _NormalTexture, cudaTextureObject_t _UVTexture, vec4 *RenderImage, \
+                            vec4 *PreviousImage, vec4 *NormalImage, int _Width, int _Height, \
                             triangle *_AllTriangles, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, instance *_Instances, tlasNode *_TLASNodes,\
                             camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures, int _TexturesWidth, int _TexturesHeight, light *_Lights, float *_LightsCDF, int _LightsCount,\
                             environment *_Environments, int _EnvironmentsCount, cudaTextureObject_t _EnvTextures, int _EnvTexturesWidth, int _EnvTexturesHeight, float _Time)
@@ -442,4 +442,39 @@ __global__ void TAAFilterKernel(vec4 *InputFiltered, vec4 *Output, int Width, in
 
         imageStore(Output , FragCoord , fragColor);
     }
+}
+
+
+__global__ void BilateralFilterKernel(vec4 *Input, vec4 *Output, int Width, int Height, int Diameter, float SigmaI, float SigmaS)
+{
+
+    vec2 Resolution = vec2(float(Width), float(Height));
+    vec2 InvTexResolution = vec2(1.0f / float(Width), 1.0f / float(Height));
+    ivec2 FragCoord = ivec2 ( GLOBAL_ID() );
+    vec2 uv = vec2(FragCoord) * InvTexResolution;
+
+    if (FragCoord.x < Width && FragCoord.y < Height) {
+        int halfDiameter = Diameter / 2;
+        vec3 Sum(0.0f);
+        vec3 Normalization(0.0f);
+        vec3 centerValue = Input[FragCoord.y * Width + FragCoord.x];
+
+        for (int i = -halfDiameter; i <= halfDiameter; ++i) {
+            for (int j = -halfDiameter; j <= halfDiameter; ++j) {
+                int neighborX = min(max(FragCoord.x + j, 0), Width - 1);
+                int neighborY = min(max(FragCoord.y + i, 0), Height - 1);
+                vec3 neighborValue = Input[neighborY * Width + neighborX];
+
+                float spatialWeight = expf(-(j * j + i * i) / (2 * SigmaS * SigmaS));
+                vec3 intensityWeight = exp(-(neighborValue - centerValue) * (neighborValue - centerValue) / (2 * SigmaI * SigmaI));
+                vec3 weight = spatialWeight * intensityWeight;
+
+                Sum += neighborValue * weight;
+                Normalization += weight;
+            }
+        }
+
+        vec3 Result = Sum / Normalization;
+        Output[FragCoord.y * Width + FragCoord.x] = vec4(Result, 1.0f);     
+    }    
 }

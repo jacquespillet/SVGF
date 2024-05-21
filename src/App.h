@@ -80,12 +80,17 @@ private:
     timer Timer;
 
     std::shared_ptr<buffer> TracingParamsBuffer;
-    std::shared_ptr<buffer> RenderBuffer;
+    std::shared_ptr<buffer> RenderBuffer[2];
+
     std::shared_ptr<buffer> NormalBuffer;
     std::shared_ptr<buffer> TonemapBuffer;    
     std::shared_ptr<buffer> DenoisedBuffer;    
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<cudaTextureMapping> RenderTextureMapping;
+
+    std::shared_ptr<buffer> FilterBuffer;
+    
+    int PingPongInx=0;
 
 
     void Render();

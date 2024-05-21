@@ -478,7 +478,7 @@ void scene::FromFile(std::string FileName)
         Camera.Controlled = _Cameras[i].Controlled;
         Cameras.push_back(Camera);
     }
-
+        
     DeserializeVector(InStream, Materials);
     DeserializeVector(InStream, Instances);
     DeserializeVector(InStream, Environments);
