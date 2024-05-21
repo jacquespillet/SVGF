@@ -69,6 +69,10 @@ void shaderGL::SetMat4(const std::string& name, glm::mat4 &Matrix) {
     glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, glm::value_ptr(Matrix));
 }
 
+void shaderGL::SetVec3(const std::string& name, glm::vec3 &Vector) {
+    glUniform3fv(glGetUniformLocation(ID, name.c_str()), 1, glm::value_ptr(Vector));
+}
+
 void shaderGL::SetTexture(int ImageUnit, GLuint TextureID, GLenum Access) {
     glBindImageTexture(ImageUnit, TextureID, 0, GL_FALSE, 0, Access, GL_RGBA32F);
 }

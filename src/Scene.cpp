@@ -16,6 +16,16 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#define CUDA_CHECK_ERROR(err) \
+    do { \
+        cudaError_t error = err; \
+        if (error != cudaSuccess) { \
+            std::cout << "CUDA error at " << __FILE__ << ":" << __LINE__ << " - " << cudaGetErrorString(error) << std::endl; \
+            assert(false); \
+        } \
+    } while (0)
+
+
 namespace gpupt
 {
 template<typename T>
@@ -341,9 +351,11 @@ void scene::RemoveInstance(int InstanceInx)
 void scene::PreProcess()
 {
     this->ReloadTextureArray();
+    CUDA_CHECK_ERROR(cudaGetLastError());
 
     // Ensure name unicity
     CheckNames();
+    CUDA_CHECK_ERROR(cudaGetLastError());
 
     for(size_t i=0; i<Instances.size(); i++)
     {
@@ -351,15 +363,24 @@ void scene::PreProcess()
         CalculateInstanceTransform(i);
     }
 
+    CUDA_CHECK_ERROR(cudaGetLastError());
 
     BVH = CreateBVH(this); 
+    CUDA_CHECK_ERROR(cudaGetLastError());
     VertexBuffer = std::make_shared<vertexBuffer>(this);
+    CUDA_CHECK_ERROR(cudaGetLastError());
     Lights = std::make_shared<lights>();
+    CUDA_CHECK_ERROR(cudaGetLastError());
     Lights->Build(this);
+    CUDA_CHECK_ERROR(cudaGetLastError());
     this->CamerasBuffer = std::make_shared<buffer>(this->Cameras.size() * sizeof(camera), this->Cameras.data());
+    CUDA_CHECK_ERROR(cudaGetLastError());
     this->EnvironmentsBuffer = std::make_shared<buffer>(this->Environments.size() * sizeof(environment), this->Environments.data());
+    CUDA_CHECK_ERROR(cudaGetLastError());
     this->MaterialBuffer = std::make_shared<buffer>(sizeof(material) * Materials.size(), Materials.data());
+    CUDA_CHECK_ERROR(cudaGetLastError());
     this->MaterialBufferGL = std::make_shared<bufferGL>(sizeof(material) * Materials.size(), Materials.data());
+    CUDA_CHECK_ERROR(cudaGetLastError());
 }
 
 
@@ -370,25 +391,25 @@ void scene::ReloadTextureArray()
     assert(8192 % EnvTextureWidth==0);
     assert(8192 % EnvTextureHeight==0);
 
-#if API==API_GL
-    TexArray = std::make_shared<textureArrayGL>();
-    EnvTexArray = std::make_shared<textureArrayGL>();
-#elif API==API_CU
+    CUDA_CHECK_ERROR(cudaGetLastError());
+
     TexArray = std::make_shared<textureArrayCu>();
     EnvTexArray = std::make_shared<textureArrayCu>();
-#endif
+    CUDA_CHECK_ERROR(cudaGetLastError());
 
     TexArray->CreateTextureArray(TextureWidth, TextureHeight, Textures.size());
     for (size_t i = 0; i < Textures.size(); i++)
     {
         TexArray->LoadTextureLayer(i, Textures[i].Pixels, TextureWidth, TextureHeight);
     }
+    CUDA_CHECK_ERROR(cudaGetLastError());
 
     EnvTexArray->CreateTextureArray(EnvTextureWidth, EnvTextureHeight, EnvTextures.size(), true);
     for (size_t i = 0; i < EnvTextures.size(); i++)
     {
         EnvTexArray->LoadTextureLayer(i, EnvTextures[i].PixelsF, EnvTextureWidth, EnvTextureHeight);
     }
+    CUDA_CHECK_ERROR(cudaGetLastError());
 }
 
 

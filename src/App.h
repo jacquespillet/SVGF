@@ -19,6 +19,11 @@ class gui;
 class framebuffer;
 
 
+struct cudaFramebuffer
+{
+    unsigned long long PositionTexture, NormalTexture, UVTexture, MotionTexture;
+};
+
 class application
 {
 public:
@@ -72,7 +77,7 @@ private:
 
     float Time=0;
 
-    std::shared_ptr<framebuffer> Framebuffer;
+    std::shared_ptr<framebuffer> Framebuffer[2];
     std::shared_ptr<shaderGL> GBufferShader;
     std::shared_ptr<textureGL> TonemapTexture;
 
@@ -83,12 +88,13 @@ private:
     std::shared_ptr<buffer> RenderBuffer[2];
 
     std::shared_ptr<buffer> NormalBuffer;
-    std::shared_ptr<buffer> TonemapBuffer;    
-    std::shared_ptr<buffer> DenoisedBuffer;    
+    std::shared_ptr<buffer> FilterBuffer;
+    std::shared_ptr<buffer> HistoryLengthBuffer;
+    // std::shared_ptr<buffer> TonemapBuffer;    
+    // std::shared_ptr<buffer> DenoisedBuffer;    
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<cudaTextureMapping> RenderTextureMapping;
 
-    std::shared_ptr<buffer> FilterBuffer;
     
     int PingPongInx=0;
 

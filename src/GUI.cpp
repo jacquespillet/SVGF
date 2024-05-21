@@ -1143,7 +1143,7 @@ void gui::GUI()
     
 
     ImGui::Image((ImTextureID)App->RenderTexture->TextureID, ImVec2(RenderWindowWidth, RenderWindowHeight),ImVec2(0, 1), ImVec2(1, 0));
-    // ImGui::Image((ImTextureID)App->Framebuffer->GetTexture(1), ImVec2(RenderWindowWidth, RenderWindowHeight), ImVec2(0, 1), ImVec2(1, 0));
+    // ImGui::Image((ImTextureID)App->Framebuffer[0]->GetTexture(1), ImVec2(RenderWindowWidth, RenderWindowHeight), ImVec2(0, 1), ImVec2(1, 0));
     if(SelectedInstanceIndices.size()==1)
     {
         int SelectedInstance = *SelectedInstanceIndices.begin();

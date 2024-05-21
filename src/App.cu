@@ -81,9 +81,9 @@ void application::InitGpuObjects()
     RenderBuffer[0] = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
     RenderBuffer[1] = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
     FilterBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
-    TonemapBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
     RenderTextureMapping = CreateMapping(RenderTexture);
     NormalBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
+    HistoryLengthBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * sizeof(uint8_t));
 
 
     TracingParamsBuffer = std::make_shared<buffer>(sizeof(tracingParameters), &Params);
@@ -125,14 +125,14 @@ void application::Init()
 
     // 
     Scene = std::make_shared<scene>();
-    Scene->PreProcess();
-
     CUDA_CHECK_ERROR(cudaGetLastError());
+    Scene->PreProcess();
+    CUDA_CHECK_ERROR(cudaGetLastError());
+
     
     Params =  GetTracingParameters();
 
     InitGpuObjects();
-    CUDA_CHECK_ERROR(cudaGetLastError());
     CreateOIDNFilter();
     CUDA_CHECK_ERROR(cudaGetLastError());
     Inited=true;
@@ -198,7 +198,7 @@ void application::Render()
     // Rasterize scene
     // if(CameraMoved)
     {
-        Framebuffer->Bind();
+        Framebuffer[PingPongInx]->Bind();
         glViewport(0,0, RenderWidth, RenderHeight);
         glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -211,29 +211,34 @@ void application::Render()
 
             glm::mat4 MVP = Scene->Cameras[Params.CurrentCamera].ProjectionMatrix * glm::inverse(Scene->Cameras[Params.CurrentCamera].Frame) * Scene->Instances[i].Transform;
             glm::mat4 PrevMVP = Scene->Cameras[Params.CurrentCamera].ProjectionMatrix * glm::inverse(Scene->Cameras[Params.CurrentCamera].PreviousFrame) * Scene->Instances[i].Transform;
-
+            glm::vec3 CameraPosition = Scene->Cameras[Params.CurrentCamera].Frame * glm::vec4(0,0,0,1);
 
             GBufferShader->SetMat4("ModelMatrix", Scene->Instances[i].Transform);
             GBufferShader->SetMat4("NormalMatrix", Scene->Instances[i].NormalTransform);
             GBufferShader->SetMat4("MVP", MVP);
-            GBufferShader->SetMat4("PrevMVP", PrevMVP);
+            GBufferShader->SetMat4("PreviousMVP", PrevMVP);
+            GBufferShader->SetVec3("CameraPosition", CameraPosition);
 
             GBufferShader->SetInt("MaterialIndex", Scene->Instances[i].Material);
             GBufferShader->SetInt("InstanceIndex", i);
+            GBufferShader->SetInt("Width", RenderWidth);
+            GBufferShader->SetInt("Height", RenderHeight);
             GBufferShader->SetSSBO(Scene->MaterialBufferGL, 0);
 
             Scene->VertexBuffer->Draw(Scene->Instances[i].Shape);
 
         }
-        Framebuffer->Unbind();
+        Framebuffer[PingPongInx]->Unbind();
     }
 
     // Path Trace
     dim3 blockSize(16, 16);
     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);
     
-    TraceKernel<<<gridSize, blockSize>>>(Framebuffer->CudaMappings[0]->TexObj, Framebuffer->CudaMappings[1]->TexObj, Framebuffer->CudaMappings[2]->TexObj, (glm::vec4*)RenderBuffer[PingPongInx]->Data,
-                                        (glm::vec4*)RenderBuffer[1 - PingPongInx]->Data, (glm::vec4*)NormalBuffer->Data, RenderWidth, RenderHeight,
+    pathtracing::TraceKernel<<<gridSize, blockSize>>>(
+                                        {Framebuffer[PingPongInx]->CudaMappings[0]->TexObj, Framebuffer[PingPongInx]->CudaMappings[1]->TexObj, Framebuffer[PingPongInx]->CudaMappings[2]->TexObj, Framebuffer[PingPongInx]->CudaMappings[3]->TexObj}, 
+                                        {Framebuffer[1 - PingPongInx]->CudaMappings[0]->TexObj, Framebuffer[1 - PingPongInx]->CudaMappings[1]->TexObj, Framebuffer[1 - PingPongInx]->CudaMappings[2]->TexObj, Framebuffer[1 - PingPongInx]->CudaMappings[3]->TexObj}, 
+                                        (glm::vec4*)RenderBuffer[PingPongInx]->Data,(glm::vec4*)RenderBuffer[1 - PingPongInx]->Data,(uint32_t*)HistoryLengthBuffer->Data,  (glm::vec4*)NormalBuffer->Data, RenderWidth, RenderHeight,
                                         (triangle*)Scene->BVH->TrianglesBuffer->Data, (bvhNode*) Scene->BVH->BVHBuffer->Data, (uint32_t*) Scene->BVH->IndicesBuffer->Data, (indexData*) Scene->BVH->IndexDataBuffer->Data, (instance*)Scene->BVH->TLASInstancesBuffer->Data, (tlasNode*) Scene->BVH->TLASNodeBuffer->Data,
                                         (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)Scene->MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)Scene->Lights->LightsBuffer->Data, (float*)Scene->Lights->LightsCDFBuffer->Data, (int)Scene->Lights->Lights.size(), 
                                         (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight, Time);
@@ -241,7 +246,7 @@ void application::Render()
 
 
 
-    
+
     // // Bilateral Filter on RenderBuffer[PingPongInx];
     // cudaMemcpy((void*)FilterBuffer->Data, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * 4 * sizeof(float), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
     // BilateralFilterKernel<<<gridSize, blockSize>>>((glm::vec4*)FilterBuffer->Data, (glm::vec4*)RenderBuffer[PingPongInx]->Data, RenderWidth, RenderHeight, 10, 2.0f, 2.0f);
@@ -280,10 +285,11 @@ void application::Run()
         }
 
 
-        CUDA_CHECK_ERROR(cudaGetLastError());
         GUI->GUI();
+        CUDA_CHECK_ERROR(cudaGetLastError());
         
         Render();
+        CUDA_CHECK_ERROR(cudaGetLastError());
         
 
         EndFrame();
@@ -314,11 +320,9 @@ void application::ResizeRenderTextures()
         {GL_RGBA32F, GL_RGBA, GL_FLOAT, sizeof(glm::vec4)}, //Barycentric coordinates
         {GL_RGBA32F, GL_RGBA, GL_FLOAT, sizeof(glm::vec4)}, //Motion Vectors
     };
-    CUDA_CHECK_ERROR(cudaGetLastError());
-    Framebuffer = std::make_shared<framebuffer>(RenderWidth, RenderHeight, Desc);
-    CUDA_CHECK_ERROR(cudaGetLastError());
+    Framebuffer[0] = std::make_shared<framebuffer>(RenderWidth, RenderHeight, Desc);
+    Framebuffer[1] = std::make_shared<framebuffer>(RenderWidth, RenderHeight, Desc);
     GBufferShader = std::make_shared<shaderGL>("resources/shaders/GBuffer.vert", "resources/shaders/GBuffer.frag");
-    CUDA_CHECK_ERROR(cudaGetLastError());
 
     
     cudaDeviceSynchronize();
@@ -326,18 +330,16 @@ void application::ResizeRenderTextures()
     RenderTexture = std::make_shared<textureGL>(RenderWidth, RenderHeight, 4);
     RenderBuffer[0] = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     RenderBuffer[1] = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
-    TonemapBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     RenderTextureMapping = CreateMapping(RenderTexture);
     NormalBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     FilterBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    HistoryLengthBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * sizeof(uint32_t));
 
 
-    CUDA_CHECK_ERROR(cudaGetLastError());
     Params.CurrentSample=0;
     Scene->Cameras[int(Params.CurrentCamera)].SetAspect((float)RenderWidth / (float)RenderHeight);
     
     ResetRender=true;
-    CUDA_CHECK_ERROR(cudaGetLastError());
 }
 
 void application::CalculateWindowSizes()

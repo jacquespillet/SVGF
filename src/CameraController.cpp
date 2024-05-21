@@ -11,7 +11,7 @@ namespace gpupt
 
 orbitCameraController::orbitCameraController()
 {
-    Position = glm::vec3(1,3,5);
+    Position = glm::vec3(10,3,10);
     Rotation = glm::vec3(0,0,0);
 
     this->Distance = std::sqrt(Position.x * Position.x + Position.y * Position.y + Position.z * Position.z);
@@ -20,7 +20,7 @@ orbitCameraController::orbitCameraController()
 
     this->Phi = 0.0624008;
     this->Theta = 1.30899;
-    this->Distance =   4.66042; 
+    this->Distance = 8; 
 
     Recalculate();
 }
@@ -57,6 +57,8 @@ bool orbitCameraController::Update()
         this->Theta -= io.MouseDelta.y * 0.001f * this->MouseSpeedY;
         ShouldRecalculate=true;
     }
+
+
     else if(io.MouseDownDuration[1]>0)
     {
         glm::vec3 Right = glm::column(ModelMatrix, 0);
@@ -66,7 +68,13 @@ bool orbitCameraController::Update()
         this->Target += Up * io.MouseDelta.y * 0.01f * this->MouseSpeedY;
         ShouldRecalculate=true;
     }
-    
+#if 1
+    // static float time=-3;
+    // time += io.DeltaTime;
+    // this->Target.z = cos(time * 1);
+    // this->Phi += 0.001f;
+    ShouldRecalculate=true;
+#endif
     if(io.MouseWheel != 0)
     {
         float Offset = io.MouseWheel * 0.1f * this->MouseSpeedWheel * this->Distance;

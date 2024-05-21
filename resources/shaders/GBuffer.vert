@@ -6,16 +6,17 @@ layout(location = 2) in vec2 VertexUV;    // Vertex position attribute
 layout(location = 3) in uint PrimitiveIndex;    // Vertex position attribute
 
 uniform mat4 MVP;    // Model-view-projection matrix
-uniform mat4 PrevMVP;    // Model-view-projection matrix
+uniform mat4 PreviousMVP;    // Model-view-projection matrix
 uniform mat4 NormalMatrix;
 uniform mat4 ModelMatrix;
 
 out vec3 FragPosition;     // Fragment position in world space
 out vec3 FragNormal;      // Normal in world space
 out vec2 FragUV;
-out vec3 BarycentricCoord; 
-flat out vec2 MotionVector;
+out vec3 BarycentricCoord;
 flat out uint FragPrimitiveIndex;
+out vec4 FragCurrentScreenPos;
+out vec4 FragPrevScreenPos;
 
 void main()
 {
@@ -26,11 +27,10 @@ void main()
     FragUV = VertexUV;
     FragPrimitiveIndex = PrimitiveIndex;
 
-    vec4 PrevScreenPos = PrevMVP * vec4(VertexPosition, 1.0);
-    PrevScreenPos /= PrevScreenPos.w;
-    
-    CurrentScreenPos /= CurrentScreenPos.w;
-    MotionVector = vec2(CurrentScreenPos) - vec2(PrevScreenPos);
+    vec4 PrevScreenPos = PreviousMVP * vec4(VertexPosition, 1.0);
+
+    FragCurrentScreenPos = CurrentScreenPos;
+    FragPrevScreenPos = PrevScreenPos;
     
 
     if (gl_VertexID % 3 == 1)

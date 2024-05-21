@@ -4,7 +4,8 @@ in vec3 FragPosition;     // Fragment position in world space
 in vec3 FragNormal;      // Normal in world space
 in vec3 BarycentricCoord;      // Normal in world space
 flat in uint FragPrimitiveIndex;
-flat in vec2 MotionVector;
+in vec4 FragCurrentScreenPos;
+in vec4 FragPrevScreenPos;
 
 layout (location = 0) out vec4 OutPosition;
 layout (location = 1) out vec4 OutNormal;
@@ -39,6 +40,9 @@ layout(std430, binding = 0) buffer MaterialsBuffer {
 
 uniform int InstanceIndex;
 uniform int MaterialIndex;
+uniform int Width;
+uniform int Height;
+uniform vec3 CameraPosition;
 
 void main()
 {
@@ -50,7 +54,10 @@ void main()
     OutNormal.w = float(MaterialIndex);
     OutPosition.w = float(FragPrimitiveIndex);
 
-    OutMotionVectors = vec4(MotionVector, 0, 1);
-
+    vec4 PrevScreenPos = FragPrevScreenPos / FragPrevScreenPos.w;
+    vec4 CurrentScreenPos = FragCurrentScreenPos / FragCurrentScreenPos.w;
+    vec2 MotionVector = (vec2(PrevScreenPos) - vec2(CurrentScreenPos)) * (0.5 * vec2(float(Width), float(Height)));
     
+    float Depth = distance(CameraPosition, OutPosition.xyz);
+    OutMotionVectors = vec4(MotionVector, Depth, 1);
 }

@@ -1,8 +1,13 @@
 #pragma once
 #include "BVH.h"
+#include "App.h"
 
 #define GLM_FORCE_CUDA
 #include <glm/glm.hpp>
+
+namespace pathtracing
+{
+
 
 using namespace glm;
 using namespace gpupt;
@@ -39,47 +44,12 @@ __device__ environment *Environments;
 __device__ int EnvTexturesWidth;
 __device__ int EnvTexturesHeight;
 __device__ float Time;
-__device__ cudaTextureObject_t NormalTexture;
-__device__ cudaTextureObject_t PositionTexture;
-__device__ cudaTextureObject_t UVTexture;
+__device__ cudaFramebuffer CurrentFramebuffer;
+__device__ cudaFramebuffer PreviousFramebuffer;
+__device__ uint32_t *HistoryLengths;
 
 
-struct rgba8 { uint8_t r, g, b, a; };
 
-#define MAIN() \
-__global__ void TraceKernel(cudaTextureObject_t _PositionTexture, cudaTextureObject_t _NormalTexture, cudaTextureObject_t _UVTexture, vec4 *RenderImage, \
-                            vec4 *PreviousImage, vec4 *NormalImage, int _Width, int _Height, \
-                            triangle *_AllTriangles, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, instance *_Instances, tlasNode *_TLASNodes,\
-                            camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures, int _TexturesWidth, int _TexturesHeight, light *_Lights, float *_LightsCDF, int _LightsCount,\
-                            environment *_Environments, int _EnvironmentsCount, cudaTextureObject_t _EnvTextures, int _EnvTexturesWidth, int _EnvTexturesHeight, float _Time)
-
-#define INIT() \
-    Width = _Width; \
-    Height = _Height; \
-    TriangleBuffer = _AllTriangles; \
-    BVHBuffer = _AllBVHNodes; \
-    IndicesBuffer = _AllTriangleIndices; \
-    IndexDataBuffer = _IndexData; \
-    TLASInstancesBuffer = _Instances; \
-    TLASNodes = _TLASNodes; \
-    Cameras = _Cameras; \
-    Parameters = _TracingParams; \
-    Materials = _Materials; \
-    SceneTextures = _SceneTextures; \
-    EnvTextures = _EnvTextures; \
-    LightsCount = _LightsCount; \
-    Lights = _Lights; \
-    LightsCDF = _LightsCDF; \
-    EnvironmentsCount = _EnvironmentsCount; \
-    Environments = _Environments; \
-    TexturesWidth = _TexturesWidth; \
-    TexturesHeight = _TexturesHeight; \
-    EnvTexturesWidth = _EnvTexturesWidth; \
-    EnvTexturesHeight = _EnvTexturesHeight; \
-    Time = _Time; \
-    UVTexture = _UVTexture; \
-    PositionTexture = _PositionTexture; \
-    NormalTexture = _NormalTexture; \
 
 
 #define IMAGE_SIZE(Img) \
@@ -438,7 +408,7 @@ __global__ void TAAFilterKernel(vec4 *InputFiltered, vec4 *Output, int Width, in
         antialiased = decodePalYuv(antialiased);
             
         vec4 fragColor = vec4(antialiased, 1);    
-        if(!IsFinite(fragColor)) fragColor = vec4(0,0,0,0);
+        if(!pathtracing::IsFinite(fragColor)) fragColor = vec4(0,0,0,0);
 
         imageStore(Output , FragCoord , fragColor);
     }
@@ -477,4 +447,5 @@ __global__ void BilateralFilterKernel(vec4 *Input, vec4 *Output, int Width, int 
         vec3 Result = Sum / Normalization;
         Output[FragCoord.y * Width + FragCoord.x] = vec4(Result, 1.0f);     
     }    
+}
 }

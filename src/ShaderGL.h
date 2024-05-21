@@ -19,7 +19,8 @@ public:
     void Destroy();
     void Use();
     void SetInt(const std::string& name, int value);
-    void SetMat4(const std::string &Name, glm::mat4 &Matrix);
+    void SetVec3(const std::string &Name, glm::vec3 &Matrix);
+    void SetMat4(const std::string &Name, glm::mat4 &Vector);
     void SetTexture(int ImageUnit, GLuint TextureID, GLenum Access);
     void SetTexture(int ImageUnit, GLuint TextureID) const;
     void SetSSBO(std::shared_ptr<bufferGL> Buffer, int BindingPoint);

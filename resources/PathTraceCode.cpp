@@ -1,3 +1,4 @@
+
 struct randomState
 {
     uint64_t State;
@@ -405,9 +406,9 @@ FN_DECL sceneIntersection MakeFirstIsect(int Sample)
     vec3 CameraPosition = Camera.Frame * vec4(0,0,0, 1);
 
 
-    float4 Position = tex2D<float4>(PositionTexture, Coord.x, Coord.y);
-    float4 UV = tex2D<float4>(UVTexture, Coord.x, Coord.y);
-    float4 Normal = tex2D<float4>(NormalTexture, Coord.x, Coord.y);
+    float4 Position = tex2D<float4>(CurrentFramebuffer.PositionTexture, Coord.x, Coord.y);
+    float4 UV = tex2D<float4>(CurrentFramebuffer.UVTexture, Coord.x, Coord.y);
+    float4 Normal = tex2D<float4>(CurrentFramebuffer.NormalTexture, Coord.x, Coord.y);
     
     if(length(vec3(Position.x, Position.y, Position.z)) != 0)
     {
@@ -1769,14 +1770,94 @@ FN_DECL vec3 PathTrace(int Sample, vec2 UV, INOUT(vec3) OutNormal)
     return Radiance;
 }
 
-MAIN()
+FN_DECL vec4 SampleCuTexture(cudaTextureObject_t Texture, ivec2 Coord)
 {
-    INIT()
+    float4 Sample = tex2D<float4>(Texture, Coord.x, Coord.y);
+    return vec4(Sample.x, Sample.y, Sample.z, Sample.w);
+}
 
+FN_DECL float GetDepth(cudaTextureObject_t Texture, ivec2 Coord)
+{
+    float4 MotionVecSample = tex2D<float4>(Texture, Coord.x, Coord.y);
+    float Depth = MotionVecSample.z;
+    if(Depth == 0.0f) return 1e30f;
+
+    return Depth;
+}
+
+FN_DECL bool LoadPreviousData(vec4 *PrevFrame, ivec2 Coord, vec3 CurrentColour, INOUT(vec3) Colour, INOUT(int) HistoryLength)
+{
+    float4 MotionVectorSample = tex2D<float4>(CurrentFramebuffer.MotionTexture, Coord.x, Coord.y);
+    vec2 MotionVector = vec2(MotionVectorSample.x, MotionVectorSample.y);
+    ivec2 PrevCoord = Coord + ivec2(MotionVector);
+
+
+    if(PrevCoord.x < 0 || PrevCoord.x >= Width || PrevCoord.y < 0 || PrevCoord.y >= Height) return false;
+    
+
+    // Check if depth is consistent
+    float CurrentDepth = GetDepth(CurrentFramebuffer.MotionTexture, Coord);
+    float PreviousDepth = GetDepth(PreviousFramebuffer.MotionTexture, PrevCoord);
+    if(abs(CurrentDepth - PreviousDepth) > 0.1f) return false;
+
+    // // Check the mesh ID
+    int CurrentMeshID = SampleCuTexture(CurrentFramebuffer.UVTexture, Coord).w;
+    int PreviousMeshID = SampleCuTexture(PreviousFramebuffer.UVTexture, PrevCoord).w;
+    if(CurrentMeshID != PreviousMeshID) return false;
+
+    // Check the normal
+    vec3 CurrNormal = SampleCuTexture(CurrentFramebuffer.NormalTexture, Coord);
+    vec3 PrevNormal = SampleCuTexture(PreviousFramebuffer.NormalTexture, PrevCoord);
+    if(dot(CurrNormal, PrevNormal) < 0.9f) return false;
+
+    // vec3 PreviousColour = imageLoad(PrevFrame, PrevCoord);
+
+    // if(distance(CurrentColour, PreviousColour) > 0.1f) return false;
+
+    Colour = imageLoad(PrevFrame, PrevCoord);
+    HistoryLength = int(HistoryLengths[PrevCoord.y * Width + PrevCoord.x]);
+
+    return true;
+}
+
+__global__ void TraceKernel(cudaFramebuffer _CurrentFramebuffer, cudaFramebuffer _PreviousFramebuffer, vec4 *RenderImage,
+                            vec4 *PreviousImage, uint32_t* _HistoryLengths,  vec4 *NormalImage, int _Width, int _Height,
+                            triangle *_AllTriangles, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, instance *_Instances, tlasNode *_TLASNodes,
+                            camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures, int _TexturesWidth, int _TexturesHeight, light *_Lights, float *_LightsCDF, int _LightsCount,
+                            environment *_Environments, int _EnvironmentsCount, cudaTextureObject_t _EnvTextures, int _EnvTexturesWidth, int _EnvTexturesHeight, float _Time)
+{
+    Width = _Width;
+    Height = _Height;
+    TriangleBuffer = _AllTriangles;
+    BVHBuffer = _AllBVHNodes;
+    IndicesBuffer = _AllTriangleIndices;
+    IndexDataBuffer = _IndexData;
+    TLASInstancesBuffer = _Instances;
+    TLASNodes = _TLASNodes;
+    Cameras = _Cameras;
+    Parameters = _TracingParams;
+    Materials = _Materials;
+    SceneTextures = _SceneTextures;
+    EnvTextures = _EnvTextures;
+    LightsCount = _LightsCount;
+    Lights = _Lights;
+    LightsCDF = _LightsCDF;
+    EnvironmentsCount = _EnvironmentsCount;
+    Environments = _Environments;
+    TexturesWidth = _TexturesWidth;
+    TexturesHeight = _TexturesHeight;
+    EnvTexturesWidth = _EnvTexturesWidth;
+    EnvTexturesHeight = _EnvTexturesHeight;
+    Time = _Time;
+    HistoryLengths = _HistoryLengths;
+    CurrentFramebuffer = _CurrentFramebuffer;
+    PreviousFramebuffer = _PreviousFramebuffer;
+    
+ 
     float t = Time * float(GLOBAL_ID().x) * 1973.0f;
     randomState RandomState = CreateRNG(uint(uint(t) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(GET_ATTR(Parameters,CurrentSample)) * uint(117191)) | uint(1)); 
     vec2 Jitter = Random2F(RandomState);
-    Jitter = Jitter * 2.0f - 1.0f;
+    Jitter = Jitter * 2.0f - 1.0f; 
     
     ivec2 ImageSize = IMAGE_SIZE(RenderImage);
     int Width = ImageSize.x;
@@ -1787,7 +1868,6 @@ MAIN()
     UV.y = 1 - UV.y;
     
     if (GlobalID.x < Width && GlobalID.y < Height) {
-        vec3 PrevCol = imageLoad(PreviousImage, ivec2(GlobalID));
         vec3 Normal;
         float InverseSampleCount = 1.0f / float(GET_ATTR(Parameters, Batch));
         vec3 Radiance = vec3(0);
@@ -1803,13 +1883,25 @@ MAIN()
             }
         }
 
+        vec3 PrevCol(0);
+        int HistoryLength=1;
+        float Alpha = 0;
+        bool CouldLoad = LoadPreviousData(PreviousImage, ivec2(GlobalID), Radiance, PrevCol, HistoryLength);
+        if(CouldLoad)
+        {
+            HistoryLength = min(32, HistoryLength + 1 );
+            Alpha = 1.0 / HistoryLength;
+        }
+        else
+        {
+            Alpha = 1;
+            HistoryLength=1;
+        }
 
-        float Alpha = 1.0f / float(GET_ATTR(Parameters,CurrentSample) + 1);
-        // vec3 NewCol = mix(PrevCol, Radiance, Alpha);
-        // vec3 NewCol =  (1.0f - Alpha) * PrevCol + Alpha * Radiance;
+
         vec3 NewCol = mix(PrevCol, Radiance, Alpha);
-
-
+        
+        HistoryLengths[GlobalID.y * Width + GlobalID.x] = HistoryLength;
         imageStore(RenderImage, ivec2(GlobalID), vec4(NewCol, 1.0f));
         imageStore(NormalImage, ivec2(GlobalID), vec4(Normal, 1.0f));
     }
