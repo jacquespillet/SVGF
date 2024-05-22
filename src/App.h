@@ -71,6 +71,17 @@ private:
     
     
     bool DoSVGF=true;
+    enum class SVGFDebugOutputEnum
+    {
+        FinalOutput,
+        RawOutput,
+        Normal,
+        Motion,
+        Position,
+        BarycentricCoords,
+        TemporalFilter,
+        ATrousWaveletFilter
+    }SVGFDebutOutput;
 
 
     void Tonemap();
@@ -87,7 +98,7 @@ private:
     std::shared_ptr<buffer> TracingParamsBuffer;
     std::shared_ptr<buffer> RenderBuffer[2];
 
-    std::shared_ptr<buffer> NormalBuffer;
+    std::shared_ptr<buffer> MomentsBuffer;
     std::shared_ptr<buffer> FilterBuffer;
     std::shared_ptr<buffer> HistoryLengthBuffer;
     // std::shared_ptr<buffer> TonemapBuffer;    

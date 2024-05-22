@@ -47,6 +47,7 @@ __device__ float Time;
 __device__ cudaFramebuffer CurrentFramebuffer;
 __device__ cudaFramebuffer PreviousFramebuffer;
 __device__ uint32_t *HistoryLengths;
+__device__ vec4 *MomentsBuffer;
 
 
 
@@ -109,7 +110,7 @@ __device__ vec4 textureSample(cudaTextureObject_t _SceneTextures, vec3 Coords)
 }
 
 // Texture sampling function with bilinear interpolation
-__device__ vec4 textureSample(vec4* texture, int Width, int Height, const vec2& uv) {
+__device__ vec4 textureSample(vec4* texture, int Width, int Height, vec2& uv) {
     // Convert UV coordinates to texture space
     float x = uv.x * (Width - 1);
     float y = uv.y * (Height - 1);
@@ -415,37 +416,114 @@ __global__ void TAAFilterKernel(vec4 *InputFiltered, vec4 *Output, int Width, in
 }
 
 
-__global__ void BilateralFilterKernel(vec4 *Input, vec4 *Output, int Width, int Height, int Diameter, float SigmaI, float SigmaS)
+FN_DECL float computeWeight(
+    float depthCenter,
+    float phiDepth,
+    vec3 normalCenter,
+    vec3 normalP,
+    float phiNormal,
+    float luminanceIllumCenter,
+    float luminanceIllumP,
+    float phiIllum
+)
 {
+    const float weightNormal = pow(saturate(dot(normalCenter, normalP)), phiNormal);
+    const float weightZ = (phiDepth == 0) ? 0.0f : abs(depthCenter) / phiDepth;
+    const float weightLillum = abs(luminanceIllumCenter - luminanceIllumP) / phiIllum;
+
+    const float weightIllum = exp(0.0 - max(weightLillum, 0.0) - max(weightZ, 0.0)) * weightNormal;
+
+    return weightIllum;
+}
+
+
+__global__ void FilterKernel(vec4 *Input, vec4 *Moments, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint32_t *HistoryLengths, vec4 *Output, int Width, int Height, int Step)
+{
+    float PhiColour = 10.0f;
+    float PhiNormal = 128.0f;
 
     vec2 Resolution = vec2(float(Width), float(Height));
     vec2 InvTexResolution = vec2(1.0f / float(Width), 1.0f / float(Height));
     ivec2 FragCoord = ivec2 ( GLOBAL_ID() );
     vec2 uv = vec2(FragCoord) * InvTexResolution;
+    uint32_t Inx = FragCoord.y * Width + FragCoord.x;
 
     if (FragCoord.x < Width && FragCoord.y < Height) {
-        int halfDiameter = Diameter / 2;
-        vec3 Sum(0.0f);
-        vec3 Normalization(0.0f);
-        vec3 centerValue = Input[FragCoord.y * Width + FragCoord.x];
+        float epsVariance = 1e-10;
+        float kernelWeights[3] = { 1.0, 2.0 / 3.0, 1.0 / 6.0 };
 
-        for (int i = -halfDiameter; i <= halfDiameter; ++i) {
-            for (int j = -halfDiameter; j <= halfDiameter; ++j) {
-                int neighborX = min(max(FragCoord.x + j, 0), Width - 1);
-                int neighborY = min(max(FragCoord.y + i, 0), Height - 1);
-                vec3 neighborValue = Input[neighborY * Width + neighborX];
+        // nt samplers to prevent the compiler from generating code which
+        // fetches the sampler descriptor from memory for each texture access
+        vec4 IlluminationCenter = imageLoad(Input, FragCoord);
+        float lIlluminationCenter = CalculateLuminance(IlluminationCenter);
 
-                float spatialWeight = expf(-(j * j + i * i) / (2 * SigmaS * SigmaS));
-                vec3 intensityWeight = exp(-(neighborValue - centerValue) * (neighborValue - centerValue) / (2 * SigmaI * SigmaI));
-                vec3 weight = spatialWeight * intensityWeight;
+        // variance, filtered using 3x3 gaussin blur
+        float Variance = Moments[Inx].z;
 
-                Sum += neighborValue * weight;
-                Normalization += weight;
+        // number of temporally integrated pixels
+        float historyLength = float(HistoryLengths[Inx]);
+
+        float zCenter = SampleCuTexture(Motions, FragCoord).z;
+        if (zCenter == 0)
+        {
+            // not a valid depth => must be envmap => do not filter
+            Output[Inx] = IlluminationCenter;
+            return;
+        }
+        vec3 nCenter = SampleCuTexture(Normals, FragCoord);
+
+        float phiLIllumination = PhiColour * sqrt(max(0.0, epsVariance + Variance));
+        float PhiDepth = max(zCenter, 1e-8) * Step;
+
+        // explicitly store/accumulate center pixel with weight 1 to prevent issues
+        // with the edge-stopping functions
+        float sumWIllumination = 1.0;
+        vec4 sumIllumination = IlluminationCenter;
+
+        for (int yy = -2; yy <= 2; yy++)
+        {
+            for (int xx = -2; xx <= 2; xx++)
+            {
+                vec2 CurrentCoord = FragCoord + ivec2(xx, yy) * Step;
+                int FilterInx = CurrentCoord.y * Width + CurrentCoord.x;
+
+                bool inside = (CurrentCoord.x < Width && CurrentCoord.y < Height && CurrentCoord.x >=0 && CurrentCoord.y >=0);
+
+                float kernel = kernelWeights[abs(xx)] * kernelWeights[abs(yy)];
+
+                if (inside && (xx != 0 || yy != 0)) // skip center pixel, it is already accumulated
+                {
+                    vec4 IlluminationP = imageLoad(Input, CurrentCoord);
+                    float lIlluminationP = CalculateLuminance(IlluminationP);
+                    float zP = SampleCuTexture(Motions, CurrentCoord).z;
+                    vec3 nP = SampleCuTexture(Normals, CurrentCoord);
+
+                    // compute the edge-stopping functions
+                    float w = computeWeight(
+                        zCenter,
+                        PhiDepth * length(vec2(xx, yy)),
+                        nCenter,
+                        nP,
+                        PhiNormal,
+                        lIlluminationCenter,
+                        lIlluminationP,
+                        phiLIllumination
+                    );
+
+                    float wIllumination = w * kernel;
+
+                    // alpha channel contains the variance, therefore the weights need to be squared, see paper for the formula
+                    sumWIllumination += wIllumination;
+                    sumIllumination += vec4(wIllumination,wIllumination,wIllumination, wIllumination * wIllumination) * IlluminationP;
+                }
             }
         }
 
-        vec3 Result = Sum / Normalization;
-        Output[FragCoord.y * Width + FragCoord.x] = vec4(Result, 1.0f);     
+        // renormalization is different for variance, check paper for the formula
+        vec4 filteredIllumination = vec4(sumIllumination / vec4(sumWIllumination,sumWIllumination,sumWIllumination, sumWIllumination * sumWIllumination));
+
+        // return filteredIllumination;
+        Output[Inx] = filteredIllumination;
     }    
 }
 }

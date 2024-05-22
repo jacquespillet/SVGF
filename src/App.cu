@@ -82,7 +82,7 @@ void application::InitGpuObjects()
     RenderBuffer[1] = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
     FilterBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
     RenderTextureMapping = CreateMapping(RenderTexture);
-    NormalBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
+    MomentsBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
     HistoryLengthBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * sizeof(uint8_t));
 
 
@@ -238,7 +238,7 @@ void application::Render()
     pathtracing::TraceKernel<<<gridSize, blockSize>>>(
                                         {Framebuffer[PingPongInx]->CudaMappings[0]->TexObj, Framebuffer[PingPongInx]->CudaMappings[1]->TexObj, Framebuffer[PingPongInx]->CudaMappings[2]->TexObj, Framebuffer[PingPongInx]->CudaMappings[3]->TexObj}, 
                                         {Framebuffer[1 - PingPongInx]->CudaMappings[0]->TexObj, Framebuffer[1 - PingPongInx]->CudaMappings[1]->TexObj, Framebuffer[1 - PingPongInx]->CudaMappings[2]->TexObj, Framebuffer[1 - PingPongInx]->CudaMappings[3]->TexObj}, 
-                                        (glm::vec4*)RenderBuffer[PingPongInx]->Data,(glm::vec4*)RenderBuffer[1 - PingPongInx]->Data,(uint32_t*)HistoryLengthBuffer->Data,  (glm::vec4*)NormalBuffer->Data, RenderWidth, RenderHeight,
+                                        (glm::vec4*)RenderBuffer[PingPongInx]->Data,(glm::vec4*)RenderBuffer[1 - PingPongInx]->Data,(uint32_t*)HistoryLengthBuffer->Data,  (glm::vec4*)MomentsBuffer->Data, RenderWidth, RenderHeight,
                                         (triangle*)Scene->BVH->TrianglesBuffer->Data, (bvhNode*) Scene->BVH->BVHBuffer->Data, (uint32_t*) Scene->BVH->IndicesBuffer->Data, (indexData*) Scene->BVH->IndexDataBuffer->Data, (instance*)Scene->BVH->TLASInstancesBuffer->Data, (tlasNode*) Scene->BVH->TLASNodeBuffer->Data,
                                         (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)Scene->MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)Scene->Lights->LightsBuffer->Data, (float*)Scene->Lights->LightsCDFBuffer->Data, (int)Scene->Lights->Lights.size(), 
                                         (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight, Time);
@@ -247,12 +247,17 @@ void application::Render()
 
 
 
-    // // Bilateral Filter on RenderBuffer[PingPongInx];
-    // cudaMemcpy((void*)FilterBuffer->Data, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * 4 * sizeof(float), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
-    // BilateralFilterKernel<<<gridSize, blockSize>>>((glm::vec4*)FilterBuffer->Data, (glm::vec4*)RenderBuffer[PingPongInx]->Data, RenderWidth, RenderHeight, 10, 2.0f, 2.0f);
+    // Bilateral Filter on RenderBuffer[PingPongInx];
+    cudaMemcpy((void*)FilterBuffer->Data, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * 4 * sizeof(float), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
+    
+    //int Width, int Height, int FilterWidth, int Step
+
+    pathtracing::FilterKernel<<<gridSize, blockSize>>>((glm::vec4*)FilterBuffer->Data, (glm::vec4*)MomentsBuffer->Data, Framebuffer[PingPongInx]->CudaMappings[3]->TexObj, Framebuffer[PingPongInx]->CudaMappings[1]->TexObj,
+         (uint32_t*)HistoryLengthBuffer->Data, (glm::vec4*)RenderBuffer[PingPongInx]->Data, RenderWidth, RenderHeight, 1);
 
 
-    cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+    // cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+    cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, FilterBuffer->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
     Params.CurrentSample += Params.Batch;
 
 
@@ -331,7 +336,7 @@ void application::ResizeRenderTextures()
     RenderBuffer[0] = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     RenderBuffer[1] = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     RenderTextureMapping = CreateMapping(RenderTexture);
-    NormalBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    MomentsBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     FilterBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     HistoryLengthBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * sizeof(uint32_t));
 

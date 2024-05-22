@@ -1785,7 +1785,7 @@ FN_DECL float GetDepth(cudaTextureObject_t Texture, ivec2 Coord)
     return Depth;
 }
 
-FN_DECL bool LoadPreviousData(vec4 *PrevFrame, ivec2 Coord, vec3 CurrentColour, INOUT(vec3) Colour, INOUT(int) HistoryLength)
+FN_DECL bool LoadPreviousData(vec4 *PrevFrame, ivec2 Coord, vec3 CurrentColour, INOUT(vec3) Colour, INOUT(int) HistoryLength, INOUT(vec2) PreviousMoments)
 {
     float4 MotionVectorSample = tex2D<float4>(CurrentFramebuffer.MotionTexture, Coord.x, Coord.y);
     vec2 MotionVector = vec2(MotionVectorSample.x, MotionVectorSample.y);
@@ -1816,12 +1816,17 @@ FN_DECL bool LoadPreviousData(vec4 *PrevFrame, ivec2 Coord, vec3 CurrentColour, 
 
     Colour = imageLoad(PrevFrame, PrevCoord);
     HistoryLength = int(HistoryLengths[PrevCoord.y * Width + PrevCoord.x]);
-
+    PreviousMoments = vec2(MomentsBuffer[PrevCoord.y * Width + PrevCoord.x]);
     return true;
 }
 
+FN_DECL float CalculateLuminance(vec3 Colour)
+{
+    return 0.2126f * Colour.r + 0.7152f * Colour.g + 0.0722f * Colour.b;
+}
+
 __global__ void TraceKernel(cudaFramebuffer _CurrentFramebuffer, cudaFramebuffer _PreviousFramebuffer, vec4 *RenderImage,
-                            vec4 *PreviousImage, uint32_t* _HistoryLengths,  vec4 *NormalImage, int _Width, int _Height,
+                            vec4 *PreviousImage, uint32_t* _HistoryLengths,  vec4 *_MomentsBuffer, int _Width, int _Height,
                             triangle *_AllTriangles, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, instance *_Instances, tlasNode *_TLASNodes,
                             camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures, int _TexturesWidth, int _TexturesHeight, light *_Lights, float *_LightsCDF, int _LightsCount,
                             environment *_Environments, int _EnvironmentsCount, cudaTextureObject_t _EnvTextures, int _EnvTexturesWidth, int _EnvTexturesHeight, float _Time)
@@ -1852,6 +1857,7 @@ __global__ void TraceKernel(cudaFramebuffer _CurrentFramebuffer, cudaFramebuffer
     HistoryLengths = _HistoryLengths;
     CurrentFramebuffer = _CurrentFramebuffer;
     PreviousFramebuffer = _PreviousFramebuffer;
+    MomentsBuffer = _MomentsBuffer;
     
  
     float t = Time * float(GLOBAL_ID().x) * 1973.0f;
@@ -1886,7 +1892,8 @@ __global__ void TraceKernel(cudaFramebuffer _CurrentFramebuffer, cudaFramebuffer
         vec3 PrevCol(0);
         int HistoryLength=1;
         float Alpha = 0;
-        bool CouldLoad = LoadPreviousData(PreviousImage, ivec2(GlobalID), Radiance, PrevCol, HistoryLength);
+        vec2 PreviousMoments;
+        bool CouldLoad = LoadPreviousData(PreviousImage, ivec2(GlobalID), Radiance, PrevCol, HistoryLength, PreviousMoments);
         if(CouldLoad)
         {
             HistoryLength = min(32, HistoryLength + 1 );
@@ -1898,11 +1905,21 @@ __global__ void TraceKernel(cudaFramebuffer _CurrentFramebuffer, cudaFramebuffer
             HistoryLength=1;
         }
 
+        // compute first two moments of luminance
+        vec2 Moments;
+        Moments.x = CalculateLuminance(Radiance);
+        Moments.y = Moments.r * Moments.r;
+
+        // temporal integration of the Moments
+        Moments = mix(PreviousMoments, Moments, Alpha);
+
+        float Variance = max(0.f, Moments.g - Moments.r * Moments.r);
 
         vec3 NewCol = mix(PrevCol, Radiance, Alpha);
+        vec2 NewMoments = mix(PreviousMoments, Moments, Alpha);
         
         HistoryLengths[GlobalID.y * Width + GlobalID.x] = HistoryLength;
         imageStore(RenderImage, ivec2(GlobalID), vec4(NewCol, 1.0f));
-        imageStore(NormalImage, ivec2(GlobalID), vec4(Normal, 1.0f));
+        imageStore(MomentsBuffer, ivec2(GlobalID), vec4(NewMoments.x, NewMoments.y, Variance, 1.0f));
     }
 }

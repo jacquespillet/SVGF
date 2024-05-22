@@ -986,8 +986,10 @@ bool gui::TracingGUI()
     ImGui::SliderInt("Batches", &App->Params.Batch, 0, 32);
     Changed |= ImGui::SliderInt("Bounces", &App->Params.Bounces, 0, 32);
     Changed |= ImGui::DragFloat("Clamp", &App->Params.Clamp, 0.1f, 0.0f, 32.0f);    
-    if(!App->DoSVGF )ImGui::Checkbox("Denoise", &App->DoDenoise);
-    if(!App->DoDenoise) ImGui::Checkbox("SVGF", &App->DoSVGF);
+    
+    ImGui::Checkbox("SVGF", &App->DoSVGF);
+    if(App->DoSVGF)
+        Changed |= ImGui::Combo("Debug Output", (int*)&App->SVGFDebutOutput, "Final Output\0Raw Output\0Normal\0Motion\0Position\0Barycentric Coords\0Temporal Filter\0A-Trous Wavelet Filter\0\0");
     
     
     if(ImGui::DragInt("Resolution", &App->RenderResolution, 10, 128, 3840))
