@@ -505,28 +505,20 @@ FN_DECL sceneIntersection IntersectTLAS(ray Ray, int Sample, int Bounce)
 
 // Geometry
 
-FN_DECL ray MakeRay(vec3 Origin, vec3 Direction, vec3 InverseDirection)
+FN_DECL ray MakeRay(vec3 Origin, vec3 Direction)
 {
-    ray Ray;
+    ray Ray = {};
     Ray.Origin = Origin;
     Ray.Direction = Direction;
-    Ray.InverseDirection = InverseDirection;
     return Ray;
 }
 
-FN_DECL sceneIntersection MakeIsect(int Sample)
-{
-    sceneIntersection Isect;
-    Isect.Distance = MAX_LENGTH;
-    float t = Time * float(Sample) * GLOBAL_ID().x * 1973;
-    Isect.RandomState = CreateRNG(uint(uint(t) + uint(GLOBAL_ID().y) * uint(9277)  + Sample * uint(117191)) | uint(1)); 
-    return Isect;
-}
 
 FN_DECL sceneIntersection MakeFirstIsect(int Sample)
 {
     uvec2 Coord = GLOBAL_ID();
-    sceneIntersection Isect = MakeIsect(Sample);
+    sceneIntersection Isect = {};
+    Isect.Distance = MAX_LENGTH;
     float t = Time * float(GLOBAL_ID().x) * 1973.0f;
     Isect.RandomState = CreateRNG(uint(uint(t) + uint(GLOBAL_ID().y) * uint(9277)  + Sample * uint(117191)) | uint(1)); 
 
@@ -734,19 +726,15 @@ FN_DECL vec3 EvalEnvironment(INOUT(environment) Env, vec3 Direction)
 FN_DECL vec3 EvalEnvironment(vec3 Direction)
 {
     vec3 Emission = vec3(0,0,0);
-    // for(int i=0; i< EnvironmentsCount; i++)
-    // {
-    //     Emission += EvalEnvironment(Environments[i], Direction);
-    // }
+    for(int i=0; i< EnvironmentsCount; i++)
+    {
+        Emission += EvalEnvironment(Environments[i], Direction);
+    }
     return Emission;
 }
 
 
 // Region lights
-// Multiple problems : 
-// The LightSample function doesn't work when the lights are scaled at runtime.
-// Then, get MIS to work
-
 FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 RandUV)
 {
     // Take a random light index
@@ -1492,8 +1480,9 @@ FN_DECL float PowerHeuristic(float PDF0, float PDF1)
 
 FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV, INOUT(vec3) OutNormal)
 {
-    randomState RandomState = CreateRNG(uint(uint(GLOBAL_ID().x) * uint(1973) + uint(GLOBAL_ID().y) * uint(9277) + uint(Sample) * uint(26699)) | uint(1) ); 
-    ray Ray = GetRay(UV, Random2F(RandomState));
+    float t = Time * float(GLOBAL_ID().x) * 1973.0f;
+    randomState RandomState = CreateRNG(uint( uint(t) + uint(GLOBAL_ID().y) * uint(9277) + uint(Sample) * uint(26699)) | uint(1) ); 
+    ray Ray = GetRay(UV, vec2(0));    
     
 
     vec3 Radiance = vec3(0,0,0);
@@ -1503,11 +1492,14 @@ FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV, INOUT(vec3) OutNormal)
     bool HasVolumeMaterial=false;
 
     bool UseMisIntersection = false;
-    sceneIntersection MisIntersection = MakeIsect(Sample);
+    sceneIntersection MisIntersection= {};
 
     for(int Bounce=0; Bounce < GET_ATTR(Parameters, Bounces); Bounce++)
     {
-        sceneIntersection Isect = UseMisIntersection ?  MisIntersection : IntersectTLAS(Ray, Sample, Bounce);
+        sceneIntersection Isect = {};
+        if(Bounce==0) Isect = MakeFirstIsect(Sample);
+        else Isect = UseMisIntersection ?  MisIntersection : IntersectTLAS(Ray, Sample, Bounce);
+
         if(Isect.Distance == MAX_LENGTH && !UseMisIntersection)
         {
             Radiance += Weight * EvalEnvironment(Ray.Direction);
@@ -1576,54 +1568,52 @@ FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV, INOUT(vec3) OutNormal)
             vec3 Incoming = vec3(0);
             if(!IsDelta(Material))
             {
-                // {
-                //     Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                //     vec3 ShiftedPosition = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
-                //     if (Incoming == vec3(0, 0, 0)) break;
-                //     vec3 BSDFCos   = EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
-                //     float LightPDF = SampleLightsPDF(ShiftedPosition, Incoming); 
-                //     float BSDFPDF = SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
-                //     float MisWeight = PowerHeuristic(LightPDF, BSDFPDF) / LightPDF;
-                //     if (BSDFCos != vec3(0, 0, 0) && MisWeight != 0) 
-                //     {
-                //         sceneIntersection Isect = IntersectTLAS(MakeRay(ShiftedPosition, Incoming, 1.0f / Incoming), Sample, 0); 
-                //         vec3 Emission = vec3(0, 0, 0);
-                //         if (Isect.Distance == MAX_LENGTH) {
-                //             Emission = EvalEnvironment(Incoming);
-                //         } else {
-                //             materialPoint Material = EvalMaterial(Isect);
-                //             vec3 Outgoing = -Incoming;
-                //             vec3 ShadingNormal = EvalShadingNormal(Outgoing, Isect);
-                //             Emission      = EvalEmission(Material, ShadingNormal, Outgoing);
-                //         }
-                //         Radiance += Weight * BSDFCos * Emission * MisWeight;
-                //     }
-                // }
                 {
-                    Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                    vec3 ShiftedPosition = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
+                    Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
                     if (Incoming == vec3(0, 0, 0)) break;
                     vec3 BSDFCos   = EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
-                    float LightPDF = SampleLightsPDF(ShiftedPosition, Incoming);
+                    float LightPDF = SampleLightsPDF(Position, Incoming); 
+                    float BSDFPDF = SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
+                    float MisWeight = PowerHeuristic(LightPDF, BSDFPDF) / LightPDF;
+                    if (BSDFCos != vec3(0, 0, 0) && MisWeight != 0) 
+                    {
+                        sceneIntersection Isect = IntersectTLAS(MakeRay(Position, Incoming), Sample, 0); 
+                        vec3 Emission = vec3(0, 0, 0);
+                        if (Isect.Distance == MAX_LENGTH) {
+                            Emission = EvalEnvironment(Incoming);
+                        } else {
+                            materialPoint Material = EvalMaterial(Isect);
+                            vec3 Outgoing = -Incoming;
+                            vec3 ShadingNormal = EvalShadingNormal(Outgoing, Isect);
+                            Emission      = EvalEmission(Material, ShadingNormal, Outgoing);
+                        }
+                        Radiance += Weight * BSDFCos * Emission * MisWeight;
+                    }
+                }
+                {
+                    Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                    // vec3 ShiftedPosition = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
+                    if (Incoming == vec3(0, 0, 0)) break;
+                    vec3 BSDFCos   = EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
+                    float LightPDF = SampleLightsPDF(Position, Incoming);
                     float BSDFPDF = SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
                     float MisWeight = PowerHeuristic(BSDFPDF, LightPDF) / BSDFPDF;
                     if (BSDFCos != vec3(0, 0, 0) && MisWeight != 0) {
-                        MisIntersection = IntersectTLAS(MakeRay(ShiftedPosition, Incoming, 1.0f / Incoming), Sample, 0); 
-                        // vec3 Emission = vec3(0, 0, 0);
-                        // if (MisIntersection.Distance == MAX_LENGTH) {
-                        //     // Emission = EvalEnvironment(Incoming);
-                        // } else {
-                        //     // materialPoint Material = EvalMaterial(MisIntersection);
-                        //     // Emission      = Material.Emission;
-                        // }
-                        // Radiance += Weight * BSDFCos * Emission * MisWeight; 
-                        Radiance += Weight * BSDFCos * MisWeight; 
+                        MisIntersection = IntersectTLAS(MakeRay(Position, Incoming), Sample, 0); 
+                        vec3 Emission = vec3(0, 0, 0);
+                        if (MisIntersection.Distance == MAX_LENGTH) { 
+                            Emission = EvalEnvironment(Incoming);
+                        } else {
+                            materialPoint Material = EvalMaterial(MisIntersection);
+                            Emission      = Material.Emission;
+                        }
+                        Radiance += Weight * BSDFCos * Emission * MisWeight; 
                     }
                 }
                 // // indirect
                 Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) /
                         vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
-                UseMisIntersection = true;
+                // UseMisIntersection = true;
             }
             else
             {

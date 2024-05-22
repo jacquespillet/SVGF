@@ -71,7 +71,7 @@ add_subdirectory(submodules/oidn)
 find_package(CUDA REQUIRED)
 enable_language(CUDA)
 
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -std=c++11)
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -lineinfo -std=c++11)
 
 set(CUDA_LIB_DIR "$ENV{CUDA_PATH}/lib/x64")
 link_directories(${CUDA_LIB_DIR})
