@@ -978,19 +978,12 @@ bool gui::TracingGUI()
     bool Changed = false;
     
 
-    ImGui::Text("Samples : ");
-    std::string SamplesStr = std::to_string(App->Params.CurrentSample) + "/" + std::to_string(App->Params.TotalSamples);
-    ImGui::Text(SamplesStr.c_str());
-    ImGui::DragInt("Total Samples", &App->Params.TotalSamples);
-
     ImGui::SliderInt("Batches", &App->Params.Batch, 0, 32);
     Changed |= ImGui::SliderInt("Bounces", &App->Params.Bounces, 0, 32);
     Changed |= ImGui::DragFloat("Clamp", &App->Params.Clamp, 0.1f, 0.0f, 32.0f);    
     
-    ImGui::Checkbox("SVGF", &App->DoSVGF);
-    if(App->DoSVGF)
-        Changed |= ImGui::Combo("Debug Output", (int*)&App->SVGFDebutOutput, "Final Output (TAA) \0Raw Output\0Normal\0Motion\0Position\0Barycentric Coords\0Temporal Filter\0A-Trous Wavelet Filter\0\0");
-    
+    Changed |= ImGui::Combo("Debug Output", (int*)&App->SVGFDebugOutput, "Final Output (TAA) \0Raw Output\0Normal\0Motion\0Position\0Barycentric Coords\0Temporal Filter\0A-Trous Wavelet Filter\0\0");
+    Changed |= ImGui::SliderInt("Num Filter Iterations", &App->SpatialFilterSteps, 0, 10);
     
     if(ImGui::DragInt("Resolution", &App->RenderResolution, 10, 128, 3840))
     {
@@ -1144,7 +1137,7 @@ void gui::GUI()
 
     
 
-    ImGui::Image((ImTextureID)App->RenderTexture->TextureID, ImVec2(RenderWindowWidth, RenderWindowHeight),ImVec2(0, 1), ImVec2(1, 0));
+    ImGui::Image((ImTextureID)App->OutputTexture, ImVec2(RenderWindowWidth, RenderWindowHeight),ImVec2(0, 1), ImVec2(1, 0));
     // ImGui::Image((ImTextureID)App->Framebuffer[0]->GetTexture(1), ImVec2(RenderWindowWidth, RenderWindowHeight), ImVec2(0, 1), ImVec2(1, 0));
     if(SelectedInstanceIndices.size()==1)
     {

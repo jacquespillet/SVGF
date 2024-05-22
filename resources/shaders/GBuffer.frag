@@ -42,6 +42,7 @@ uniform int InstanceIndex;
 uniform int MaterialIndex;
 uniform int Width;
 uniform int Height;
+uniform int Debug;
 uniform vec3 CameraPosition;
 
 void main()
@@ -49,15 +50,20 @@ void main()
     OutUV = vec4(BarycentricCoord, 1.0f); 
     OutNormal = vec4(normalize(FragNormal), 1.0f);
     OutPosition = vec4(FragPosition, 1.0f);
-
-    OutUV.w = float(InstanceIndex);
-    OutNormal.w = float(MaterialIndex);
-    OutPosition.w = float(FragPrimitiveIndex);
-
     vec4 PrevScreenPos = FragPrevScreenPos / FragPrevScreenPos.w;
     vec4 CurrentScreenPos = FragCurrentScreenPos / FragCurrentScreenPos.w;
     vec2 MotionVector = (vec2(PrevScreenPos) - vec2(CurrentScreenPos)) * (0.5 * vec2(float(Width), float(Height)));
-    
     float Depth = distance(CameraPosition, OutPosition.xyz);
-    OutMotionVectors = vec4(MotionVector, Depth, 1);
+    
+    OutMotionVectors = vec4(MotionVector, 0, 1);
+
+    if(Debug==0)
+    {
+      OutUV.w = float(InstanceIndex);
+      OutNormal.w = float(MaterialIndex);
+      OutPosition.w = float(FragPrimitiveIndex);
+      
+      OutMotionVectors.z = Depth;
+    }
+
 }

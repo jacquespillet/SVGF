@@ -18,6 +18,13 @@ class buffer;
 class gui;
 class framebuffer;
 
+enum class rasterizeOutputs
+{
+    Position=0,
+    Normal=1,
+    UV=2,
+    Motion=3
+};
 
 struct cudaFramebuffer
 {
@@ -60,17 +67,7 @@ private:
     uint32_t  RenderWindowHeight;
     float RenderAspectRatio = 1;
 
-    // Denoiser
-    oidn::DeviceRef Device;
-    oidn::FilterRef Filter;
-    cudaStream_t Stream;
     
-
-    bool Denoised=false;
-    bool DoDenoise=false;
-    
-    
-    bool DoSVGF=true;
     enum class SVGFDebugOutputEnum
     {
         FinalOutput,
@@ -81,9 +78,17 @@ private:
         BarycentricCoords,
         TemporalFilter,
         ATrousWaveletFilter
-    }SVGFDebutOutput;
+    }SVGFDebugOutput;
+    bool DebugRasterize=false;
+
+    int SpatialFilterSteps = 3;
 
 
+
+    void Rasterize();
+    void Trace();
+    void TemporalFilter();
+    void WaveletFilter();
     void Tonemap();
 
     float Time=0;
@@ -99,12 +104,14 @@ private:
     std::shared_ptr<buffer> RenderBuffer[2];
 
     std::shared_ptr<buffer> MomentsBuffer;
-    std::shared_ptr<buffer> FilterBuffer;
+    std::shared_ptr<buffer> FilterBuffer[2];
     std::shared_ptr<buffer> HistoryLengthBuffer;
     // std::shared_ptr<buffer> TonemapBuffer;    
     // std::shared_ptr<buffer> DenoisedBuffer;    
     std::shared_ptr<textureGL> RenderTexture;
     std::shared_ptr<cudaTextureMapping> RenderTextureMapping;
+
+    uint32_t OutputTexture;
 
     
     int PingPongInx=0;
@@ -117,8 +124,6 @@ private:
     void ResizeRenderTextures();
     void CalculateWindowSizes();
     void StartFrame();
-    void Denoise();
-    void CreateOIDNFilter();
     void EndFrame();
 };
 

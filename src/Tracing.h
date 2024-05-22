@@ -16,26 +16,19 @@ class buffer;
 
 struct tracingParameters
 {
-    int CurrentSample;
-    int TotalSamples;
     int Batch;
     int Bounces;
 
-    glm::vec2 Pad0;
     float CurrentCamera;    
     float Clamp;
 
-    glm::ivec2 Pad1;
-    int RefreshEveryFrame=1;
     int SamplingMode;
 };
 
 inline tracingParameters GetTracingParameters()
 {
     tracingParameters Params;
-    Params.CurrentSample = 0;
     Params.Batch = 1;
-    Params.TotalSamples = 4096;
     Params.Bounces = 12;
     Params.Clamp = 10;
     Params.CurrentCamera=0;

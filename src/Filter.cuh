@@ -360,7 +360,7 @@ __global__ void FilterKernel(vec4 *Input, vec4 *Moments, cudaTextureObject_t Mot
         // with the edge-stopping functions
         float sumWIllumination = 1.0;
         vec4 sumIllumination = IlluminationCenter;
-
+        float SumVariance = Variance;
         for (int yy = -2; yy <= 2; yy++)
         {
             for (int xx = -2; xx <= 2; xx++)
@@ -378,6 +378,7 @@ __global__ void FilterKernel(vec4 *Input, vec4 *Moments, cudaTextureObject_t Mot
                     float lIlluminationP = CalculateLuminance(IlluminationP);
                     float zP = SampleCuTexture(Motions, CurrentCoord).z;
                     vec3 nP = SampleCuTexture(Normals, CurrentCoord);
+                    float vP = Moments[FilterInx].z;
 
                     // compute the edge-stopping functions
                     float w = computeWeight(
@@ -395,14 +396,19 @@ __global__ void FilterKernel(vec4 *Input, vec4 *Moments, cudaTextureObject_t Mot
 
                     // alpha channel contains the variance, therefore the weights need to be squared, see paper for the formula
                     sumWIllumination += wIllumination;
-                    sumIllumination += vec4(wIllumination,wIllumination,wIllumination, wIllumination * wIllumination) * IlluminationP;
+                    SumVariance += wIllumination * wIllumination * vP;
+                    // sumIllumination += vec4(wIllumination,wIllumination,wIllumination, wIllumination * wIllumination) * IlluminationP;
+                    sumIllumination += vec4(wIllumination) * IlluminationP;
                 }
             }
         }
 
         // renormalization is different for variance, check paper for the formula
-        vec4 filteredIllumination = vec4(sumIllumination / vec4(sumWIllumination,sumWIllumination,sumWIllumination, sumWIllumination * sumWIllumination));
+        // vec4 filteredIllumination = vec4(sumIllumination / vec4(sumWIllumination,sumWIllumination,sumWIllumination, sumWIllumination * sumWIllumination));
+        vec4 filteredIllumination = vec4(sumIllumination / vec4(sumWIllumination));
+        float FilteredVariance = SumVariance / (sumWIllumination * sumWIllumination);
 
+        Moments[Inx].z = FilteredVariance;
         // return filteredIllumination;
         Output[Inx] = filteredIllumination;
     }    
