@@ -1,4 +1,132 @@
+#pragma once
+#include "BVH.h"
+#include "App.h"
 
+#define GLM_FORCE_CUDA
+#include <glm/glm.hpp>
+
+namespace pathtracing
+{
+
+
+using namespace glm;
+using namespace gpupt;
+
+#define PI_F 3.141592653589
+#define INVALID_ID -1
+#define MIN_ROUGHNESS (0.03f * 0.03f)
+
+#define MAX_LENGTH 1e30f
+
+#define DENOISE_RANGE vec2(1, 4)
+
+
+__device__ u32 Width;
+__device__ u32 Height;
+__device__ triangle *TriangleBuffer;
+__device__ bvhNode *BVHBuffer;
+__device__ u32 *IndicesBuffer;
+__device__ indexData *IndexDataBuffer;
+__device__ instance *TLASInstancesBuffer;
+__device__ tlasNode *TLASNodes;
+__device__ camera *Cameras;
+__device__ tracingParameters *Parameters;
+__device__ material *Materials;
+__device__ cudaTextureObject_t SceneTextures;
+__device__ cudaTextureObject_t EnvTextures;
+__device__ int EnvironmentsCount;
+__device__ int TexturesWidth;
+__device__ int TexturesHeight;
+__device__ int LightsCount;
+__device__ light *Lights;
+__device__ float *LightsCDF;
+__device__ environment *Environments;
+__device__ int EnvTexturesWidth;
+__device__ int EnvTexturesHeight;
+__device__ float Time;
+__device__ cudaFramebuffer CurrentFramebuffer;
+
+
+
+
+
+#define IMAGE_SIZE(Img) \
+    ivec2(Width, Height)
+
+#define GLOBAL_ID() \
+    uvec2(blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y)
+
+#define FN_DECL __device__
+
+#define INOUT(Type) Type &
+
+#define GET_ATTR(Obj, Attr) \
+    Obj->Attr
+
+
+__device__ void imageStore(vec4 *Image, ivec2 p, vec4 Colour)
+{
+    p.x = clamp(p.x, 0, int(Width-1));
+    p.y = clamp(p.y, 0, int(Height-1));
+     
+    Image[p.y * Width + p.x] = clamp(Colour, vec4(0), vec4(1));
+}
+
+__device__ vec4 imageLoad(vec4 *Image, ivec2 p)
+{
+    p.x = clamp(p.x, 0, int(Width-1));
+    p.y = clamp(p.y, 0, int(Height-1));
+    return clamp(Image[p.y * Width + p.x], vec4(0), vec4(1));
+}
+
+__device__ vec4 textureSample(cudaTextureObject_t _SceneTextures, vec3 Coords)
+{
+    // Coords.x = Coordx.x % 1.0f;
+    float W;
+    if(Coords.x < 0) Coords.x = 1 - Coords.x;
+    if(Coords.y < 0) Coords.y = 1 - Coords.y;
+
+    Coords.x = std::modf(Coords.x, &W);
+    Coords.y = std::modf(Coords.y, &W);
+
+    int NumLayersX = 8192 / TexturesWidth;
+    int LayerInx = Coords.z;
+    
+    int LocalCoordX = Coords.x * TexturesWidth;
+    int LocalCoordY = Coords.y * TexturesHeight;
+
+    int XOffset = (LayerInx % NumLayersX) * TexturesWidth;
+    int YOffset = (LayerInx / NumLayersX) * TexturesHeight;
+
+    int CoordX = XOffset + LocalCoordX;
+    int CoordY = YOffset + LocalCoordY;
+
+    uchar4 TexValue = tex2D<uchar4>(_SceneTextures, CoordX, CoordY);
+    vec4 TexValueF = vec4((float)TexValue.x / 255.0f, (float)TexValue.y / 255.0f, (float)TexValue.z / 255.0f, (float)TexValue.w / 255.0f);
+    return TexValueF;
+}
+
+__device__ vec4 textureSampleEnv(cudaTextureObject_t _EnvTextures, vec3 Coords)
+{
+    int NumLayersX = 8192 / EnvTexturesWidth;
+    int LayerInx = Coords.z;
+    
+    int LocalCoordX = Coords.x * EnvTexturesWidth;
+    int LocalCoordY = Coords.y * EnvTexturesHeight;
+
+    int XOffset = (LayerInx % NumLayersX) * EnvTexturesWidth;
+    int YOffset = (LayerInx / NumLayersX) * EnvTexturesHeight;
+
+    int CoordX = XOffset + LocalCoordX;
+    int CoordY = YOffset + LocalCoordY;
+
+    float4 TexValue = tex2D<float4>(_EnvTextures, CoordX, CoordY);
+    vec4 TexValueF = vec4(TexValue.x, TexValue.y, TexValue.z, TexValue.w);
+    return TexValueF;
+}
+
+ 
+ 
 struct randomState
 {
     uint64_t State;
@@ -402,13 +530,11 @@ FN_DECL sceneIntersection MakeFirstIsect(int Sample)
     float t = Time * float(GLOBAL_ID().x) * 1973.0f;
     Isect.RandomState = CreateRNG(uint(uint(t) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(GET_ATTR(Parameters,CurrentSample) + Sample) * uint(117191)) | uint(1)); 
 
-    camera &Camera = Cameras[int(GET_ATTR(Parameters, CurrentCamera))];
-    vec3 CameraPosition = Camera.Frame * vec4(0,0,0, 1);
-
 
     float4 Position = tex2D<float4>(CurrentFramebuffer.PositionTexture, Coord.x, Coord.y);
     float4 UV = tex2D<float4>(CurrentFramebuffer.UVTexture, Coord.x, Coord.y);
     float4 Normal = tex2D<float4>(CurrentFramebuffer.NormalTexture, Coord.x, Coord.y);
+    float4 Motion = tex2D<float4>(CurrentFramebuffer.MotionTexture, Coord.x, Coord.y);
     
     if(length(vec3(Position.x, Position.y, Position.z)) != 0)
     {
@@ -416,7 +542,7 @@ FN_DECL sceneIntersection MakeFirstIsect(int Sample)
         Isect.PrimitiveIndex = uint(Position.w);
         Isect.U = UV.x;
         Isect.V = UV.y;
-        Isect.Distance = distance(vec3(Position.x, Position.y, Position.z), CameraPosition);
+        Isect.Distance = Motion.z;
         Isect.MaterialIndex = uint(Normal.w);
     }
     
@@ -1630,8 +1756,6 @@ FN_DECL vec3 PathTrace(int Sample, vec2 UV, INOUT(vec3) OutNormal)
             vec3 Position = EvalShadingPosition(OutgoingDir, Isect);
             vec3 Normal = EvalShadingNormal(OutgoingDir, Isect);
             
-            // Radiance = vec3(Position);
-            // break;
 
 
             if(Bounce==0)
@@ -1770,63 +1894,7 @@ FN_DECL vec3 PathTrace(int Sample, vec2 UV, INOUT(vec3) OutNormal)
     return Radiance;
 }
 
-FN_DECL vec4 SampleCuTexture(cudaTextureObject_t Texture, ivec2 Coord)
-{
-    float4 Sample = tex2D<float4>(Texture, Coord.x, Coord.y);
-    return vec4(Sample.x, Sample.y, Sample.z, Sample.w);
-}
-
-FN_DECL float GetDepth(cudaTextureObject_t Texture, ivec2 Coord)
-{
-    float4 MotionVecSample = tex2D<float4>(Texture, Coord.x, Coord.y);
-    float Depth = MotionVecSample.z;
-    if(Depth == 0.0f) return 1e30f;
-
-    return Depth;
-}
-
-FN_DECL bool LoadPreviousData(vec4 *PrevFrame, ivec2 Coord, vec3 CurrentColour, INOUT(vec3) Colour, INOUT(int) HistoryLength, INOUT(vec2) PreviousMoments)
-{
-    float4 MotionVectorSample = tex2D<float4>(CurrentFramebuffer.MotionTexture, Coord.x, Coord.y);
-    vec2 MotionVector = vec2(MotionVectorSample.x, MotionVectorSample.y);
-    ivec2 PrevCoord = Coord + ivec2(MotionVector);
-
-
-    if(PrevCoord.x < 0 || PrevCoord.x >= Width || PrevCoord.y < 0 || PrevCoord.y >= Height) return false;
-    
-
-    // Check if depth is consistent
-    float CurrentDepth = GetDepth(CurrentFramebuffer.MotionTexture, Coord);
-    float PreviousDepth = GetDepth(PreviousFramebuffer.MotionTexture, PrevCoord);
-    if(abs(CurrentDepth - PreviousDepth) > 0.1f) return false;
-
-    // // Check the mesh ID
-    int CurrentMeshID = SampleCuTexture(CurrentFramebuffer.UVTexture, Coord).w;
-    int PreviousMeshID = SampleCuTexture(PreviousFramebuffer.UVTexture, PrevCoord).w;
-    if(CurrentMeshID != PreviousMeshID) return false;
-
-    // Check the normal
-    vec3 CurrNormal = SampleCuTexture(CurrentFramebuffer.NormalTexture, Coord);
-    vec3 PrevNormal = SampleCuTexture(PreviousFramebuffer.NormalTexture, PrevCoord);
-    if(dot(CurrNormal, PrevNormal) < 0.9f) return false;
-
-    // vec3 PreviousColour = imageLoad(PrevFrame, PrevCoord);
-
-    // if(distance(CurrentColour, PreviousColour) > 0.1f) return false;
-
-    Colour = imageLoad(PrevFrame, PrevCoord);
-    HistoryLength = int(HistoryLengths[PrevCoord.y * Width + PrevCoord.x]);
-    PreviousMoments = vec2(MomentsBuffer[PrevCoord.y * Width + PrevCoord.x]);
-    return true;
-}
-
-FN_DECL float CalculateLuminance(vec3 Colour)
-{
-    return 0.2126f * Colour.r + 0.7152f * Colour.g + 0.0722f * Colour.b;
-}
-
-__global__ void TraceKernel(cudaFramebuffer _CurrentFramebuffer, cudaFramebuffer _PreviousFramebuffer, vec4 *RenderImage,
-                            vec4 *PreviousImage, uint32_t* _HistoryLengths,  vec4 *_MomentsBuffer, int _Width, int _Height,
+__global__ void TraceKernel(vec4 *RenderImage, cudaFramebuffer _CurrentFramebuffer, int _Width, int _Height,
                             triangle *_AllTriangles, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, instance *_Instances, tlasNode *_TLASNodes,
                             camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures, int _TexturesWidth, int _TexturesHeight, light *_Lights, float *_LightsCDF, int _LightsCount,
                             environment *_Environments, int _EnvironmentsCount, cudaTextureObject_t _EnvTextures, int _EnvTexturesWidth, int _EnvTexturesHeight, float _Time)
@@ -1854,10 +1922,7 @@ __global__ void TraceKernel(cudaFramebuffer _CurrentFramebuffer, cudaFramebuffer
     EnvTexturesWidth = _EnvTexturesWidth;
     EnvTexturesHeight = _EnvTexturesHeight;
     Time = _Time;
-    HistoryLengths = _HistoryLengths;
     CurrentFramebuffer = _CurrentFramebuffer;
-    PreviousFramebuffer = _PreviousFramebuffer;
-    MomentsBuffer = _MomentsBuffer;
     
  
     float t = Time * float(GLOBAL_ID().x) * 1973.0f;
@@ -1885,41 +1950,11 @@ __global__ void TraceKernel(cudaFramebuffer _CurrentFramebuffer, cudaFramebuffer
             }
             else
             {
-                Radiance += PathTrace(Sample, UV, Normal) * InverseSampleCount;
+                Radiance += PathTrace(0, UV, Normal) * InverseSampleCount;
             }
         }
 
-        vec3 PrevCol(0);
-        int HistoryLength=1;
-        float Alpha = 0;
-        vec2 PreviousMoments;
-        bool CouldLoad = LoadPreviousData(PreviousImage, ivec2(GlobalID), Radiance, PrevCol, HistoryLength, PreviousMoments);
-        if(CouldLoad)
-        {
-            HistoryLength = min(32, HistoryLength + 1 );
-            Alpha = 1.0 / HistoryLength;
-        }
-        else
-        {
-            Alpha = 1;
-            HistoryLength=1;
-        }
-
-        // compute first two moments of luminance
-        vec2 Moments;
-        Moments.x = CalculateLuminance(Radiance);
-        Moments.y = Moments.r * Moments.r;
-
-        // temporal integration of the Moments
-        Moments = mix(PreviousMoments, Moments, Alpha);
-
-        float Variance = max(0.f, Moments.g - Moments.r * Moments.r);
-
-        vec3 NewCol = mix(PrevCol, Radiance, Alpha);
-        vec2 NewMoments = mix(PreviousMoments, Moments, Alpha);
-        
-        HistoryLengths[GlobalID.y * Width + GlobalID.x] = HistoryLength;
-        imageStore(RenderImage, ivec2(GlobalID), vec4(NewCol, 1.0f));
-        imageStore(MomentsBuffer, ivec2(GlobalID), vec4(NewMoments.x, NewMoments.y, Variance, 1.0f));
+        imageStore(RenderImage, ivec2(GlobalID), vec4(Radiance, 1.0f));
     }
+}
 }

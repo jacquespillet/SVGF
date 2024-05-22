@@ -1,70 +1,17 @@
 #pragma once
-#include "BVH.h"
-#include "App.h"
 
+#include "App.h"
 #define GLM_FORCE_CUDA
 #include <glm/glm.hpp>
 
-namespace pathtracing
+
+namespace filter
 {
-
-
 using namespace glm;
 using namespace gpupt;
 
-#define PI_F 3.141592653589
-#define INVALID_ID -1
-#define MIN_ROUGHNESS (0.03f * 0.03f)
-
-#define MAX_LENGTH 1e30f
-
-#define DENOISE_RANGE vec2(1, 4)
-
-
-__device__ u32 Width;
-__device__ u32 Height;
-__device__ triangle *TriangleBuffer;
-__device__ bvhNode *BVHBuffer;
-__device__ u32 *IndicesBuffer;
-__device__ indexData *IndexDataBuffer;
-__device__ instance *TLASInstancesBuffer;
-__device__ tlasNode *TLASNodes;
-__device__ camera *Cameras;
-__device__ tracingParameters *Parameters;
-__device__ material *Materials;
-__device__ cudaTextureObject_t SceneTextures;
-__device__ cudaTextureObject_t EnvTextures;
-__device__ int EnvironmentsCount;
-__device__ int TexturesWidth;
-__device__ int TexturesHeight;
-__device__ int LightsCount;
-__device__ light *Lights;
-__device__ float *LightsCDF;
-__device__ environment *Environments;
-__device__ int EnvTexturesWidth;
-__device__ int EnvTexturesHeight;
-__device__ float Time;
-__device__ cudaFramebuffer CurrentFramebuffer;
-__device__ cudaFramebuffer PreviousFramebuffer;
-__device__ uint32_t *HistoryLengths;
-__device__ vec4 *MomentsBuffer;
-
-
-
-
-
-#define IMAGE_SIZE(Img) \
-    ivec2(Width, Height)
-
-#define GLOBAL_ID() \
-    uvec2(blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y)
-
-#define FN_DECL __device__
-
-#define INOUT(Type) Type &
-
-#define GET_ATTR(Obj, Attr) \
-    Obj->Attr
+__device__ int Width;
+__device__ int Height;
 
 
 __device__ void imageStore(vec4 *Image, ivec2 p, vec4 Colour)
@@ -82,32 +29,6 @@ __device__ vec4 imageLoad(vec4 *Image, ivec2 p)
     return clamp(Image[p.y * Width + p.x], vec4(0), vec4(1));
 }
 
-__device__ vec4 textureSample(cudaTextureObject_t _SceneTextures, vec3 Coords)
-{
-    // Coords.x = Coordx.x % 1.0f;
-    float W;
-    if(Coords.x < 0) Coords.x = 1 - Coords.x;
-    if(Coords.y < 0) Coords.y = 1 - Coords.y;
-
-    Coords.x = std::modf(Coords.x, &W);
-    Coords.y = std::modf(Coords.y, &W);
-
-    int NumLayersX = 8192 / TexturesWidth;
-    int LayerInx = Coords.z;
-    
-    int LocalCoordX = Coords.x * TexturesWidth;
-    int LocalCoordY = Coords.y * TexturesHeight;
-
-    int XOffset = (LayerInx % NumLayersX) * TexturesWidth;
-    int YOffset = (LayerInx / NumLayersX) * TexturesHeight;
-
-    int CoordX = XOffset + LocalCoordX;
-    int CoordY = YOffset + LocalCoordY;
-
-    uchar4 TexValue = tex2D<uchar4>(_SceneTextures, CoordX, CoordY);
-    vec4 TexValueF = vec4((float)TexValue.x / 255.0f, (float)TexValue.y / 255.0f, (float)TexValue.z / 255.0f, (float)TexValue.w / 255.0f);
-    return TexValueF;
-}
 
 // Texture sampling function with bilinear interpolation
 __device__ vec4 textureSample(vec4* texture, int Width, int Height, vec2& uv) {
@@ -138,28 +59,6 @@ __device__ vec4 textureSample(vec4* texture, int Width, int Height, vec2& uv) {
     return c;
 }
 
-__device__ vec4 textureSampleEnv(cudaTextureObject_t _EnvTextures, vec3 Coords)
-{
-    int NumLayersX = 8192 / EnvTexturesWidth;
-    int LayerInx = Coords.z;
-    
-    int LocalCoordX = Coords.x * EnvTexturesWidth;
-    int LocalCoordY = Coords.y * EnvTexturesHeight;
-
-    int XOffset = (LayerInx % NumLayersX) * EnvTexturesWidth;
-    int YOffset = (LayerInx / NumLayersX) * EnvTexturesHeight;
-
-    int CoordX = XOffset + LocalCoordX;
-    int CoordY = YOffset + LocalCoordY;
-
-    float4 TexValue = tex2D<float4>(_EnvTextures, CoordX, CoordY);
-    vec4 TexValueF = vec4(TexValue.x, TexValue.y, TexValue.z, TexValue.w);
-    return TexValueF;
-}
-
- 
-#include "../../resources/PathTraceCode.cpp"
-
 
 __device__ float ToSRGB(float Col) {
   return (Col <= 0.0031308f) ? 12.92f * Col
@@ -175,8 +74,11 @@ __device__ vec3 ToSRGB(vec3 Col)
     );
 }
 
-__global__ void TonemapKernel(vec4 *Input,vec4 *Output, int Width, int Height, int DoClear)
+__global__ void TonemapKernel(vec4 *Input,vec4 *Output, int _Width, int _Height, int DoClear)
 {
+    Width = _Width;
+    Height = _Height;
+        
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x < Width && y < Height) {    
@@ -194,139 +96,65 @@ __device__ float hash1(float seed) {
     return fract(sin(seed)*43758.5453123);
 }
 
-__global__ void SVGFFilterKernel(vec4 *InputColour,vec4 *InputNormal, vec4 *InputFiltered, vec4 *OutputFiltered, int Width, int Height, float time)
+
+FN_DECL vec4 SampleCuTexture(cudaTextureObject_t Texture, ivec2 Coord)
 {
-    vec2 Resolution = vec2(float(Width), float(Height));
-    vec2 InvTexResolution = vec2(1.0f / float(Width), 1.0f / float(Height));
-    ivec2 FragCoord = ivec2 ( GLOBAL_ID() );
-
-    
-    if (FragCoord.x < Width && FragCoord.y < Height) {
-        
-        vec2 Offset[25];
-        Offset[0] = vec2(-2,-2);
-        Offset[1] = vec2(-1,-2);
-        Offset[2] = vec2(0,-2);
-        Offset[3] = vec2(1,-2);
-        Offset[4] = vec2(2,-2);
-        
-        Offset[5] = vec2(-2,-1);
-        Offset[6] = vec2(-1,-1);
-        Offset[7] = vec2(0,-1);
-        Offset[8] = vec2(1,-1);
-        Offset[9] = vec2(2,-1);
-        
-        Offset[10] = vec2(-2,0);
-        Offset[11] = vec2(-1,0);
-        Offset[12] = vec2(0,0);
-        Offset[13] = vec2(1,0);
-        Offset[14] = vec2(2,0);
-        
-        Offset[15] = vec2(-2,1);
-        Offset[16] = vec2(-1,1);
-        Offset[17] = vec2(0,1);
-        Offset[18] = vec2(1,1);
-        Offset[19] = vec2(2,1);
-        
-        Offset[20] = vec2(-2,2);
-        Offset[21] = vec2(-1,2);
-        Offset[22] = vec2(0,2);
-        Offset[23] = vec2(1,2);
-        Offset[24] = vec2(2,2);
-        
-        
-        float Kernel[25];
-        Kernel[0] = 1.0f/256.0f;
-        Kernel[1] = 1.0f/64.0f;
-        Kernel[2] = 3.0f/128.0f;
-        Kernel[3] = 1.0f/64.0f;
-        Kernel[4] = 1.0f/256.0f;
-        
-        Kernel[5] = 1.0f/64.0f;
-        Kernel[6] = 1.0f/16.0f;
-        Kernel[7] = 3.0f/32.0f;
-        Kernel[8] = 1.0f/16.0f;
-        Kernel[9] = 1.0f/64.0f;
-        
-        Kernel[10] = 3.0f/128.0f;
-        Kernel[11] = 3.0f/32.0f;
-        Kernel[12] = 9.0f/64.0f;
-        Kernel[13] = 3.0f/32.0f;
-        Kernel[14] = 3.0f/128.0f;
-        
-        Kernel[15] = 1.0f/64.0f;
-        Kernel[16] = 1.0f/16.0f;
-        Kernel[17] = 3.0f/32.0f;
-        Kernel[18] = 1.0f/16.0f;
-        Kernel[19] = 1.0f/64.0f;
-        
-        Kernel[20] = 1.0f/256.0f;
-        Kernel[21] = 1.0f/64.0f;
-        Kernel[22] = 3.0f/128.0f;
-        Kernel[23] = 1.0f/64.0f;
-        Kernel[24] = 1.0f/256.0f;
-        
-        vec3 sum = vec3(0.0);
-        vec3 sum_f = vec3(0.0);
-        float ColourPhi = 1.0;
-        float PreviousPhi = 1.0;
-        float NormalPhi = 0.5;
-        float BlendPhi = 0.25;
-        
-        vec3 ColourValue = imageLoad(InputColour, ivec2(FragCoord));
-        vec3 PreviousValue = imageLoad(InputFiltered, ivec2(FragCoord));
-        vec3 NormalValue = imageLoad(InputNormal, ivec2(FragCoord));
-
-        float Angle = 2.0*3.1415926535*hash1(251.12860182*FragCoord.x + 729.9126812*FragCoord.y+5.1839513*time);
-        // float Angle = 0;
-        mat2 RotationMatrix = mat2(cos(Angle),sin(Angle),-sin(Angle),cos(Angle));
-        
-        float WeightCurrent = 0.0;
-        float WeightPrevious = 0.0;
-        
-        float denoiseStrength = (DENOISE_RANGE.x + (DENOISE_RANGE.y-DENOISE_RANGE.x)*hash1(641.128752*FragCoord.x + 312.321374*FragCoord.y+1.92357812*time));
-        
-        for(int i=0; i<25; i++)
-        {
-            vec2 uv = (vec2(FragCoord)+RotationMatrix*(Offset[i]* denoiseStrength));
-            
-            vec3 ColourTemp = imageLoad(InputColour, uv);
-            vec3 Dist = ColourValue - ColourTemp;
-            float Dist2 = dot(Dist,Dist);
-            float ColourWeight = min(exp(-(Dist2)/ColourPhi), 1.0);
-            
-            vec3 NormalTemp = imageLoad(InputNormal, uv);
-            Dist = NormalValue - NormalTemp;
-            Dist2 = max(dot(Dist,Dist), 0.0);
-            float NormalWeight = min(exp(-(Dist2)/NormalPhi), 1.0);
-            
-            vec3 PreviousTmp = imageLoad(InputFiltered, uv);
-            Dist = PreviousValue - PreviousTmp;
-            Dist2 = dot(Dist,Dist);
-            float PreviousWeight = min(exp(-(Dist2)/PreviousPhi), 1.0);
-            
-            // new denoised frame
-            float weight0 = ColourWeight * NormalWeight;
-            sum += ColourTemp*weight0*Kernel[i];
-            WeightCurrent += weight0*Kernel[i];
-            
-            // denoise the previous denoised frame again
-            float weight1 = PreviousWeight * NormalWeight;
-            sum_f += PreviousTmp * weight1 * Kernel[i];
-            WeightPrevious += weight1 * Kernel[i];
-        }
-        
-        // mix in more of the just-denoised frame if it differs significantly from the
-        // frame from feedback
-        vec3 ptmp = imageLoad(InputFiltered, FragCoord);
-        vec3 t = sum/WeightCurrent - ptmp;
-        float dist2 = dot(t,t);
-        float p_w = min(exp(-(dist2)/BlendPhi), 1.0);
-        
-        vec4 fragColor = clamp(vec4(mix(sum/WeightCurrent,sum_f/WeightPrevious,p_w),0.0f),0.0f,1.0f);
-        imageStore(OutputFiltered, FragCoord, fragColor);
-    }
+    float4 Sample = tex2D<float4>(Texture, Coord.x, Coord.y);
+    return vec4(Sample.x, Sample.y, Sample.z, Sample.w);
 }
+
+FN_DECL float GetDepth(cudaTextureObject_t Texture, ivec2 Coord)
+{
+    float4 MotionVecSample = tex2D<float4>(Texture, Coord.x, Coord.y);
+    float Depth = MotionVecSample.z;
+    if(Depth == 0.0f) return 1e30f;
+
+    return Depth;
+}
+
+FN_DECL bool LoadPreviousData(vec4 *PrevFrame, cudaFramebuffer &CurrentFramebuffer, cudaFramebuffer &PreviousFramebuffer, 
+                              uint32_t *HistoryLengths, vec4 *MomentsBuffer,  ivec2 Coord, vec3 CurrentColour, 
+                              INOUT(vec3) Colour, INOUT(int) HistoryLength, INOUT(vec2) PreviousMoments)
+{
+    float4 MotionVectorSample = tex2D<float4>(CurrentFramebuffer.MotionTexture, Coord.x, Coord.y);
+    vec2 MotionVector = vec2(MotionVectorSample.x, MotionVectorSample.y);
+    ivec2 PrevCoord = Coord + ivec2(MotionVector);
+
+
+    if(PrevCoord.x < 0 || PrevCoord.x >= Width || PrevCoord.y < 0 || PrevCoord.y >= Height) return false;
+    
+
+    // Check if depth is consistent
+    float CurrentDepth = GetDepth(CurrentFramebuffer.MotionTexture, Coord);
+    float PreviousDepth = GetDepth(PreviousFramebuffer.MotionTexture, PrevCoord);
+    if(abs(CurrentDepth - PreviousDepth) > 0.1f) return false;
+
+    // // Check the mesh ID
+    int CurrentMeshID = SampleCuTexture(CurrentFramebuffer.UVTexture, Coord).w;
+    int PreviousMeshID = SampleCuTexture(PreviousFramebuffer.UVTexture, PrevCoord).w;
+    if(CurrentMeshID != PreviousMeshID) return false;
+
+    // Check the normal
+    vec3 CurrNormal = SampleCuTexture(CurrentFramebuffer.NormalTexture, Coord);
+    vec3 PrevNormal = SampleCuTexture(PreviousFramebuffer.NormalTexture, PrevCoord);
+    if(dot(CurrNormal, PrevNormal) < 0.9f) return false;
+
+    // vec3 PreviousColour = imageLoad(PrevFrame, PrevCoord);
+
+    // if(distance(CurrentColour, PreviousColour) > 0.1f) return false;
+
+    Colour = imageLoad(PrevFrame, PrevCoord);
+    HistoryLength = int(HistoryLengths[PrevCoord.y * Width + PrevCoord.x]);
+    PreviousMoments = vec2(MomentsBuffer[PrevCoord.y * Width + PrevCoord.x]);
+    return true;
+}
+
+FN_DECL float CalculateLuminance(vec3 Colour)
+{
+    return 0.2126f * Colour.r + 0.7152f * Colour.g + 0.0722f * Colour.b;
+}
+
+
 
 __device__ vec3 encodePalYuv(vec3 rgb)
 {
@@ -349,8 +177,11 @@ __device__ vec3 decodePalYuv(vec3 yuv)
 }
 
 
-__global__ void TAAFilterKernel(vec4 *InputFiltered, vec4 *Output, int Width, int Height, float time)
+__global__ void TAAFilterKernel(vec4 *InputFiltered, vec4 *Output, int _Width, int _Height, float time)
 {
+    Width = _Width;
+    Height = _Height;
+    
     vec2 Resolution = vec2(float(Width), float(Height));
     vec2 InvTexResolution = vec2(1.0f / float(Width), 1.0f / float(Height));
     ivec2 FragCoord = ivec2 ( GLOBAL_ID() );
@@ -415,6 +246,53 @@ __global__ void TAAFilterKernel(vec4 *InputFiltered, vec4 *Output, int Width, in
     }
 }
 
+__global__ void TemporalFilter(vec4 *PreviousImage, vec4 *CurrentImage, cudaFramebuffer CurrentFramebuffer, cudaFramebuffer PreviousFramebuffer, uint32_t* HistoryLengths,  vec4 *MomentsBuffer, int _Width, int _Height)
+{
+    Width = _Width;
+    Height = _Height;
+        
+    vec2 Resolution = vec2(float(Width), float(Height));
+    vec2 InvTexResolution = vec2(1.0f / float(Width), 1.0f / float(Height));
+    ivec2 FragCoord = ivec2 ( GLOBAL_ID() );
+    vec2 uv = vec2(FragCoord) * InvTexResolution;
+
+    if (FragCoord.x < Width && FragCoord.y < Height) {
+        vec3 CurrentColour = imageLoad(CurrentImage, FragCoord);
+        vec3 PrevCol(0);
+        int HistoryLength=1;
+        float Alpha = 0;
+        vec2 PreviousMoments;
+        
+        bool CouldLoad = LoadPreviousData(PreviousImage, CurrentFramebuffer, PreviousFramebuffer, HistoryLengths, MomentsBuffer, FragCoord, CurrentColour, PrevCol, HistoryLength, PreviousMoments);
+        if(CouldLoad)
+        {
+            HistoryLength = min(32, HistoryLength + 1 );
+            Alpha = 1.0 / HistoryLength;
+        }
+        else
+        {
+            Alpha = 1;
+            HistoryLength=1;
+        }
+
+        // compute first two moments of luminance
+        vec2 Moments;
+        Moments.x = CalculateLuminance(CurrentColour);
+        Moments.y = Moments.r * Moments.r;
+
+        // temporal integration of the Moments
+        Moments = mix(PreviousMoments, Moments, Alpha);
+
+        float Variance = max(0.f, Moments.g - Moments.r * Moments.r);
+
+        vec3 NewCol = mix(PrevCol, CurrentColour, Alpha);
+        vec2 NewMoments = mix(PreviousMoments, Moments, Alpha);
+        
+        HistoryLengths[FragCoord.y * Width + FragCoord.x] = HistoryLength;
+        imageStore(CurrentImage, ivec2(FragCoord), vec4(NewCol, 1.0f));
+        imageStore(MomentsBuffer, ivec2(FragCoord), vec4(NewMoments.x, NewMoments.y, Variance, 1.0f));    
+    }
+}
 
 FN_DECL float computeWeight(
     float depthCenter,
@@ -437,8 +315,11 @@ FN_DECL float computeWeight(
 }
 
 
-__global__ void FilterKernel(vec4 *Input, vec4 *Moments, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint32_t *HistoryLengths, vec4 *Output, int Width, int Height, int Step)
+__global__ void FilterKernel(vec4 *Input, vec4 *Moments, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint32_t *HistoryLengths, vec4 *Output, int _Width, int _Height, int Step)
 {
+    Width = _Width;
+    Height = _Height;
+
     float PhiColour = 10.0f;
     float PhiNormal = 128.0f;
 

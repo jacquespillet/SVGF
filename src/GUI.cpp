@@ -989,7 +989,7 @@ bool gui::TracingGUI()
     
     ImGui::Checkbox("SVGF", &App->DoSVGF);
     if(App->DoSVGF)
-        Changed |= ImGui::Combo("Debug Output", (int*)&App->SVGFDebutOutput, "Final Output\0Raw Output\0Normal\0Motion\0Position\0Barycentric Coords\0Temporal Filter\0A-Trous Wavelet Filter\0\0");
+        Changed |= ImGui::Combo("Debug Output", (int*)&App->SVGFDebutOutput, "Final Output (TAA) \0Raw Output\0Normal\0Motion\0Position\0Barycentric Coords\0Temporal Filter\0A-Trous Wavelet Filter\0\0");
     
     
     if(ImGui::DragInt("Resolution", &App->RenderResolution, 10, 128, 3840))
