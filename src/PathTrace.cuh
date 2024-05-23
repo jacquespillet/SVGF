@@ -1500,7 +1500,7 @@ FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV, INOUT(vec3) OutNormal)
         if(Bounce==0) Isect = MakeFirstIsect(Sample);
         else Isect = UseMisIntersection ?  MisIntersection : IntersectTLAS(Ray, Sample, Bounce);
 
-        if(Isect.Distance == MAX_LENGTH && !UseMisIntersection)
+        if(Isect.Distance == MAX_LENGTH)
         {
             Radiance += Weight * EvalEnvironment(Ray.Direction);
             if(Bounce==0) OutNormal = vec3(0,0,0);
@@ -1570,14 +1570,15 @@ FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV, INOUT(vec3) OutNormal)
             {
                 {
                     Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                    vec3 ShiftedPosition = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
                     if (Incoming == vec3(0, 0, 0)) break;
                     vec3 BSDFCos   = EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
-                    float LightPDF = SampleLightsPDF(Position, Incoming); 
+                    float LightPDF = SampleLightsPDF(ShiftedPosition, Incoming); 
                     float BSDFPDF = SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
                     float MisWeight = PowerHeuristic(LightPDF, BSDFPDF) / LightPDF;
                     if (BSDFCos != vec3(0, 0, 0) && MisWeight != 0) 
                     {
-                        sceneIntersection Isect = IntersectTLAS(MakeRay(Position, Incoming), Sample, 0); 
+                        sceneIntersection Isect = IntersectTLAS(MakeRay(ShiftedPosition, Incoming), Sample, 0); 
                         vec3 Emission = vec3(0, 0, 0);
                         if (Isect.Distance == MAX_LENGTH) {
                             Emission = EvalEnvironment(Incoming);
@@ -1592,14 +1593,14 @@ FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV, INOUT(vec3) OutNormal)
                 }
                 {
                     Incoming = SampleBSDFCos(Material, Normal, OutgoingDir, RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
-                    // vec3 ShiftedPosition = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
+                    vec3 ShiftedPosition = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
                     if (Incoming == vec3(0, 0, 0)) break;
                     vec3 BSDFCos   = EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
-                    float LightPDF = SampleLightsPDF(Position, Incoming);
+                    float LightPDF = SampleLightsPDF(ShiftedPosition, Incoming);
                     float BSDFPDF = SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
                     float MisWeight = PowerHeuristic(BSDFPDF, LightPDF) / BSDFPDF;
                     if (BSDFCos != vec3(0, 0, 0) && MisWeight != 0) {
-                        MisIntersection = IntersectTLAS(MakeRay(Position, Incoming), Sample, 0); 
+                        MisIntersection = IntersectTLAS(MakeRay(ShiftedPosition, Incoming), Sample, 0); 
                         vec3 Emission = vec3(0, 0, 0);
                         if (MisIntersection.Distance == MAX_LENGTH) { 
                             Emission = EvalEnvironment(Incoming);
@@ -1608,12 +1609,12 @@ FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV, INOUT(vec3) OutNormal)
                             Emission      = Material.Emission;
                         }
                         Radiance += Weight * BSDFCos * Emission * MisWeight; 
+                        // // indirect
+                        Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) /
+                                vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
+                        UseMisIntersection = true;
                     }
                 }
-                // // indirect
-                Weight *= EvalBSDFCos(Material, Normal, OutgoingDir, Incoming) /
-                        vec3(SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming));
-                // UseMisIntersection = true;
             }
             else
             {

@@ -14,7 +14,7 @@
 #define MATERIAL_TYPE_GLASS   3
 #define MATERIAL_TYPE_SUBSURFACE   4
 #define ENV_TEX_WIDTH 2048
-#define TEX_WIDTH 1024
+#define TEX_WIDTH 256
 
 
 namespace gpupt

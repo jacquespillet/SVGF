@@ -210,9 +210,9 @@ void application::FilterMoments()
 {
     dim3 blockSize(16, 16);
     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);    
-    cudaMemcpy(FilterBuffer[0]->Data, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
+    // cudaMemcpy(FilterBuffer[0]->Data, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
     //  int _Width, int _Height, float PhiColour, float PhiNormal)
-    filter::FilterMoments<<<gridSize, blockSize>>>((glm::vec4*) FilterBuffer[0]->Data, (glm::vec4*)RenderBuffer[PingPongInx]->Data, (glm::vec2*)MomentsBuffer[0]->Data,
+    filter::FilterMoments<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer[PingPongInx]->Data, (glm::vec4*) FilterBuffer[0]->Data, (glm::vec2*)MomentsBuffer[0]->Data,
                                                     Framebuffer[PingPongInx]->CudaMappings[(int)rasterizeOutputs::Motion]->TexObj,
                                                     Framebuffer[PingPongInx]->CudaMappings[(int)rasterizeOutputs::Normal]->TexObj,
                                                     (uint32_t*)HistoryLengthBuffer->Data,
@@ -224,8 +224,6 @@ void application::WaveletFilter()
     dim3 blockSize(16, 16);
     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);    
     
-    cudaMemcpy(FilterBuffer[0]->Data, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
-
     int PingPong=0;
     for(int i=0; i<SpatialFilterSteps; i++)
     {
@@ -235,14 +233,9 @@ void application::WaveletFilter()
         int StepSize = 1 << i;
 
         filter::FilterKernel<<<gridSize, blockSize>>>(Input, Framebuffer[PingPongInx]->CudaMappings[3]->TexObj, Framebuffer[PingPongInx]->CudaMappings[1]->TexObj,
-            (uint32_t*)HistoryLengthBuffer->Data, Output, RenderWidth, RenderHeight, StepSize, PhiColour, PhiNormal);
+            (uint32_t*)HistoryLengthBuffer->Data, Output, (glm::vec4*) RenderBuffer[PingPongInx]->Data, RenderWidth, RenderHeight, StepSize, PhiColour, PhiNormal, i);
 
         PingPong = 1 - PingPong;
-
-        if(i==0)
-        {
-            cudaMemcpy(RenderBuffer[PingPongInx]->Data, Output, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
-        }
     }
 
     if(SpatialFilterSteps%2 != 0)
@@ -285,7 +278,7 @@ void application::Render()
         Rasterize(); // Outputs to CurrentFramebuffer
         Trace();     // Read CurrentFrmaebuffer, Writes to RenderBuffer[PingPongInx]
         TemporalFilter(); //Reads RenderBuffer[PingPongInx], Writes to RenderBuffer[PingPongInx]
-        FilterMoments(); // Reads RenderBuffer[PingPongInx], writes to RenderBuffer[PingPongInx]
+        FilterMoments(); // Reads RenderBuffer[PingPongInx], writes to FilterBuffer[0]
         WaveletFilter(); //Reads from RenderBuffer[PingPongInx], Writes to FilterBuffer[0]
         TAA(); //Reads from FilterBuffer[0], WRites to FilterBuffer[1]
 

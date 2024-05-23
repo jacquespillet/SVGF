@@ -29,7 +29,7 @@ inline tracingParameters GetTracingParameters()
 {
     tracingParameters Params;
     Params.Batch = 1;
-    Params.Bounces = 12;
+    Params.Bounces = 3;
     Params.Clamp = 10;
     Params.CurrentCamera=0;
     Params.SamplingMode = SAMPLING_MODE_LIGHT;

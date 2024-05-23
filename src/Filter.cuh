@@ -531,7 +531,7 @@ __global__ void FilterMoments(vec4 *CurrentImage, vec4 *Output, vec2 *Moments, c
     }
 }
 
-__global__ void FilterKernel(vec4 *Input, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint32_t *HistoryLengths, vec4 *Output, int _Width, int _Height, int Step, float PhiColour, float PhiNormal)
+__global__ void FilterKernel(vec4 *Input, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint32_t *HistoryLengths, vec4 *Output, vec4 *RenderOutput, int _Width, int _Height, int Step, float PhiColour, float PhiNormal, int Iteration)
 {
     Width = _Width;
     Height = _Height;
@@ -620,6 +620,10 @@ __global__ void FilterKernel(vec4 *Input, cudaTextureObject_t Motions, cudaTextu
 
         // return filteredIllumination;
         Output[Inx] = filteredIllumination;
+        if(Iteration==0)
+        {
+            RenderOutput[Inx] = filteredIllumination;
+        }
     }    
 }
 }
