@@ -75,13 +75,22 @@ private:
         Normal,
         Motion,
         Position,
+        Depth,
         BarycentricCoords,
         TemporalFilter,
+        Moments,
+        Variance,
         ATrousWaveletFilter
     }SVGFDebugOutput;
     bool DebugRasterize=false;
+    glm::vec4 DebugTint=glm::vec4(1);
 
     int SpatialFilterSteps = 3;
+    float DepthThreshold = 0.8f;
+    float NormalThreshold = 0.9f;
+    int HistoryLength = 24;
+    float PhiColour = 10.0f;
+    float PhiNormal = 128.0f;
 
 
 
@@ -90,6 +99,7 @@ private:
     void TemporalFilter();
     void WaveletFilter();
     void Tonemap();
+    void TAA();
 
     float Time=0;
 
@@ -101,9 +111,9 @@ private:
     timer Timer;
 
     std::shared_ptr<buffer> TracingParamsBuffer;
-    std::shared_ptr<buffer> RenderBuffer[2];
 
-    std::shared_ptr<buffer> MomentsBuffer;
+    std::shared_ptr<buffer> RenderBuffer[2];
+    std::shared_ptr<buffer> MomentsBuffer[2];
     std::shared_ptr<buffer> FilterBuffer[2];
     std::shared_ptr<buffer> HistoryLengthBuffer;
     // std::shared_ptr<buffer> TonemapBuffer;    

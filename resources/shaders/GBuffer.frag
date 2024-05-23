@@ -54,7 +54,8 @@ void main()
     vec4 CurrentScreenPos = FragCurrentScreenPos / FragCurrentScreenPos.w;
     vec2 MotionVector = (vec2(PrevScreenPos) - vec2(CurrentScreenPos)) * (0.5 * vec2(float(Width), float(Height)));
     float Depth = distance(CameraPosition, OutPosition.xyz);
-    
+    float DepthDerivative = max(abs(dFdx(Depth)), abs(dFdy(Depth)));
+
     OutMotionVectors = vec4(MotionVector, 0, 1);
 
     if(Debug==0)
@@ -64,6 +65,7 @@ void main()
       OutPosition.w = float(FragPrimitiveIndex);
       
       OutMotionVectors.z = Depth;
+      OutMotionVectors.w = DepthDerivative;
     }
 
 }

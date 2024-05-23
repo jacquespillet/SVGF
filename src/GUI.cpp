@@ -982,8 +982,17 @@ bool gui::TracingGUI()
     Changed |= ImGui::SliderInt("Bounces", &App->Params.Bounces, 0, 32);
     Changed |= ImGui::DragFloat("Clamp", &App->Params.Clamp, 0.1f, 0.0f, 32.0f);    
     
-    Changed |= ImGui::Combo("Debug Output", (int*)&App->SVGFDebugOutput, "Final Output (TAA) \0Raw Output\0Normal\0Motion\0Position\0Barycentric Coords\0Temporal Filter\0A-Trous Wavelet Filter\0\0");
-    Changed |= ImGui::SliderInt("Num Filter Iterations", &App->SpatialFilterSteps, 0, 10);
+    if(ImGui::CollapsingHeader("SVGF Parameters"))
+    {
+        Changed |= ImGui::Combo("Debug Output", (int*)&App->SVGFDebugOutput, "Final Output (TAA) \0Raw Output\0Normal\0Motion\0Position\0Depth\0Barycentric Coords\0Temporal Filter\0Moments\0Variance\0A-Trous Wavelet Filter\0\0");
+        Changed |= ImGui::SliderInt("Num Filter Iterations", &App->SpatialFilterSteps, 0, 10);
+        Changed |= ImGui::SliderFloat("Depth Threshold", &App->DepthThreshold, 0, 10);
+        Changed |= ImGui::SliderFloat("Normal Threshold", &App->NormalThreshold, 0, 1);
+        Changed |= ImGui::SliderInt("HistoryLength", &App->HistoryLength, 0, 256);
+        Changed |= ImGui::DragFloat("Phi Normal", &App->PhiNormal, 0.5f, 0);
+        Changed |= ImGui::DragFloat("Phi Depth", &App->PhiColour, 0.5f, 0);
+    }
+
     
     if(ImGui::DragInt("Resolution", &App->RenderResolution, 10, 128, 3840))
     {
@@ -1136,7 +1145,7 @@ void gui::GUI()
     int RenderWindowHeight = ImGui::GetWindowSize().y;
 
     
-
+    // ImVec4 TintCol(App->DebugTint.x, App->DebugTint.y, App->DebugTint.z, App->DebugTint.w);
     ImGui::Image((ImTextureID)App->OutputTexture, ImVec2(RenderWindowWidth, RenderWindowHeight),ImVec2(0, 1), ImVec2(1, 0));
     // ImGui::Image((ImTextureID)App->Framebuffer[0]->GetTexture(1), ImVec2(RenderWindowWidth, RenderWindowHeight), ImVec2(0, 1), ImVec2(1, 0));
     if(SelectedInstanceIndices.size()==1)

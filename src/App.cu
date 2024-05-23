@@ -82,7 +82,8 @@ void application::InitGpuObjects()
     FilterBuffer[0] = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
     FilterBuffer[1] = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
     RenderTextureMapping = CreateMapping(RenderTexture);
-    MomentsBuffer = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec4));
+    MomentsBuffer[0] = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec2));
+    MomentsBuffer[1] = std::make_shared<buffer>(Window->Width * Window->Height * sizeof(glm::vec2));
     HistoryLengthBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * sizeof(uint8_t));
 
 
@@ -186,7 +187,6 @@ void application::Trace()
 {
     dim3 blockSize(16, 16);
     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);    
-    // Outputs into RenderBuffer[PingPongInx]
     pathtracing::TraceKernel<<<gridSize, blockSize>>>(
         (glm::vec4*)RenderBuffer[PingPongInx]->Data, 
         {Framebuffer[PingPongInx]->CudaMappings[0]->TexObj, Framebuffer[PingPongInx]->CudaMappings[1]->TexObj, Framebuffer[PingPongInx]->CudaMappings[2]->TexObj, Framebuffer[PingPongInx]->CudaMappings[3]->TexObj},
@@ -202,8 +202,8 @@ void application::TemporalFilter()
     filter::TemporalFilter<<<gridSize, blockSize>>>((glm::vec4*)RenderBuffer[1 - PingPongInx]->Data, (glm::vec4*)RenderBuffer[PingPongInx]->Data, 
                                                     {Framebuffer[PingPongInx]->CudaMappings[0]->TexObj, Framebuffer[PingPongInx]->CudaMappings[1]->TexObj, Framebuffer[PingPongInx]->CudaMappings[2]->TexObj, Framebuffer[PingPongInx]->CudaMappings[3]->TexObj}, 
                                                     {Framebuffer[1 - PingPongInx]->CudaMappings[0]->TexObj, Framebuffer[1 - PingPongInx]->CudaMappings[1]->TexObj, Framebuffer[1 - PingPongInx]->CudaMappings[2]->TexObj, Framebuffer[1 - PingPongInx]->CudaMappings[3]->TexObj}, 
-                                                    (uint32_t*)HistoryLengthBuffer->Data,  (glm::vec4*)MomentsBuffer->Data,
-                                                    RenderWidth, RenderHeight);
+                                                    (uint32_t*)HistoryLengthBuffer->Data,  (glm::vec2*)MomentsBuffer[PingPongInx]->Data, (glm::vec2*)MomentsBuffer[1 - PingPongInx]->Data,
+                                                    RenderWidth, RenderHeight, DepthThreshold, NormalThreshold, HistoryLength);
 }
 void application::WaveletFilter()
 {
@@ -220,8 +220,8 @@ void application::WaveletFilter()
 
         int StepSize = 1 << i;
 
-        filter::FilterKernel<<<gridSize, blockSize>>>(Input, (glm::vec4*)MomentsBuffer->Data, Framebuffer[PingPongInx]->CudaMappings[3]->TexObj, Framebuffer[PingPongInx]->CudaMappings[1]->TexObj,
-            (uint32_t*)HistoryLengthBuffer->Data, Output, RenderWidth, RenderHeight, StepSize);
+        filter::FilterKernel<<<gridSize, blockSize>>>(Input, Framebuffer[PingPongInx]->CudaMappings[3]->TexObj, Framebuffer[PingPongInx]->CudaMappings[1]->TexObj,
+            (uint32_t*)HistoryLengthBuffer->Data, Output, RenderWidth, RenderHeight, StepSize, PhiColour, PhiNormal);
 
         PingPong = 1 - PingPong;
 
@@ -235,8 +235,16 @@ void application::WaveletFilter()
     {
         cudaMemcpy(FilterBuffer[0]->Data, FilterBuffer[1]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
     }
-
 }
+
+void application::TAA()
+{
+    dim3 blockSize(16, 16);
+    dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);    
+
+    filter::TAAFilterKernel<<<gridSize, blockSize>>>((glm::vec4*)FilterBuffer[0]->Data, (glm::vec4*)FilterBuffer[1]->Data, RenderWidth, RenderHeight);
+}
+
 void application::Tonemap()
 {
     dim3 blockSize(16, 16);
@@ -264,8 +272,10 @@ void application::Render()
         Trace();
         TemporalFilter();
         WaveletFilter();
-        cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, FilterBuffer[0]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+        TAA();
+        cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, FilterBuffer[1]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
         OutputTexture = RenderTexture->TextureID;
+        DebugTint = glm::vec4(1);
     }
     else if(SVGFDebugOutput == SVGFDebugOutputEnum::RawOutput)
     {
@@ -273,26 +283,31 @@ void application::Render()
         Trace();
         cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
         OutputTexture = RenderTexture->TextureID;
+        DebugTint = glm::vec4(1);
     }
     else if(SVGFDebugOutput == SVGFDebugOutputEnum::Normal)
     {
         Rasterize();
         OutputTexture = Framebuffer[PingPongInx]->GetTexture((int)rasterizeOutputs::Normal);
+        DebugTint = glm::vec4(1,1,1,0);
     }
     else if(SVGFDebugOutput == SVGFDebugOutputEnum::Motion)
     {
         Rasterize();
         OutputTexture = Framebuffer[PingPongInx]->GetTexture((int)rasterizeOutputs::Motion);
+        DebugTint = glm::vec4(1,1,0,0);
     }
     else if(SVGFDebugOutput == SVGFDebugOutputEnum::Position)
     {
         Rasterize();
         OutputTexture = Framebuffer[PingPongInx]->GetTexture((int)rasterizeOutputs::Position);
+        DebugTint = glm::vec4(1,1,1,0);
     }
     else if(SVGFDebugOutput == SVGFDebugOutputEnum::BarycentricCoords)
     {
         Rasterize();
         OutputTexture = Framebuffer[PingPongInx]->GetTexture((int)rasterizeOutputs::UV);
+        DebugTint = glm::vec4(1,1,0,0);
     }
     else if(SVGFDebugOutput == SVGFDebugOutputEnum::TemporalFilter)
     {
@@ -301,6 +316,7 @@ void application::Render()
         TemporalFilter();
         cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
         OutputTexture = RenderTexture->TextureID;
+        DebugTint = glm::vec4(1,1,1,1);
     }
     else if(SVGFDebugOutput == SVGFDebugOutputEnum::ATrousWaveletFilter)
     {
@@ -310,6 +326,36 @@ void application::Render()
         WaveletFilter();
         cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, FilterBuffer[0]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
         OutputTexture = RenderTexture->TextureID;        
+        DebugTint = glm::vec4(1,1,1,1);
+    }
+    else if(SVGFDebugOutput == SVGFDebugOutputEnum::Moments)
+    {
+        // Rasterize();
+        // Trace();
+        // TemporalFilter();
+        // WaveletFilter();
+        // cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, MomentsBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+        // OutputTexture = RenderTexture->TextureID;        
+        // DebugTint = glm::vec4(1,1,0,1);
+    }
+    else if(SVGFDebugOutput == SVGFDebugOutputEnum::Depth)
+    {
+        Rasterize();
+        Trace();
+        TemporalFilter();
+        WaveletFilter();
+        OutputTexture = Framebuffer[PingPongInx]->GetTexture((int)rasterizeOutputs::Motion);
+        DebugTint = glm::vec4(0,0,1,0);
+    }
+    else if(SVGFDebugOutput == SVGFDebugOutputEnum::Variance)
+    {
+        // Rasterize();
+        // Trace();
+        // TemporalFilter();
+        // WaveletFilter();
+        // cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, MomentsBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+        // OutputTexture = RenderTexture->TextureID;        
+        // DebugTint = glm::vec4(0,0,1,0);
     }
 }
 
@@ -384,7 +430,8 @@ void application::ResizeRenderTextures()
     RenderBuffer[0] = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     RenderBuffer[1] = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     RenderTextureMapping = CreateMapping(RenderTexture);
-    MomentsBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
+    MomentsBuffer[0] = std::make_shared<buffer>(RenderWidth * RenderHeight * 2 * sizeof(float));
+    MomentsBuffer[1] = std::make_shared<buffer>(RenderWidth * RenderHeight * 2 * sizeof(float));
     FilterBuffer[0] = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     FilterBuffer[1] = std::make_shared<buffer>(RenderWidth * RenderHeight * 4 * sizeof(float));
     HistoryLengthBuffer = std::make_shared<buffer>(RenderWidth * RenderHeight * sizeof(uint32_t));
