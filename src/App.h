@@ -99,6 +99,7 @@ private:
     void TemporalFilter();
     void WaveletFilter();
     void Tonemap();
+    void FilterMoments();
     void TAA();
 
     float Time=0;

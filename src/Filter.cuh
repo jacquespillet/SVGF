@@ -411,6 +411,7 @@ __global__ void TemporalFilter(vec4 *PreviousImage, vec4 *CurrentImage, cudaFram
     }
 }
 
+
 FN_DECL float computeWeight(
     float depthCenter,
     float depthP,
@@ -432,6 +433,103 @@ FN_DECL float computeWeight(
     return weightIllum;
 }
 
+
+__global__ void FilterMoments(vec4 *CurrentImage, vec4 *Output, vec2 *Moments, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint32_t *HistoryLength, int _Width, int _Height, float PhiColour, float PhiNormal)
+{
+    Width = _Width;
+    Height = _Height;
+
+    vec2 Resolution = vec2(float(Width), float(Height));
+    vec2 InvTexResolution = vec2(1.0f / float(Width), 1.0f / float(Height));
+    ivec2 FragCoord = ivec2 ( GLOBAL_ID() );
+    vec2 uv = vec2(FragCoord) * InvTexResolution;
+    uint32_t Inx = FragCoord.y * Width + FragCoord.x;
+    if (FragCoord.x < Width && FragCoord.y < Height) {
+
+        float h = HistoryLength[Inx];
+
+        if (h < 4.0) // not enough temporal history available
+        {
+            float sumWIllumination = 0.0;
+            vec3 sumIllumination = vec3(0.0, 0.0, 0.0);
+            vec2 sumMoments = vec2(0.0, 0.0);
+
+            const vec4 illuminationCenter = CurrentImage[Inx];
+            const float lIlluminationCenter = CalculateLuminance(illuminationCenter);
+
+            const vec2 zCenter = GetDepth(Motions, FragCoord);
+            if (zCenter.x < 0)
+            {
+                // current pixel does not a valid depth => must be envmap => do nothing
+                Output[Inx] = illuminationCenter;
+            }
+            const vec3 nCenter = SampleCuTexture(Normals, FragCoord);
+            const float phiLIllumination = PhiColour;
+            const float phiDepth = max(zCenter.y, 1e-8) * 3.0;
+
+            // compute first and second moment spatially. This code also applies cross-bilateral
+            // filtering on the input illumination.
+            const int radius = 3;
+
+            for (int yy = -radius; yy <= radius; yy++)
+            {
+                for (int xx = -radius; xx <= radius; xx++)
+                {
+                    const ivec2 p = FragCoord + ivec2(xx, yy);
+                    uint32_t CurrentInx = p.y * Width + p.x;
+                    bool inside = (p.x < Width && p.y < Height && p.x >=0 && p.y >=0);
+                    const bool samePixel = (xx == 0 && yy == 0);
+                    const float kernel = 1.0;
+
+                    if (inside)
+                    {
+                        const vec3 illuminationP = CurrentImage[CurrentInx];
+                        const vec2 momentsP = Moments[CurrentInx];
+                        const float lIlluminationP = CalculateLuminance(illuminationP);
+                        float zP = GetDepth(Motions, p).x;
+                        const vec3 nP = SampleCuTexture(Normals ,p);
+
+                        const float w = computeWeight(
+                            zCenter.x,
+                            zP,
+                            phiDepth * length(vec2(xx, yy)),
+                            nCenter,
+                            nP,
+                            PhiNormal,
+                            lIlluminationCenter,
+                            lIlluminationP,
+                            phiLIllumination
+                        );
+
+                        sumWIllumination += w;
+                        sumIllumination += illuminationP * w;
+                        sumMoments += momentsP * w;
+                    }
+                }
+            }
+
+            // Clamp sum to >0 to avoid NaNs.
+            sumWIllumination = max(sumWIllumination, 1e-6f);
+
+            sumIllumination /= sumWIllumination;
+            sumMoments /= sumWIllumination;
+
+            // compute variance using the first and second moments
+            float variance = sumMoments.g - sumMoments.r * sumMoments.r;
+
+            // give the variance a boost for the first frames
+            variance *= 4.0 / h;
+
+            Output[Inx] =vec4(sumIllumination, variance);
+        }
+        else
+        {
+            // do nothing, pass data unmodified
+            Output[Inx] = CurrentImage[Inx];
+            // return 
+        }    
+    }
+}
 
 __global__ void FilterKernel(vec4 *Input, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint32_t *HistoryLengths, vec4 *Output, int _Width, int _Height, int Step, float PhiColour, float PhiNormal)
 {

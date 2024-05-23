@@ -205,6 +205,20 @@ void application::TemporalFilter()
                                                     (uint32_t*)HistoryLengthBuffer->Data,  (glm::vec2*)MomentsBuffer[PingPongInx]->Data, (glm::vec2*)MomentsBuffer[1 - PingPongInx]->Data,
                                                     RenderWidth, RenderHeight, DepthThreshold, NormalThreshold, HistoryLength);
 }
+
+void application::FilterMoments()
+{
+    dim3 blockSize(16, 16);
+    dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);    
+    cudaMemcpy(FilterBuffer[0]->Data, RenderBuffer[PingPongInx]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
+    //  int _Width, int _Height, float PhiColour, float PhiNormal)
+    filter::FilterMoments<<<gridSize, blockSize>>>((glm::vec4*) FilterBuffer[0]->Data, (glm::vec4*)RenderBuffer[PingPongInx]->Data, (glm::vec2*)MomentsBuffer[0]->Data,
+                                                    Framebuffer[PingPongInx]->CudaMappings[(int)rasterizeOutputs::Motion]->TexObj,
+                                                    Framebuffer[PingPongInx]->CudaMappings[(int)rasterizeOutputs::Normal]->TexObj,
+                                                    (uint32_t*)HistoryLengthBuffer->Data,
+                                                    RenderWidth, RenderHeight, PhiColour, PhiNormal);
+}
+
 void application::WaveletFilter()
 {
     dim3 blockSize(16, 16);
@@ -268,12 +282,15 @@ void application::Render()
 
     if(SVGFDebugOutput == SVGFDebugOutputEnum::FinalOutput)
     {
-        Rasterize();
-        Trace();
-        TemporalFilter();
-        WaveletFilter();
-        TAA();
+        Rasterize(); // Outputs to CurrentFramebuffer
+        Trace();     // Read CurrentFrmaebuffer, Writes to RenderBuffer[PingPongInx]
+        TemporalFilter(); //Reads RenderBuffer[PingPongInx], Writes to RenderBuffer[PingPongInx]
+        FilterMoments(); // Reads RenderBuffer[PingPongInx], writes to RenderBuffer[PingPongInx]
+        WaveletFilter(); //Reads from RenderBuffer[PingPongInx], Writes to FilterBuffer[0]
+        TAA(); //Reads from FilterBuffer[0], WRites to FilterBuffer[1]
+
         cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, FilterBuffer[1]->Data, RenderWidth * RenderHeight * sizeof(glm::vec4), cudaMemcpyDeviceToDevice);
+        
         OutputTexture = RenderTexture->TextureID;
         DebugTint = glm::vec4(1);
     }
