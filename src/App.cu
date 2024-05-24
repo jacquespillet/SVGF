@@ -459,7 +459,7 @@ void application::ResizeRenderTextures()
         {GL_RGBA32F, GL_RGBA, GL_FLOAT, sizeof(glm::vec4)}, //Position
         {GL_RGBA16UI, GL_RGBA_INTEGER, GL_UNSIGNED_SHORT, 4 * sizeof(uint16_t)}, //Normal
         {GL_RGBA16UI, GL_RGBA_INTEGER, GL_UNSIGNED_SHORT, 4 * sizeof(uint16_t)}, //Barycentric coordinates
-        {GL_RGBA32F, GL_RGBA, GL_FLOAT, sizeof(glm::vec4)}, //Motion Vectors (TODO: Make that f16)
+        {GL_RGBA32F, GL_RGBA, GL_FLOAT, sizeof(glm::vec4)}, //Motion Vectors and depth
     };
     Framebuffer[0] = std::make_shared<framebuffer>(RenderWidth, RenderHeight, Desc);
     Framebuffer[1] = std::make_shared<framebuffer>(RenderWidth, RenderHeight, Desc);
