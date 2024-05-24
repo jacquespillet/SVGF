@@ -205,13 +205,8 @@ struct scene
     void ClearInstances();
 
     void CalculateInstanceTransform(int InstanceInx);
-#if API==API_GL
-    std::shared_ptr<textureArrayGL> TexArray;
-    std::shared_ptr<textureArrayGL> EnvTexArray;
-#elif API==API_CU
     std::shared_ptr<textureArrayCu> TexArray;
     std::shared_ptr<textureArrayCu> EnvTexArray;
-#endif    
     std::shared_ptr<buffer> CamerasBuffer;
     std::shared_ptr<buffer> EnvironmentsBuffer;
     

@@ -19,13 +19,10 @@ framebuffer::framebuffer(int Width, int Height, std::vector<framebufferDescripto
         glTexImage2D(GL_TEXTURE_2D, 0, Descriptors[i].InternalFormat, Width, Height, 0, Descriptors[i].Format, Descriptors[i].Type, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, Textures[i], 0);
 
         Attachments[i] = GL_COLOR_ATTACHMENT0 + i;
     }
-
     glDrawBuffers(Attachments.size(), Attachments.data());
 
     glGenTextures(1, &DepthTexture);
@@ -36,13 +33,14 @@ framebuffer::framebuffer(int Width, int Height, std::vector<framebufferDescripto
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, DepthTexture, 0);
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        assert(false);
         exit(0);
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     CudaMappings.resize(Descriptors.size());
-    for(int i=0; i<CudaMappings.size(); i++)
+    for(int i=0; i<CudaMappings.size(); i++) 
     {
         CudaMappings[i] = CreateMapping(Textures[i], Width, Height, Descriptors[i].ElemSize, true);
     }

@@ -8,8 +8,8 @@ in vec4 FragCurrentScreenPos;
 in vec4 FragPrevScreenPos;
 
 layout (location = 0) out vec4 OutPosition;
-layout (location = 1) out vec4 OutNormal;
-layout (location = 2) out vec4 OutUV;
+layout (location = 1) out uvec4 OutNormal;
+layout (location = 2) out uvec4 OutUV;
 layout (location = 3) out vec4 OutMotionVectors;
 
 struct material
@@ -45,10 +45,24 @@ uniform int Height;
 uniform int Debug;
 uniform vec3 CameraPosition;
 
+uint floatToHalfFloatBits(float v) {
+    return packHalf2x16(vec2(v, 0f)).x;
+}
+
+uvec4 Vec4ToUVec4(vec4 Input)
+{
+  return uvec4(
+    floatToHalfFloatBits(Input.x),
+    floatToHalfFloatBits(Input.y),
+    floatToHalfFloatBits(Input.z),
+    floatToHalfFloatBits(Input.w)
+  );
+}
+
 void main()
 {
-    OutUV = vec4(BarycentricCoord, 1.0f); 
-    OutNormal = vec4(normalize(FragNormal), 1.0f);
+    vec4 OutUVF = vec4(BarycentricCoord, 1.0f); 
+    vec4 OutNormalF = vec4(normalize(FragNormal), 1.0f);
     OutPosition = vec4(FragPosition, 1.0f);
     vec4 PrevScreenPos = FragPrevScreenPos / FragPrevScreenPos.w;
     vec4 CurrentScreenPos = FragCurrentScreenPos / FragCurrentScreenPos.w;
@@ -60,12 +74,15 @@ void main()
 
     if(Debug==0)
     {
-      OutUV.w = float(InstanceIndex);
-      OutNormal.w = float(MaterialIndex);
+      OutUVF.w = float(InstanceIndex);
+      OutNormalF.w = float(MaterialIndex);
       OutPosition.w = float(FragPrimitiveIndex);
       
       OutMotionVectors.z = Depth;
       OutMotionVectors.w = DepthDerivative;
     }
+    
+    OutNormal = Vec4ToUVec4(OutNormalF);
+    OutUV = Vec4ToUVec4(OutUVF);
 
 }

@@ -81,7 +81,7 @@ private:
         Moments,
         Variance,
         ATrousWaveletFilter
-    }SVGFDebugOutput;
+    }SVGFDebugOutput = SVGFDebugOutputEnum::FinalOutput;
     bool DebugRasterize=false;
     glm::vec4 DebugTint=glm::vec4(1);
 
@@ -106,7 +106,7 @@ private:
 
     std::shared_ptr<framebuffer> Framebuffer[2];
     std::shared_ptr<shaderGL> GBufferShader;
-    std::shared_ptr<textureGL> TonemapTexture;
+    // std::shared_ptr<textureGL> TonemapTexture;
 
 
     timer Timer;

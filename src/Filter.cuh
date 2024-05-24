@@ -3,6 +3,7 @@
 #include "App.h"
 #define GLM_FORCE_CUDA
 #include <glm/glm.hpp>
+#include <cuda_fp16.h>
 
 
 namespace filter
@@ -13,6 +14,44 @@ using namespace gpupt;
 __device__ int Width;
 __device__ int Height;
 
+struct half4 {half x, y, z, w;};
+struct half2 {half x, y;};
+FN_DECL half4 Vec4ToHalf4(INOUT(vec4) Input)
+{
+    return {
+        __float2half(Input.x),
+        __float2half(Input.y),
+        __float2half(Input.z),
+        __float2half(Input.w)
+    };
+}
+
+FN_DECL vec4 Half4ToVec4(INOUT(half4) Input)
+{
+    return vec4(
+        __half2float(Input.x),
+        __half2float(Input.y),
+        __half2float(Input.z),
+        __half2float(Input.w)
+    );
+}
+
+FN_DECL half2 Vec2ToHalf2(INOUT(vec2) Input)
+{
+    return {
+        __float2half(Input.x),
+        __float2half(Input.y)
+    };
+}
+
+FN_DECL vec2 Half2ToVec2(INOUT(half2) Input)
+{
+    return vec2(
+        __half2float(Input.x),
+        __half2float(Input.y)
+    );
+}
+
 
 __device__ void imageStore(vec4 *Image, ivec2 p, vec4 Colour)
 {
@@ -22,6 +61,14 @@ __device__ void imageStore(vec4 *Image, ivec2 p, vec4 Colour)
     Image[p.y * Width + p.x] = clamp(Colour, vec4(0), vec4(1));
 }
 
+__device__ void imageStore(half4 *Image, ivec2 p, vec4 Colour)
+{
+    p.x = clamp(p.x, 0, int(Width-1));
+    p.y = clamp(p.y, 0, int(Height-1));
+     
+    Image[p.y * Width + p.x] = Vec4ToHalf4(clamp(Colour, vec4(0), vec4(1)));
+}
+
 __device__ vec4 imageLoad(vec4 *Image, ivec2 p)
 {
     p.x = clamp(p.x, 0, int(Width-1));
@@ -29,9 +76,45 @@ __device__ vec4 imageLoad(vec4 *Image, ivec2 p)
     return clamp(Image[p.y * Width + p.x], vec4(0), vec4(1));
 }
 
+__device__ vec4 imageLoad(half4 *Image, ivec2 p)
+{
+    p.x = clamp(p.x, 0, int(Width-1));
+    p.y = clamp(p.y, 0, int(Height-1));
+    return clamp(Half4ToVec4(Image[p.y * Width + p.x]), vec4(0), vec4(1));
+}
+
 
 // Texture sampling function with bilinear interpolation
 __device__ vec4 textureSample(vec4* texture, int Width, int Height, vec2& uv) {
+    // Convert UV coordinates to texture space
+    float x = uv.x * (Width - 1);
+    float y = uv.y * (Height - 1);
+
+    // Get the integer coordinates
+    int x0 = floor(x);
+    int y0 = floor(y);
+
+    // Get the fractional part
+    float tx = x - x0;
+    float ty = y - y0;
+
+    // Get the four surrounding pixels
+    vec4 c00 = imageLoad(texture, ivec2(clamp(x0, 0, Width-1), clamp(y0, 0,Height-1)));
+    return c00;
+    vec4 c10 = imageLoad(texture, ivec2(clamp(x0 + 1, 0, Width-1), clamp(y0, 0,Height-1)));
+    vec4 c01 = imageLoad(texture, ivec2(clamp(x0, 0, Width-1), clamp(y0 + 1, 0,Height-1)));
+    vec4 c11 = imageLoad(texture, ivec2(clamp(x0 + 1, 0, Width-1), clamp(y0 + 1, 0,Height-1)));
+
+    // Perform bilinear interpolation
+    vec4 c0 = mix(c00, c10, tx);
+    vec4 c1 = mix(c01, c11, tx);
+    vec4 c = mix(c0, c1, ty);
+
+    return c;
+}
+
+// Texture sampling function with bilinear interpolation
+__device__ vec4 textureSample(half4* texture, int Width, int Height, vec2& uv) {
     // Convert UV coordinates to texture space
     float x = uv.x * (Width - 1);
     float y = uv.y * (Height - 1);
@@ -103,6 +186,17 @@ FN_DECL vec4 SampleCuTexture(cudaTextureObject_t Texture, ivec2 Coord)
     return vec4(Sample.x, Sample.y, Sample.z, Sample.w);
 }
 
+FN_DECL vec4 SampleCuTextureHalf4(cudaTextureObject_t Texture, ivec2 Coord)
+{
+    ushort4 Sample = tex2D<ushort4>(Texture, Coord.x, Coord.y);
+    return Half4ToVec4({
+        __ushort_as_half(Sample.x),
+        __ushort_as_half(Sample.y),
+        __ushort_as_half(Sample.z),
+        __ushort_as_half(Sample.w)
+    });
+}
+
 FN_DECL vec2 GetDepth(cudaTextureObject_t Texture, ivec2 Coord)
 {
     float4 MotionVecSample = tex2D<float4>(Texture, Coord.x, Coord.y);
@@ -129,8 +223,8 @@ FN_DECL bool isReprjValid(ivec2 PrevCoord, float Z, float Zprev, vec3 normal, ve
 }
 
 
-FN_DECL bool LoadPreviousData(vec4 *PrevFrame, cudaFramebuffer &CurrentFramebuffer, cudaFramebuffer &PreviousFramebuffer, 
-                              uint32_t *HistoryLengths, vec2 *MomentsBuffer,  ivec2 Coord, vec3 CurrentColour, 
+FN_DECL bool LoadPreviousData(half4 *PrevFrame, cudaFramebuffer &CurrentFramebuffer, cudaFramebuffer &PreviousFramebuffer, 
+                              uint8_t *HistoryLengths, half2 *MomentsBuffer,  ivec2 Coord, vec3 CurrentColour, 
                               INOUT(vec3) PrevColour, INOUT(int) HistoryLength, INOUT(vec2) PreviousMoments,
                               float DepthThreshold, float NormalThreshold)
 {
@@ -154,119 +248,15 @@ FN_DECL bool LoadPreviousData(vec4 *PrevFrame, cudaFramebuffer &CurrentFramebuff
     if(CurrentMeshID != PreviousMeshID) return false;
 
     // Check the normal
-    vec3 CurrNormal = SampleCuTexture(CurrentFramebuffer.NormalTexture, Coord);
-    vec3 PrevNormal = SampleCuTexture(PreviousFramebuffer.NormalTexture, PrevCoord);
+    vec3 CurrNormal = SampleCuTextureHalf4(CurrentFramebuffer.NormalTexture, Coord);
+    vec3 PrevNormal = SampleCuTextureHalf4(PreviousFramebuffer.NormalTexture, PrevCoord);
     if(dot(CurrNormal, PrevNormal) < NormalThreshold) return false;
 
     PrevColour = imageLoad(PrevFrame, PrevCoord);
     HistoryLength = int(HistoryLengths[PrevCoord.y * Width + PrevCoord.x]);
-    PreviousMoments = vec2(MomentsBuffer[PrevCoord.y * Width + PrevCoord.x]);
+    PreviousMoments = Half2ToVec2(MomentsBuffer[PrevCoord.y * Width + PrevCoord.x]);
     return true;
 }
-
-// {
-//     const ivec2 ipos = Coord;
-//     const vec2 imageDim = vec2(Width, Height);
-
-//     float4 MotionVectorSample = tex2D<float4>(CurrentFramebuffer.MotionTexture, Coord.x, Coord.y);
-//     vec2 MotionVector = vec2(MotionVectorSample.x, MotionVectorSample.y);
-//     ivec2 PrevCoord = Coord + ivec2(MotionVector);
-
-
-//     float CurrentDepth = GetDepth(CurrentFramebuffer.MotionTexture, Coord);
-//     vec3 CurrNormal = SampleCuTexture(CurrentFramebuffer.NormalTexture, Coord);
-
-//     PrevColour = vec3(0, 0, 0);
-//     PreviousMoments = vec2(0, 0);
-
-//     bool v[4];
-//     // const vec2 posPrev = floor(posH.xy) + motion.xy * imageDim;
-//     const ivec2 offset[4] = { ivec2(0, 0), ivec2(1, 0), ivec2(0, 1), ivec2(1, 1) };
-
-//     // check for all 4 taps of the bilinear filter for validity
-//     bool valid = false;
-//     for (int sampleIdx = 0; sampleIdx < 4; sampleIdx++)
-//     {
-//         ivec2 loc = PrevCoord + offset[sampleIdx];
-//         float depthPrev = GetDepth(CurrentFramebuffer.MotionTexture, loc);
-//         vec3 normalPrev = SampleCuTexture(CurrentFramebuffer.NormalTexture, loc);
-
-//         v[sampleIdx] = isReprjValid(PrevCoord, CurrentDepth, depthPrev, CurrNormal, normalPrev);
-
-//         valid = valid || v[sampleIdx];
-//     }
-
-//     if (valid)
-//     {
-//         float sumw = 0;
-//         float x = fract(posPrev.x);
-//         float y = fract(posPrev.y);
-
-//         // bilinear weights
-//         const float w[4] = { (1 - x) * (1 - y), x * (1 - y), (1 - x) * y, x * y };
-
-//         // perform the actual bilinear interpolation
-//         for (int sampleIdx = 0; sampleIdx < 4; sampleIdx++)
-//         {
-//             const ivec2 loc = ivec2(posPrev) + offset[sampleIdx];
-//             if (v[sampleIdx])
-//             {
-//                 prevIllum += w[sampleIdx] * gPrevIllum[loc];
-//                 prevMoments += w[sampleIdx] * gPrevMoments[loc].xy;
-//                 sumw += w[sampleIdx];
-//             }
-//         }
-
-//         // redistribute weights in case not all taps were used
-//         valid = (sumw >= 0.01);
-//         prevIllum = valid ? prevIllum / sumw : float4(0, 0, 0, 0);
-//         prevMoments = valid ? prevMoments / sumw : vec2(0, 0);
-//     }
-
-    // if (!valid) // perform cross-bilateral filter in the hope to find some suitable samples somewhere
-    // {
-    //     float nValid = 0.0;
-
-    //     // this code performs a binary descision for each tap of the cross-bilateral filter
-    //     const int radius = 1;
-    //     for (int yy = -radius; yy <= radius; yy++)
-    //     {
-    //         for (int xx = -radius; xx <= radius; xx++)
-    //         {
-    //             const ivec2 p = iposPrev + ivec2(xx, yy);
-    //             const vec2 depthFilter = gPrevLinearZAndNormal[p].xy;
-    //             const vec3 normalFilter = oct_to_ndir_snorm(gPrevLinearZAndNormal[p].zw);
-
-    //             if (isReprjValid(iposPrev, depth.x, depthFilter.x, depth.y, normal, normalFilter, normalFwidth))
-    //             {
-    //                 prevIllum += gPrevIllum[p];
-    //                 prevMoments += gPrevMoments[p].xy;
-    //                 nValid += 1.0;
-    //             }
-    //         }
-    //     }
-    //     if (nValid > 0)
-    //     {
-    //         valid = true;
-    //         prevIllum /= nValid;
-    //         prevMoments /= nValid;
-    //     }
-    // }
-
-//     if (valid)
-//     {
-//         // crude, fixme
-//         historyLength = gPrevHistoryLength[iposPrev].x;
-//     }
-//     else
-//     {
-//         prevIllum = float4(0, 0, 0, 0);
-//         prevMoments = vec2(0, 0);
-//         historyLength = 0;
-//     }
-
-//     return valid;
-// }
 
 FN_DECL float CalculateLuminance(vec3 Colour)
 {
@@ -296,7 +286,7 @@ __device__ vec3 decodePalYuv(vec3 yuv)
 }
 
 
-__global__ void TAAFilterKernel(vec4 *InputFiltered, vec4 *Output, int _Width, int _Height)
+__global__ void TAAFilterKernel(half4 *InputFiltered, half4 *Output, int _Width, int _Height)
 {
     Width = _Width;
     Height = _Height;
@@ -365,7 +355,7 @@ __global__ void TAAFilterKernel(vec4 *InputFiltered, vec4 *Output, int _Width, i
     }
 }
 
-__global__ void TemporalFilter(vec4 *PreviousImage, vec4 *CurrentImage, cudaFramebuffer CurrentFramebuffer, cudaFramebuffer PreviousFramebuffer, uint32_t* HistoryLengths,  vec2 *CurrentMomentsBuffer, vec2 *PreviousMomentsBuffer, int _Width, int _Height, float DepthThreshold, float NormalThreshold, int HistoryBaseLength)
+__global__ void TemporalFilter(half4 *PreviousImage, half4 *CurrentImage, cudaFramebuffer CurrentFramebuffer, cudaFramebuffer PreviousFramebuffer, uint8_t* HistoryLengths,  half2 *CurrentMomentsBuffer, half2 *PreviousMomentsBuffer, int _Width, int _Height, float DepthThreshold, float NormalThreshold, int HistoryBaseLength)
 {
     Width = _Width;
     Height = _Height;
@@ -407,7 +397,7 @@ __global__ void TemporalFilter(vec4 *PreviousImage, vec4 *CurrentImage, cudaFram
         
         HistoryLengths[FragCoord.y * Width + FragCoord.x] = HistoryLength;
         imageStore(CurrentImage, ivec2(FragCoord), vec4(NewCol, Variance));
-        CurrentMomentsBuffer[FragCoord.y * Width + FragCoord.x] = vec2(Moments.x, Moments.y);
+        CurrentMomentsBuffer[FragCoord.y * Width + FragCoord.x] = Vec2ToHalf2(vec2(Moments.x, Moments.y));
     }
 }
 
@@ -434,7 +424,7 @@ FN_DECL float computeWeight(
 }
 
 
-__global__ void FilterMoments(vec4 *CurrentImage, vec4 *Output, vec2 *Moments, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint32_t *HistoryLength, int _Width, int _Height, float PhiColour, float PhiNormal)
+__global__ void FilterMoments(half4 *CurrentImage, half4 *Output, half2 *Moments, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint8_t *HistoryLength, int _Width, int _Height, float PhiColour, float PhiNormal)
 {
     Width = _Width;
     Height = _Height;
@@ -446,7 +436,7 @@ __global__ void FilterMoments(vec4 *CurrentImage, vec4 *Output, vec2 *Moments, c
     uint32_t Inx = FragCoord.y * Width + FragCoord.x;
     if (FragCoord.x < Width && FragCoord.y < Height) {
 
-        float h = HistoryLength[Inx];
+        float h = float(HistoryLength[Inx]);
 
         if (h < 4.0) // not enough temporal history available
         {
@@ -454,16 +444,16 @@ __global__ void FilterMoments(vec4 *CurrentImage, vec4 *Output, vec2 *Moments, c
             vec3 sumIllumination = vec3(0.0, 0.0, 0.0);
             vec2 sumMoments = vec2(0.0, 0.0);
 
-            const vec4 illuminationCenter = CurrentImage[Inx];
+            vec4 illuminationCenter =  Half4ToVec4(CurrentImage[Inx]);
             const float lIlluminationCenter = CalculateLuminance(illuminationCenter);
 
             const vec2 zCenter = GetDepth(Motions, FragCoord);
             if (zCenter.x < 0)
             {
                 // current pixel does not a valid depth => must be envmap => do nothing
-                Output[Inx] = illuminationCenter;
+                Output[Inx] = Vec4ToHalf4(illuminationCenter);
             }
-            const vec3 nCenter = SampleCuTexture(Normals, FragCoord);
+            const vec3 nCenter = SampleCuTextureHalf4(Normals, FragCoord);
             const float phiLIllumination = PhiColour;
             const float phiDepth = max(zCenter.y, 1e-8) * 3.0;
 
@@ -483,11 +473,11 @@ __global__ void FilterMoments(vec4 *CurrentImage, vec4 *Output, vec2 *Moments, c
 
                     if (inside)
                     {
-                        const vec3 illuminationP = CurrentImage[CurrentInx];
-                        const vec2 momentsP = Moments[CurrentInx];
+                        const vec3 illuminationP = Half4ToVec4(CurrentImage[CurrentInx]);
+                        const vec2 momentsP = Half2ToVec2(Moments[CurrentInx]);
                         const float lIlluminationP = CalculateLuminance(illuminationP);
                         float zP = GetDepth(Motions, p).x;
-                        const vec3 nP = SampleCuTexture(Normals ,p);
+                        const vec3 nP = SampleCuTextureHalf4(Normals ,p);
 
                         const float w = computeWeight(
                             zCenter.x,
@@ -520,18 +510,18 @@ __global__ void FilterMoments(vec4 *CurrentImage, vec4 *Output, vec2 *Moments, c
             // give the variance a boost for the first frames
             variance *= 4.0 / h;
 
-            Output[Inx] =vec4(sumIllumination, variance);
+            Output[Inx] = Vec4ToHalf4(vec4(sumIllumination, variance));
         }
         else
         {
             // do nothing, pass data unmodified
-            Output[Inx] = CurrentImage[Inx];
+            Output[Inx] = Vec4ToHalf4(Half4ToVec4(CurrentImage[Inx]));
             // return 
         }    
     }
 }
 
-__global__ void FilterKernel(vec4 *Input, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint32_t *HistoryLengths, vec4 *Output, vec4 *RenderOutput, int _Width, int _Height, int Step, float PhiColour, float PhiNormal, int Iteration)
+__global__ void FilterKernel(half4 *Input, cudaTextureObject_t Motions, cudaTextureObject_t Normals, uint8_t *HistoryLengths, half4 *Output, half4 *RenderOutput, int _Width, int _Height, int Step, float PhiColour, float PhiNormal, int Iteration)
 {
     Width = _Width;
     Height = _Height;
@@ -562,10 +552,10 @@ __global__ void FilterKernel(vec4 *Input, cudaTextureObject_t Motions, cudaTextu
         if (zCenter.x == 1e30f)
         {
             // not a valid depth => must be envmap => do not filter
-            Output[Inx] = IlluminationCenter;
+            Output[Inx] = Vec4ToHalf4(IlluminationCenter);
             return;
         }
-        vec3 nCenter = SampleCuTexture(Normals, FragCoord);
+        vec3 nCenter = SampleCuTextureHalf4(Normals, FragCoord);
 
         float phiLIllumination = PhiColour * sqrt(max(0.0, epsVariance + Variance));
         float PhiDepth = max(zCenter.y, 1e-6f) * Step;
@@ -590,7 +580,7 @@ __global__ void FilterKernel(vec4 *Input, cudaTextureObject_t Motions, cudaTextu
                     vec4 IlluminationP = imageLoad(Input, CurrentCoord);
                     float lIlluminationP = CalculateLuminance(IlluminationP);
                     float zP = GetDepth(Motions, CurrentCoord).x;
-                    vec3 nP = SampleCuTexture(Normals, CurrentCoord);
+                    vec3 nP = SampleCuTextureHalf4(Normals, CurrentCoord);
 
                     // compute the edge-stopping functions
                     float w = computeWeight(
@@ -619,10 +609,10 @@ __global__ void FilterKernel(vec4 *Input, cudaTextureObject_t Motions, cudaTextu
         vec4 filteredIllumination = vec4(sumIllumination / vec4(sumWIllumination,sumWIllumination,sumWIllumination, sumWIllumination * sumWIllumination));
 
         // return filteredIllumination;
-        Output[Inx] = filteredIllumination;
+        Output[Inx] = Vec4ToHalf4(filteredIllumination);
         if(Iteration==0)
         {
-            RenderOutput[Inx] = filteredIllumination;
+            RenderOutput[Inx] = Vec4ToHalf4(filteredIllumination);
         }
     }    
 }

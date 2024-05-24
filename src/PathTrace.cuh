@@ -5,12 +5,15 @@
 #define GLM_FORCE_CUDA
 #include <glm/glm.hpp>
 
+#include <cuda_fp16.h>
+
 namespace pathtracing
 {
-
-
 using namespace glm;
 using namespace gpupt;
+
+struct half4 {half x, y, z, w;};
+
 
 #define PI_F 3.141592653589
 #define INVALID_ID -1
@@ -62,6 +65,39 @@ __device__ cudaFramebuffer CurrentFramebuffer;
 
 #define GET_ATTR(Obj, Attr) \
     Obj->Attr
+
+
+FN_DECL half4 Vec4ToHalf4(INOUT(vec4) Input)
+{
+    return {
+        __float2half(Input.x),
+        __float2half(Input.y),
+        __float2half(Input.z),
+        __float2half(Input.w)
+    };
+}
+
+FN_DECL vec4 Half4ToVec4(INOUT(half4) Input)
+{
+    return vec4(
+    __half2float(Input.x),
+        __half2float(Input.y),
+        __half2float(Input.z),
+        __half2float(Input.w)
+    );
+}
+
+
+FN_DECL vec4 SampleCuTextureHalf4(cudaTextureObject_t Texture, ivec2 Coord)
+{
+    ushort4 Sample = tex2D<ushort4>(Texture, Coord.x, Coord.y);
+    return Half4ToVec4({
+        __ushort_as_half(Sample.x),
+        __ushort_as_half(Sample.y),
+        __ushort_as_half(Sample.z),
+        __ushort_as_half(Sample.w)
+    });
+}
 
 
 __device__ void imageStore(vec4 *Image, ivec2 p, vec4 Colour)
@@ -524,8 +560,8 @@ FN_DECL sceneIntersection MakeFirstIsect(int Sample)
 
 
     float4 Position = tex2D<float4>(CurrentFramebuffer.PositionTexture, Coord.x, Coord.y);
-    float4 UV = tex2D<float4>(CurrentFramebuffer.UVTexture, Coord.x, Coord.y);
-    float4 Normal = tex2D<float4>(CurrentFramebuffer.NormalTexture, Coord.x, Coord.y);
+    vec4 UV = SampleCuTextureHalf4(CurrentFramebuffer.UVTexture, Coord);
+    vec4 Normal = SampleCuTextureHalf4(CurrentFramebuffer.NormalTexture, Coord);
     float4 Motion = tex2D<float4>(CurrentFramebuffer.MotionTexture, Coord.x, Coord.y);
     
     if(length(vec3(Position.x, Position.y, Position.z)) != 0)
@@ -1886,7 +1922,7 @@ FN_DECL vec3 PathTrace(int Sample, vec2 UV, INOUT(vec3) OutNormal)
     return Radiance;
 }
 
-__global__ void TraceKernel(vec4 *RenderImage, cudaFramebuffer _CurrentFramebuffer, int _Width, int _Height,
+__global__ void TraceKernel(half4 *RenderImage, cudaFramebuffer _CurrentFramebuffer, int _Width, int _Height,
                             triangle *_AllTriangles, bvhNode *_AllBVHNodes, u32 *_AllTriangleIndices, indexData *_IndexData, instance *_Instances, tlasNode *_TLASNodes,
                             camera *_Cameras, tracingParameters* _TracingParams, material *_Materials, cudaTextureObject_t _SceneTextures, int _TexturesWidth, int _TexturesHeight, light *_Lights, float *_LightsCDF, int _LightsCount,
                             environment *_Environments, int _EnvironmentsCount, cudaTextureObject_t _EnvTextures, int _EnvTexturesWidth, int _EnvTexturesHeight, float _Time)
@@ -1946,7 +1982,8 @@ __global__ void TraceKernel(vec4 *RenderImage, cudaFramebuffer _CurrentFramebuff
             }
         }
 
-        imageStore(RenderImage, ivec2(GlobalID), vec4(Radiance, 1.0f));
+        half4 Output = Vec4ToHalf4(vec4(Radiance, 1.0f));
+        RenderImage[GlobalID.y * Width + GlobalID.x] = Output;
     }
 }
 }

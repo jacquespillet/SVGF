@@ -5,7 +5,96 @@
 namespace gpupt
 {
 
-textureGL::textureGL(int Width, int Height, int NChannels) : Width(Width), Height(Height) {
+GLint GetInternalFormat(textureGL::channels Channel, textureGL::types Type)
+{
+    switch (Channel)
+    {
+    case textureGL::channels::R:
+        if(Type == textureGL::types::Float)
+        {
+            return GL_R32F;
+        }
+        if(Type == textureGL::types::Uint8)
+        {
+            return GL_R8;
+        }
+        if(Type == textureGL::types::Half)
+        {
+            return GL_R16F;
+        }
+        break;
+    case textureGL::channels::RGB:
+        if(Type == textureGL::types::Float)
+        {
+            return GL_RGB32F;
+        }
+        if(Type == textureGL::types::Uint8)
+        {
+            return GL_RGB8;
+        }
+        if(Type == textureGL::types::Half)
+        {
+            return GL_RGB16F;
+        }
+        break;
+    case textureGL::channels::RGBA:
+        if(Type == textureGL::types::Float)
+        {
+            return GL_RGBA32F;
+        }
+        if(Type == textureGL::types::Uint8)
+        {
+            return GL_RGBA8;
+        }
+        if(Type == textureGL::types::Half)
+        {
+            return GL_RGBA16F;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+GLenum GetFormat(textureGL::channels Channel, textureGL::types Type)
+{
+    switch (Channel)
+    {
+    case textureGL::channels::R:
+            return GL_RED;
+        break;
+    case textureGL::channels::RGB:
+            return GL_RGB;
+        break;
+    case textureGL::channels::RGBA:
+            return GL_RGBA;
+        break;
+    default:
+        break;
+    }
+}
+
+GLenum GetType(textureGL::types Type)
+{
+    switch (Type)
+    {
+    case textureGL::types::Uint8:
+        return GL_UNSIGNED_BYTE;
+        break;
+    case textureGL::types::Half:
+        return GL_HALF_FLOAT;
+        break;
+    case textureGL::types::Float:
+        return GL_FLOAT;
+        break;
+    default:
+        break;
+    }
+}
+
+
+
+textureGL::textureGL(int Width, int Height, channels Channel, types Type) : Width(Width), Height(Height) {
     // Generate texture ID and bind it
     glGenTextures(1, &TextureID);
     glBindTexture(GL_TEXTURE_2D, TextureID);
@@ -17,11 +106,11 @@ textureGL::textureGL(int Width, int Height, int NChannels) : Width(Width), Heigh
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     
-    GLint InternalFormat = (NChannels==3) ? GL_RGB32F : GL_RGBA32F;
-    GLenum Format = (NChannels==3) ? GL_RGB : GL_RGBA;
-    GLenum Type = GL_FLOAT;
+    GLint InternalFormat = GetInternalFormat(Channel, Type);
+    GLenum Format = GetFormat(Channel, Type);
+    GLenum GLType = GetType(Type);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, InternalFormat, Width, Height, 0, Format, Type, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, InternalFormat, Width, Height, 0, Format, GLType, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 

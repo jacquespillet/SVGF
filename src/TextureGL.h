@@ -6,9 +6,25 @@
 namespace gpupt
 {
 
+
+
 class textureGL {
 public:
-    textureGL(int Width, int Height, int NChannels);
+    enum class channels
+    {
+        R, 
+        RGB,
+        RGBA
+    };
+
+    enum class types
+    {
+        Uint8,
+        Float,
+        Half
+    };
+
+    textureGL(int Width, int Height, channels Channel, types Type);
     ~textureGL();
     void Destroy();
     void Download(std::vector<uint8_t> &Output);

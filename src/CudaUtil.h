@@ -23,7 +23,6 @@ namespace gpupt
 {
 struct cudaTextureMapping
 {
-    glm::vec4* CudaBuffer;
     cudaArray* CudaTextureArray;
     cudaGraphicsResource* CudaTextureResource;
     cudaTextureObject_t TexObj;
@@ -32,7 +31,6 @@ struct cudaTextureMapping
     {
         cudaDestroyTextureObject(TexObj);
         cudaGraphicsUnmapResources(1, &CudaTextureResource);
-        cudaFree(CudaBuffer);
     }
     ~cudaTextureMapping()
     {
@@ -44,9 +42,6 @@ std::shared_ptr<cudaTextureMapping> CreateMapping(std::shared_ptr<textureGL> Tex
 {
     std::shared_ptr<cudaTextureMapping> Result = std::make_shared<cudaTextureMapping>();
 
-    size_t bufferSize = Tex->Width * Tex->Height * sizeof(glm::vec4);
-    cudaMalloc((void**)&Result->CudaBuffer, bufferSize);        
-
     cudaGraphicsGLRegisterImage(&Result->CudaTextureResource, Tex->TextureID, GL_TEXTURE_2D, Write ? cudaGraphicsRegisterFlagsWriteDiscard :cudaGraphicsRegisterFlagsNone);
 
     // Map the CUDA buffer to access it in CUDA
@@ -57,6 +52,7 @@ std::shared_ptr<cudaTextureMapping> CreateMapping(std::shared_ptr<textureGL> Tex
     memset(&texRes, 0, sizeof(cudaResourceDesc));
     texRes.resType = cudaResourceTypeArray;
     texRes.res.array.array = Result->CudaTextureArray;
+    
 
 
     cudaTextureDesc texDesc;
@@ -75,9 +71,6 @@ std::shared_ptr<cudaTextureMapping> CreateMapping(GLuint TexID, int Width, int H
 
     std::shared_ptr<cudaTextureMapping> Result = std::make_shared<cudaTextureMapping>();
 
-    size_t bufferSize = Width * Height * ElemSize;
-    cudaMalloc((void**)&Result->CudaBuffer, bufferSize);        
-    CUDA_CHECK_ERROR(cudaGetLastError());
 
     cudaGraphicsGLRegisterImage(&Result->CudaTextureResource, TexID, GL_TEXTURE_2D, Write ? cudaGraphicsRegisterFlagsWriteDiscard :cudaGraphicsRegisterFlagsNone);
     CUDA_CHECK_ERROR(cudaGetLastError());

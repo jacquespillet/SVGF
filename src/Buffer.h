@@ -14,12 +14,8 @@ public:
     void updateData(size_t offset, const void* data, size_t dataSize);
     void Reallocate(const void* data, size_t dataSize);
 
-#if API==API_GL
-    GLuint BufferID;
-#else
     void *Data;
     uint32_t Size;
-#endif
 };
 
 class bufferGL {
