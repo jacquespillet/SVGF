@@ -473,8 +473,11 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
 
     Result->Scene = Scene;
 
+#if USE_OPTIX
     Result->OptixAS = std::make_shared<optixAS>(Scene);
     Result->OptixAS->Build();
+#endif
+
     return Result;
 }
 
@@ -484,7 +487,9 @@ void sceneBVH::UpdateShape(uint32_t InstanceInx, uint32_t ShapeInx)
     Scene->CalculateInstanceTransform(InstanceInx);
     Scene->Instances[InstanceInx].Shape = ShapeInx;
     TLAS.Build();
+#if USE_OPTIX
     OptixAS->Build();
+#endif
     this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(instance));
     this->TLASNodeBuffer->updateData(this->TLAS.Nodes.data(), this->TLAS.Nodes.size() * sizeof(tlasNode));
 }
@@ -499,7 +504,9 @@ void sceneBVH::UpdateTLAS(uint32_t InstanceInx)
 {
     Scene->CalculateInstanceTransform(InstanceInx);
     TLAS.Build();
+#if USE_OPTIX
     OptixAS->Build();
+#endif
     this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(instance));
     this->TLASNodeBuffer->updateData(this->TLAS.Nodes.data(), this->TLAS.Nodes.size() * sizeof(tlasNode));
 }
@@ -512,7 +519,9 @@ void sceneBVH::AddInstance(uint32_t InstanceInx)
         Scene->Instances[i].Index = i;   
     }
     TLAS.Build();
+#if USE_OPTIX
     OptixAS->Build();
+#endif
     this->TLASInstancesBuffer =std::make_shared<buffer>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<buffer>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 }
@@ -525,7 +534,9 @@ void sceneBVH::RemoveInstance(uint32_t InstanceInx)
         Scene->Instances[i].Index = i;
     }
     TLAS.Build();   
+#if USE_OPTIX
     OptixAS->Build();
+#endif    
     this->TLASInstancesBuffer =std::make_shared<buffer>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<buffer>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 }

@@ -1,4 +1,6 @@
 // #pragma once
+
+
 // #include "BVH.h"
 // #include "App.h"
 
@@ -10,6 +12,7 @@
 
 // namespace pathtracing
 // {
+// #if !USE_OPTIX
 // using namespace glm;
 // using namespace gpupt;
 // using namespace commonCu;
@@ -82,128 +85,6 @@
 
 // // BVH
 
-// FN_DECL float RayAABBIntersection(ray Ray, vec3 AABBMin, vec3 AABBMax, INOUT(sceneIntersection) Isect)
-// {
-//     float tx1 = (AABBMin.x - Ray.Origin.x) * Ray.InverseDirection.x, tx2 = (AABBMax.x - Ray.Origin.x) * Ray.InverseDirection.x;
-//     float tmin = min( tx1, tx2 ), tmax = max( tx1, tx2 );
-//     float ty1 = (AABBMin.y - Ray.Origin.y) * Ray.InverseDirection.y, ty2 = (AABBMax.y - Ray.Origin.y) * Ray.InverseDirection.y;
-//     tmin = max( tmin, min( ty1, ty2 ) ), tmax = min( tmax, max( ty1, ty2 ) );
-//     float tz1 = (AABBMin.z - Ray.Origin.z) * Ray.InverseDirection.z, tz2 = (AABBMax.z - Ray.Origin.z) * Ray.InverseDirection.z;
-//     tmin = max( tmin, min( tz1, tz2 ) ), tmax = min( tmax, max( tz1, tz2 ) );
-//     if(tmax >= tmin && tmin < Isect.Distance && tmax > 0) return tmin;
-//     else return MAX_LENGTH;    
-// }
-
-// FN_DECL void RayTriangleInteresection(ray Ray, INOUT(triangle) Triangle, INOUT(sceneIntersection) Isect, uint InstanceIndex, uint PrimitiveIndex, uint MaterialIndex)
-// {
-//     vec3 Edge1 = vec3(Triangle.PositionUvX1) - vec3(Triangle.PositionUvX0);
-//     vec3 Edge2 = vec3(Triangle.PositionUvX2) - vec3(Triangle.PositionUvX0);
-
-//     vec3 h = cross(Ray.Direction, Edge2);
-//     float a = dot(Edge1, h);
-//     if(a > -0.00000001f && a < 0.00000001f) return; //Ray is parallel to the triangle
-    
-//     float f = 1 / a;
-//     vec3 s = Ray.Origin - vec3(Triangle.PositionUvX0);
-//     float u = f * dot(s, h);
-//     if(u < 0 || u > 1) return;
-
-//     vec3 q = cross(s, Edge1);
-//     float v = f * dot(Ray.Direction, q);
-//     if(v < 0 || u + v > 1) return;
-    
-//     float t = f * dot(Edge2, q);
-//     if(t > 0.00000001f && t < Isect.Distance) {
-//         Isect.InstanceIndex = InstanceIndex;
-//         Isect.PrimitiveIndex = PrimitiveIndex;
-//         Isect.U = u;
-//         Isect.V = v;
-//         Isect.Distance = t;
-//         Isect.MaterialIndex = MaterialIndex;
-//     }
-// }
-
-// FN_DECL void IntersectBVH(ray Ray, INOUT(sceneIntersection) Isect, uint InstanceIndex, uint MeshIndex)
-// {
-//     uint NodeInx = 0;
-//     uint Stack[64];
-//     uint StackPointer=0;
-//     bool t=true;
-    
-//     indexData IndexData = IndexDataBuffer[MeshIndex];
-//     uint NodeStartInx = IndexData.BVHNodeDataStartInx;
-//     uint TriangleStartInx = IndexData.triangleDataStartInx;
-//     uint IndexStartInx = IndexData.IndicesDataStartInx;
-//     uint MaterialIndex = TLASInstancesBuffer[InstanceIndex].Material;
-
-//     //We start with the root node of the shape 
-//     while(t)
-//     {
-
-//         // The current node contains triangles, it's a leaf. 
-//         if(BVHBuffer[NodeStartInx + NodeInx].TriangleCount>0)
-//         {
-//             // For each triangle in the leaf, intersect them
-//             for(uint i=0; i<BVHBuffer[NodeStartInx + NodeInx].TriangleCount; i++)
-//             {
-//                 uint Index = TriangleStartInx + IndicesBuffer[IndexStartInx + int(BVHBuffer[NodeStartInx + NodeInx].LeftChildOrFirst) + i] ;
-//                 RayTriangleInteresection(Ray, 
-//                                          TriangleBuffer[Index], 
-//                                          Isect, 
-//                                          InstanceIndex, 
-//                                          Index,
-//                                          MaterialIndex);
-//             }
-//             // Go back up the stack and continue to process the next node on the stack
-//             if(StackPointer==0) break;
-//             else NodeInx = Stack[--StackPointer];
-//             continue;
-//         }
-
-//         // Get the 2 children of the current node
-//         uint Child1 = uint(BVHBuffer[NodeStartInx + NodeInx].LeftChildOrFirst);
-//         uint Child2 = uint(BVHBuffer[NodeStartInx + NodeInx].LeftChildOrFirst)+1;
-
-//         // Intersect with the 2 aabb boxes, and get the closest hit
-//         float Dist1 = RayAABBIntersection(Ray, BVHBuffer[Child1 + NodeStartInx].AABBMin, BVHBuffer[Child1 + NodeStartInx].AABBMax, Isect);
-//         float Dist2 = RayAABBIntersection(Ray, BVHBuffer[Child2 + NodeStartInx].AABBMin, BVHBuffer[Child2 + NodeStartInx].AABBMax, Isect);
-//         if(Dist1 > Dist2) {
-//             float tmpDist = Dist2;
-//             Dist2 = Dist1;
-//             Dist1 = tmpDist;
-
-//             uint tmpChild = Child2;
-//             Child2 = Child1;
-//             Child1 = tmpChild;
-//         }
-
-//         if(Dist1 == MAX_LENGTH)
-//         {
-//             // If we didn't hit any of the 2 child, we can go up the stack
-//             if(StackPointer==0) break;
-//             else NodeInx = Stack[--StackPointer];
-//         }
-//         else
-//         {
-//             // If we did hit, add this child to the stack.
-//             NodeInx = Child1;
-//             if(Dist2 != MAX_LENGTH)
-//             {
-//                 Stack[StackPointer++] = Child2;
-//             }   
-//         }
-//     }
-// }
-
-// FN_DECL void IntersectInstance(ray Ray, INOUT(sceneIntersection) Isect, uint InstanceIndex)
-// {
-//     mat4 InverseTransform = TLASInstancesBuffer[InstanceIndex].InverseTransform;
-//     Ray.Origin = vec3((InverseTransform * vec4(Ray.Origin, 1)));
-//     Ray.Direction = vec3((InverseTransform * vec4(Ray.Direction, 0)));
-//     Ray.InverseDirection = 1.0f / Ray.Direction;
-
-//     IntersectBVH(Ray, Isect, TLASInstancesBuffer[InstanceIndex].Index, TLASInstancesBuffer[InstanceIndex].Shape);
-// }
 
 
 // FN_DECL sceneIntersection IntersectTLAS(ray Ray, int Sample, int Bounce)
@@ -269,21 +150,6 @@
 //     Ray.Direction = Direction;
 //     return Ray;
 // }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // // MIS
 // FN_DECL float PowerHeuristic(float PDF0, float PDF1)
@@ -515,18 +381,20 @@
     
 
 
+
 //     for(int Bounce=0; Bounce < GET_ATTR(Parameters, Bounces); Bounce++)
 //     {
 //         sceneIntersection Isect = {};
 //         if(Bounce==0) Isect = MakeFirstIsect(Sample);
 //         else Isect = IntersectTLAS(Ray, Sample, Bounce);
-
+        
 //         if(Isect.Distance == MAX_LENGTH)
 //         {
 //             Radiance += Weight * EvalEnvironment(Ray.Direction);
 //             if(Bounce==0) OutNormal = vec3(0,0,0);            
 //             break;
 //         }
+
 
 //         // get all the necessary geometry information
 //         triangle Tri = TriangleBuffer[Isect.PrimitiveIndex];    
@@ -765,6 +633,7 @@
 //         RenderImage[GlobalID.y * Width + GlobalID.x] = Output;
 //     }
 // }
+// #endif
 
 
 // }

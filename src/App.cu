@@ -406,7 +406,7 @@ void application::Rasterize()
 }
 void application::Trace()
 {
-#if 0
+#if !USE_OPTIX
     dim3 blockSize(16, 16);
     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);    
     pathtracing::TraceKernel<<<gridSize, blockSize>>>(
@@ -559,7 +559,7 @@ void application::Render()
     }
     else if(SVGFDebugOutput == SVGFDebugOutputEnum::RawOutput)
     {
-        // Rasterize();
+        Rasterize();
         CUDA_CHECK_ERROR(cudaGetLastError());
         Trace();
         CUDA_CHECK_ERROR(cudaGetLastError());

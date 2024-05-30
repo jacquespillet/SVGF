@@ -93,6 +93,7 @@ struct indexData
     uint32_t TriangleCount;
 };
 
+#if USE_OPTIX
 struct optixAS
 {
     std::vector<OptixInstance> OptixInstances;
@@ -103,6 +104,7 @@ struct optixAS
     scene *Scene;
     void Build();
 };
+#endif
 
 struct sceneBVH
 {
