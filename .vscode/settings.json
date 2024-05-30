@@ -96,6 +96,7 @@
         "regex": "cpp",
         "typeindex": "cpp",
         "unordered_set": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "*.isph": "cpp"
     }
 }

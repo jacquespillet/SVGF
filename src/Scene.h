@@ -16,6 +16,10 @@
 #define ENV_TEX_WIDTH 2048
 #define TEX_WIDTH 256
 
+#if USE_OPTIX
+#include <optix.h>
+#endif
+
 
 namespace gpupt
 {
@@ -58,6 +62,7 @@ struct texture
     glm::vec4 SampleF(glm::ivec2 Coords);
     void ToFile(std::ofstream &Stream);
     void FromFile(std::ifstream &Stream);
+    void Resize(int TargetSize);
 };
 
 
@@ -141,6 +146,11 @@ struct shape
     glm::vec3 Centroid;
 
     std::shared_ptr<blas> BVH;
+
+#if USE_OPTIX
+    OptixTraversableHandle ASHandle;
+    std::shared_ptr<buffer> ASBuffer;
+#endif
 
     void PreProcess();
     void CalculateTangents();

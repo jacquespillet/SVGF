@@ -12,6 +12,8 @@ add_definitions(-DAPI_GL=${API_GL})
 add_definitions(-DAPI_CU=${API_CU})
 add_definitions(-DAPI=${API})
 
+add_definitions(-DUSE_OPTIX=1)
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_BINARY_DIR}/install)
 
 
@@ -68,10 +70,16 @@ SET(OIDN_DEVICE_CPU OFF)
 SET(OIDN_DEVICE_CUDA ON)
 add_subdirectory(submodules/oidn)
 
+# Optix
+set(OPTIX_DIR $ENV{OptiX_DIR}/include)
+Message(${OPTIX_DIR})
+include_directories(${OPTIX_DIR})
+
 find_package(CUDA REQUIRED)
 enable_language(CUDA)
 
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -lineinfo -std=c++11)
+
 
 set(CUDA_LIB_DIR "$ENV{CUDA_PATH}/lib/x64")
 link_directories(${CUDA_LIB_DIR})
@@ -99,15 +107,41 @@ set (sourceFiles
         ${IMGUI_SOURCE}
         ${FILEDIALOG_SOURCE}
         ${GLAD_SOURCE}
+        )
+        
+set(optixSource 
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Raygen.cu
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Miss.cu
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Closesthit.cu
 )
 
+foreach(source_file ${optixSource})
+    get_filename_component(source_file_we ${source_file} NAME_WE)
+    set(ptx_file "${CMAKE_CURRENT_SOURCE_DIR}/resources/ptx/${source_file_we}.ptx")
+    add_custom_command(
+        OUTPUT ${ptx_file}
+        COMMAND ${CUDA_NVCC_EXECUTABLE}
+        ARGS ${CUDA_NVCC_FLAGS} -ptx ${source_file} -o ${ptx_file} -I ${OPTIX_DIR} -I ${GLM_INC_DIR} -lineinfo
+        DEPENDS ${source_file}
+    )
+    list(APPEND PTX_FILES ${ptx_file})
+endforeach()
+
 cuda_add_executable(PathTracer ${sourceFiles})
+
+
+add_custom_target(GeneratePTXFiles ALL DEPENDS ${PTX_FILES})
+add_dependencies(PathTracer GeneratePTXFiles)
+
 target_link_libraries(PathTracer glfw opengl32 OpenImageDenoise assimp)
-target_link_libraries(PathTracer ${CUDA_LIBRARIES})
+target_link_libraries(PathTracer ${CUDA_LIBRARIES} ${OptiX_LIBRARIES})
 
 set_property(TARGET PathTracer PROPERTY CXX_STANDARD 17)
 set_property(TARGET PathTracer PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET PathTracer PROPERTY CUDA_STANDARD 17)
+
+target_compile_definitions(PathTracer PRIVATE CMAKE_EXPORT_COMPILE_COMMANDS=1)
+
 
 install(TARGETS PathTracer RUNTIME)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/resources/ DESTINATION bin/resources)

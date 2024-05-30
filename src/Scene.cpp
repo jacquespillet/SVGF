@@ -15,6 +15,11 @@
 #include "fstream"
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <deprecated/stb_image_resize.h>
+
+#if USE_OPTIX
+#include <optix_stubs.h>
+#endif
 
 #define CUDA_CHECK_ERROR(err) \
     do { \
@@ -24,7 +29,15 @@
             assert(false); \
         } \
     } while (0)
-
+#define OPTIX_CHECK( x ) \
+    do { \
+        OptixResult result = x; \
+        if ( result != OPTIX_SUCCESS ) { \
+            std::cerr << "OptiX call " #x " failed with code " << result << " at " << __FILE__ << ":" << __LINE__ << std::endl; \
+            assert(false); \
+            exit(1); \
+        } \
+    } while(0)    
 
 namespace gpupt
 {
@@ -211,13 +224,64 @@ void shape::PreProcess()
     }
     this->Centroid = glm::vec3(Centroid);    
 
-    PositionsTmp.resize(0);
-    NormalsTmp.resize(0);
-    TexCoordsTmp.resize(0);
-    TangentsTmp.resize(0);
-    IndicesTmp.resize(0);
+    // PositionsTmp.resize(0);
+    // NormalsTmp.resize(0);
+    // TexCoordsTmp.resize(0);
+    // TangentsTmp.resize(0);
+    // IndicesTmp.resize(0);
 
     BVH = std::make_shared<blas>(this);
+#if USE_OPTIX
+    // Create OptiX
+    CUdeviceptr DevVertices;
+    cudaMalloc((void**)&DevVertices, PositionsTmp.size() * sizeof(glm::vec3));
+    cudaMemcpy((void*)DevVertices, PositionsTmp.data(), PositionsTmp.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
+    CUdeviceptr DevIndices;
+    cudaMalloc((void**)&DevIndices, IndicesTmp.size() * sizeof(glm::ivec3));
+    cudaMemcpy((void*)DevIndices, IndicesTmp.data(), IndicesTmp.size() * sizeof(glm::ivec3), cudaMemcpyHostToDevice);
+
+    uint32_t Flags = OPTIX_GEOMETRY_FLAG_NONE;
+    OptixBuildInput BuildInput = {};
+    BuildInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+    BuildInput.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+    BuildInput.triangleArray.numVertices = PositionsTmp.size();
+    BuildInput.triangleArray.vertexBuffers = &DevVertices;
+    BuildInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+    BuildInput.triangleArray.numIndexTriplets = IndicesTmp.size();
+    BuildInput.triangleArray.indexBuffer = DevIndices;
+    BuildInput.triangleArray.numSbtRecords = 1;
+    BuildInput.triangleArray.flags = &Flags;
+    
+
+    OptixAccelBuildOptions ASOptions = {};
+    ASOptions.buildFlags = OPTIX_BUILD_FLAG_NONE;
+    ASOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+    OptixAccelBufferSizes ASBufferSizes;
+    OPTIX_CHECK(optixAccelComputeMemoryUsage(application::Get()->OptixContext, &ASOptions, &BuildInput, 1, &ASBufferSizes));
+
+    ASBuffer = std::make_shared<buffer>(ASBufferSizes.outputSizeInBytes);
+    CUdeviceptr TempBuffer;
+    cudaMalloc((void**)&TempBuffer, ASBufferSizes.tempSizeInBytes);
+
+    OPTIX_CHECK(optixAccelBuild(
+        application::Get()->OptixContext,
+        0,
+        &ASOptions,
+        &BuildInput,
+        1,
+        TempBuffer,
+        ASBufferSizes.tempSizeInBytes,
+        (CUdeviceptr)ASBuffer->Data,
+        ASBufferSizes.outputSizeInBytes,
+        &ASHandle,
+        nullptr,
+        0
+    ));
+
+    cudaFree((void*)TempBuffer);    
+#endif
 }
 
 void shape::ToFile(std::ofstream &Stream)
@@ -239,6 +303,52 @@ void shape::FromFile(std::ifstream &Stream)
     DeserializeVector(Stream, TangentsTmp);
     DeserializeVector(Stream, IndicesTmp);
     DeserializeVector(Stream, Triangles);
+
+    PositionsTmp.resize(Triangles.size() * 3);
+    NormalsTmp.resize(Triangles.size() * 3);
+    TexCoordsTmp.resize(Triangles.size() * 3);
+    TangentsTmp.resize(Triangles.size() * 3);
+    IndicesTmp.resize(Triangles.size());
+
+    uint32_t Inx=0;
+    for(uint32_t i=0; i<Triangles.size(); i++)
+    {
+        triangle &Tri = Triangles[i];
+        {
+            glm::vec4 PosUVX = Tri.PositionUvX0;
+            glm::vec4 NormUVY = Tri.NormalUvY0;
+            PositionsTmp[Inx] = PosUVX;
+            NormalsTmp[Inx] = NormUVY;
+            TexCoordsTmp[Inx].x = PosUVX.w;
+            TexCoordsTmp[Inx].y = NormUVY.w;
+            TangentsTmp[Inx] = Tri.Tangent0;
+            IndicesTmp[i].z = Inx;
+            Inx++;
+        }
+        {
+            glm::vec4 PosUVX = Tri.PositionUvX1;
+            glm::vec4 NormUVY = Tri.NormalUvY1;
+            PositionsTmp[Inx] = PosUVX;
+            NormalsTmp[Inx] = NormUVY;
+            TexCoordsTmp[Inx].x = PosUVX.w;
+            TexCoordsTmp[Inx].y = NormUVY.w;
+            TangentsTmp[Inx] = Tri.Tangent1;
+            IndicesTmp[i].x = Inx;
+            Inx++;
+        }
+        {
+            glm::vec4 PosUVX = Tri.PositionUvX2;
+            glm::vec4 NormUVY = Tri.NormalUvY2;
+            PositionsTmp[Inx] = PosUVX;
+            NormalsTmp[Inx] = NormUVY;
+            TexCoordsTmp[Inx].x = PosUVX.w;
+            TexCoordsTmp[Inx].y = NormUVY.w;
+            TangentsTmp[Inx] = Tri.Tangent2; 
+            IndicesTmp[i].y = Inx;
+            Inx++;
+        }
+    }
+
     Stream.read((char*)&Centroid, sizeof(glm::vec3));
 }
 
@@ -248,7 +358,6 @@ void scene::CalculateInstanceTransform(int Inx)
 
     Instance.InverseTransform = glm::inverse(Instance.Transform);
     Instance.NormalTransform = glm::inverseTranspose(Instance.Transform);
-    
     blas *BVH = Shapes[Instance.Shape].BVH.get();
     glm::vec3 Min = BVH->BVHNodes[0].AABBMin;
     glm::vec3 Max = BVH->BVHNodes[0].AABBMax;
@@ -260,7 +369,7 @@ void scene::CalculateInstanceTransform(int Inx)
                                     i & 2 ? Max.y : Min.y, 
                                     i & 4 ? Max.z : Min.z,
                                     1.0f ));
-    }        
+    }      
 }
 
 scene::scene()
@@ -290,11 +399,11 @@ scene::scene()
     
     // {
     //     this->Instances.emplace_back();
-    //     instance &FloorInstance = this->Instances.back();
-    //     FloorInstance.Shape = (int)this->Shapes.size()-1;
-    //     FloorInstance.Material = (int)this->Materials.size()-1;
-    //     FloorInstance.Transform = glm::scale(glm::vec3(4, 4, 4));
-    //     this->InstanceNames.push_back("Floor");
+    //     instance &CubeInstance = this->Instances.back();
+    //     CubeInstance.Shape = (int)0;
+    //     CubeInstance.Material = (int)this->Materials.size()-1;
+    //     CubeInstance.Transform = glm::mat4(1);
+    //     this->InstanceNames.push_back("Cube");
     // }
     
     {
@@ -351,11 +460,9 @@ void scene::RemoveInstance(int InstanceInx)
 void scene::PreProcess()
 {
     this->ReloadTextureArray();
-    CUDA_CHECK_ERROR(cudaGetLastError());
 
     // Ensure name unicity
     CheckNames();
-    CUDA_CHECK_ERROR(cudaGetLastError());
 
     for(size_t i=0; i<Instances.size(); i++)
     {
@@ -363,24 +470,15 @@ void scene::PreProcess()
         CalculateInstanceTransform(i);
     }
 
-    CUDA_CHECK_ERROR(cudaGetLastError());
 
     BVH = CreateBVH(this); 
-    CUDA_CHECK_ERROR(cudaGetLastError());
     VertexBuffer = std::make_shared<vertexBuffer>(this);
-    CUDA_CHECK_ERROR(cudaGetLastError());
     Lights = std::make_shared<lights>();
-    CUDA_CHECK_ERROR(cudaGetLastError());
     Lights->Build(this);
-    CUDA_CHECK_ERROR(cudaGetLastError());
     this->CamerasBuffer = std::make_shared<buffer>(this->Cameras.size() * sizeof(camera), this->Cameras.data());
-    CUDA_CHECK_ERROR(cudaGetLastError());
     this->EnvironmentsBuffer = std::make_shared<buffer>(this->Environments.size() * sizeof(environment), this->Environments.data());
-    CUDA_CHECK_ERROR(cudaGetLastError());
     this->MaterialBuffer = std::make_shared<buffer>(sizeof(material) * Materials.size(), Materials.data());
-    CUDA_CHECK_ERROR(cudaGetLastError());
     this->MaterialBufferGL = std::make_shared<bufferGL>(sizeof(material) * Materials.size(), Materials.data());
-    CUDA_CHECK_ERROR(cudaGetLastError());
 }
 
 
@@ -401,8 +499,8 @@ void scene::ReloadTextureArray()
     for (size_t i = 0; i < Textures.size(); i++)
     {
         TexArray->LoadTextureLayer(i, Textures[i].Pixels, TextureWidth, TextureHeight);
+        
     }
-    CUDA_CHECK_ERROR(cudaGetLastError());
 
     EnvTexArray->CreateTextureArray(EnvTextureWidth, EnvTextureHeight, EnvTextures.size(), true);
     for (size_t i = 0; i < EnvTextures.size(); i++)
@@ -539,10 +637,16 @@ void scene::FromFile(std::string FileName)
     InStream.read((char*)&TextureHeight, sizeof(int));
     InStream.read((char*)&EnvTextureWidth, sizeof(int));
     InStream.read((char*)&EnvTextureHeight, sizeof(int));
+    
+    TextureWidth = TEX_WIDTH;
+    TextureHeight = TEX_WIDTH;
+    EnvTextureWidth = ENV_TEX_WIDTH;
+    EnvTextureHeight = ENV_TEX_WIDTH/2;
 
     for(int i=0; i<Shapes.size(); i++)
     {
-        Shapes[i].BVH = std::make_shared<blas>(&Shapes[i]);
+        Shapes[i].PreProcess();
+        // Shapes[i].BVH = std::make_shared<blas>(&Shapes[i]);
     }
 }
 
@@ -629,6 +733,46 @@ void texture::FromFile(std::ifstream &Stream)
     Stream.read((char*)&Width, sizeof(int));
     Stream.read((char*)&Height, sizeof(int));
     Stream.read((char*)&NumChannels, sizeof(int));
+
+    Resize(TEX_WIDTH);
+}
+
+void texture::Resize(int TargetSize)
+{
+    if(Pixels.size()!=0)
+    {
+        uint8_t* ResizedImage = new uint8_t[TargetSize * TargetSize * 4]; // Assuming RGBA format
+        int result = stbir_resize_uint8(Pixels.data(), Width, Height, 0, ResizedImage, TargetSize, TargetSize, 0, 4);
+        
+        if (!result) {
+            assert(false);
+            delete[] ResizedImage;
+            return;
+        }
+
+        // Resize the pixel data, and copy to it
+        Pixels.resize(TargetSize * TargetSize * 4);
+        memcpy(Pixels.data(), ResizedImage, Pixels.size());
+        delete[] ResizedImage;            
+    }
+    if(PixelsF.size()!=0)
+    {
+        float* ResizedImage = new float[TargetSize * TargetSize * 4]; // Assuming RGBA format
+        int result = stbir_resize_float(PixelsF.data(), Width, Height, 0, ResizedImage, TargetSize, TargetSize, 0, 4);
+        
+        if (!result) {
+            assert(false);
+            delete[] ResizedImage;
+            return;
+        } 
+
+        // Resize the pixel data, and copy to it
+        PixelsF.resize(TargetSize * TargetSize * 4);
+        memcpy(PixelsF.data(), ResizedImage, PixelsF.size() * sizeof(float));
+        delete[] ResizedImage;            
+    }
+    this->Width = TargetSize;
+    this->Height = TargetSize;
 }
 
 void texture::SetFromPixels(const std::vector<uint8_t> &PixelData, int Width, int Height)

@@ -2,9 +2,13 @@
 #include <memory>
 #include "Tracing.h"
 #include "CameraController.h"
-#include <OpenImageDenoise/oidn.hpp>
 #include "Timer.h"
 #include "SVGF.h"
+
+#define USE_OPTIX 1
+#if USE_OPTIX
+#include <optix.h>
+#endif
 
 namespace gpupt
 {
@@ -17,6 +21,14 @@ struct scene;
 class buffer;
 class gui;
 class framebuffer;
+
+
+// struct kernelParams {
+//     OptixTraversableHandle handle;
+//     float4* output_buffer;
+//     int image_width;
+//     int image_height;
+// };
 
 enum class rasterizeOutputs
 {
@@ -42,6 +54,15 @@ public:
     static glm::uvec2 GetSize();
 
     void OnResize(uint32_t NewWidth, uint32_t NewHeight);
+
+    
+#if USE_OPTIX
+    OptixDeviceContext OptixContext;
+    void CreateSBT();
+    OptixShaderBindingTable SBT;
+    OptixPipeline pipeline;
+    std::shared_ptr<buffer> KernelParamsBuffer;
+#endif
 private:
     friend class gui;
 
@@ -81,7 +102,7 @@ private:
         Moments,
         Variance,
         ATrousWaveletFilter
-    }SVGFDebugOutput = SVGFDebugOutputEnum::FinalOutput;
+    }SVGFDebugOutput = SVGFDebugOutputEnum::RawOutput;
     bool DebugRasterize=false;
     glm::vec4 DebugTint=glm::vec4(1);
 
@@ -103,6 +124,7 @@ private:
     void TAA();
 
     float Time=0;
+
 
     std::shared_ptr<framebuffer> Framebuffer[2];
     std::shared_ptr<shaderGL> GBufferShader;

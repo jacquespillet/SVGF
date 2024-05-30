@@ -25,8 +25,19 @@
 
 #include <ImGuizmo.h>
 #include <algorithm>
-
+#include <fstream>
 #include <iostream>
+
+#if USE_OPTIX
+#include <optix.h>
+#include <optix_stubs.h>
+#include <optix_function_table_definition.h>
+void LogCallback(unsigned int level, const char* tag, const char* message, void* cbdata)
+{
+    std::cout << "[" << level << "][" << (tag ? tag : "no tag") << "]: " << (message ? message : "no message") << "\n";
+}
+#endif
+
 #define CUDA_CHECK_ERROR(err) \
     do { \
         cudaError_t error = err; \
@@ -35,6 +46,28 @@
             assert(false); \
         } \
     } while (0)
+
+#define OPTIX_CHECK( x ) \
+    do { \
+        OptixResult result = x; \
+        if ( result != OPTIX_SUCCESS ) { \
+            std::cerr << "OptiX call " #x " failed with code " << result << " at " << __FILE__ << ":" << __LINE__ << std::endl; \
+            assert(false); \
+            exit(1); \
+        } \
+    } while(0)    
+#define OPTIX_CHECK_LOG(call)                                                \
+    {                                                                        \
+        OptixResult res = call;                                              \
+        if (res != OPTIX_SUCCESS) {                                          \
+            std::cerr << "OptiX call (" << #call << ") failed: "             \
+                      << optixGetErrorString(res) << " (code " << res << ")" \
+                      << "\nLog:\n" << log                                   \
+                      << std::endl;                                          \
+            assert(false);                                       \
+        }                                                                    \
+    }
+
 
 
 void checkOpenGLError(const std::string& location) {
@@ -112,11 +145,177 @@ void application::InitGpuObjects()
     TracingParamsBuffer = std::make_shared<buffer>(sizeof(tracingParameters), &Params);
 }
 
+#if USE_OPTIX
+struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) RayGenSbtRecord {
+    __align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+};
+
+struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) MissSbtRecord {
+    __align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+};
+
+struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) HitGroupSbtRecord {
+    __align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+    float data; // example payload
+};
+
+std::string readPTXFile(const std::string& filename) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file) {
+        std::cerr << "Error: Failed to open PTX file " << filename << std::endl;
+        return "";
+    }
+    std::vector<char> buffer((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    return std::string(buffer.begin(), buffer.end());
+}
+
+void application::CreateSBT()
+{
+    std::string raygen_ptx = readPTXFile("resources/ptx/raygen.ptx");
+    std::string closesthit_ptx = readPTXFile("resources/ptx/closesthit.ptx");
+    std::string miss_ptx = readPTXFile("resources/ptx/miss.ptx");    
+
+    OptixModule module_raygen;
+    OptixModule module_closesthit;
+    OptixModule module_miss;    
+
+    OptixModuleCompileOptions module_compile_options = {};
+    module_compile_options.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+    module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+    module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;    
+    
+    // Create and configure pipeline and program groups
+    OptixPipelineCompileOptions PipelineCompileOptions = {};
+    PipelineCompileOptions.usesMotionBlur = false;
+    PipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
+    PipelineCompileOptions.numPayloadValues = 5;
+    PipelineCompileOptions.numAttributeValues = 2;
+    PipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+    PipelineCompileOptions.pipelineLaunchParamsVariableName = "KernelParams";
+
+    char log[4096];
+    size_t sizeof_log = sizeof(log);
+
+
+    OPTIX_CHECK_LOG(optixModuleCreate(
+        OptixContext, 
+        &module_compile_options, 
+        &PipelineCompileOptions, 
+        raygen_ptx.c_str(), 
+        raygen_ptx.size(), 
+        log, 
+        &sizeof_log, 
+        &module_raygen));
+
+    OPTIX_CHECK_LOG(optixModuleCreate(
+        OptixContext, 
+        &module_compile_options, 
+        &PipelineCompileOptions, 
+        closesthit_ptx.c_str(), 
+        closesthit_ptx.size(), 
+        log, 
+        &sizeof_log, 
+        &module_closesthit));
+
+    OPTIX_CHECK_LOG(optixModuleCreate(
+        OptixContext, 
+        &module_compile_options, 
+        &PipelineCompileOptions, 
+        miss_ptx.c_str(), 
+        miss_ptx.size(), 
+        log, 
+        &sizeof_log, 
+        &module_miss));
+
+
+
+    OptixProgramGroupOptions program_group_options = {};
+    OptixProgramGroupDesc raygen_prog_group_desc = {};
+    raygen_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
+    raygen_prog_group_desc.raygen.entryFunctionName = "__raygen__rg";
+    raygen_prog_group_desc.raygen.module = module_raygen;
+    OptixProgramGroup raygen_prog_group;
+    OPTIX_CHECK(optixProgramGroupCreate(OptixContext, &raygen_prog_group_desc, 1, &program_group_options, nullptr, nullptr, &raygen_prog_group));
+
+    OptixProgramGroupDesc miss_prog_group_desc = {};
+    miss_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
+    miss_prog_group_desc.miss.entryFunctionName = "__miss__ms";
+    miss_prog_group_desc.miss.module = module_miss;
+    OptixProgramGroup miss_prog_group;
+    OPTIX_CHECK(optixProgramGroupCreate(OptixContext, &miss_prog_group_desc, 1, &program_group_options, nullptr, nullptr, &miss_prog_group));
+
+    OptixProgramGroupDesc hitgroup_prog_group_desc = {};
+    hitgroup_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+    hitgroup_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
+    hitgroup_prog_group_desc.hitgroup.moduleCH = module_closesthit;
+    OptixProgramGroup hitgroup_prog_group;
+    OPTIX_CHECK(optixProgramGroupCreate(OptixContext, &hitgroup_prog_group_desc, 1, &program_group_options, nullptr, nullptr, &hitgroup_prog_group));
+
+    OptixPipelineLinkOptions pipeline_link_options = {};
+    pipeline_link_options.maxTraceDepth = 1;
+
+    std::vector<OptixProgramGroup> ProgramGroups = {
+        raygen_prog_group,
+        miss_prog_group,
+        hitgroup_prog_group
+    };
+    // OPTIX_CHECK(optixPipelineCreate(OptixContext, &PipelineCompileOptions, &pipeline_link_options, &raygen_prog_group, 1, nullptr, nullptr, &pipeline));
+    // OPTIX_CHECK(optixPipelineCreate(OptixContext, &PipelineCompileOptions, &pipeline_link_options, &miss_prog_group, 1, nullptr, nullptr, &pipeline));
+    // OPTIX_CHECK(optixPipelineCreate(OptixContext, &PipelineCompileOptions, &pipeline_link_options, &hitgroup_prog_group, 1, nullptr, nullptr, &pipeline));
+    OPTIX_CHECK(optixPipelineCreate(OptixContext, &PipelineCompileOptions, &pipeline_link_options, ProgramGroups.data(), 3, nullptr, nullptr, &pipeline));
+
+
+    RayGenSbtRecord raygen_record;
+    MissSbtRecord miss_record;
+    HitGroupSbtRecord hitgroup_record;
+
+    OPTIX_CHECK(optixSbtRecordPackHeader(raygen_prog_group, &raygen_record));
+    OPTIX_CHECK(optixSbtRecordPackHeader(miss_prog_group, &miss_record));
+    OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group, &hitgroup_record));
+
+    // Allocate device memory for SBT
+    CUdeviceptr d_raygen_record;
+    cudaMalloc(reinterpret_cast<void**>(&d_raygen_record), sizeof(RayGenSbtRecord));
+    cudaMemcpy(reinterpret_cast<void*>(d_raygen_record), &raygen_record, sizeof(RayGenSbtRecord), cudaMemcpyHostToDevice);
+
+    CUdeviceptr d_miss_record;
+    cudaMalloc(reinterpret_cast<void**>(&d_miss_record), sizeof(MissSbtRecord));
+    cudaMemcpy(reinterpret_cast<void*>(d_miss_record), &miss_record, sizeof(MissSbtRecord), cudaMemcpyHostToDevice);
+
+    CUdeviceptr d_hitgroup_record;
+    cudaMalloc(reinterpret_cast<void**>(&d_hitgroup_record), sizeof(HitGroupSbtRecord));
+    cudaMemcpy(reinterpret_cast<void*>(d_hitgroup_record), &hitgroup_record, sizeof(HitGroupSbtRecord), cudaMemcpyHostToDevice);
 
     
+    SBT.raygenRecord = d_raygen_record;
+    SBT.missRecordBase = d_miss_record;
+    SBT.missRecordStrideInBytes = sizeof(MissSbtRecord);
+    SBT.missRecordCount = 1;
+    SBT.hitgroupRecordBase = d_hitgroup_record;
+    SBT.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
+    SBT.hitgroupRecordCount = 1;    
+
+    KernelParamsBuffer = std::make_shared<buffer>(sizeof(commonCu::kernelParams));
+}
+#endif
 void application::Init()
 {
     Time=0;
+
+#if USE_OPTIX
+    cudaFree(0);
+    OPTIX_CHECK(optixInit());
+    CUcontext cuCtx = 0; // Zero means take the current context
+    
+    OptixDeviceContextOptions Options = {};
+    Options.logCallbackFunction = &LogCallback;
+    Options.logCallbackLevel = 4;  // Set to a higher level for more verbose logging
+    Options.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
+
+    OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &Options, &OptixContext));    
+
+    CreateSBT();
+#endif
 
     this->GUI = std::make_shared<gui>(this);
 
@@ -207,15 +406,58 @@ void application::Rasterize()
 }
 void application::Trace()
 {
+#if 0
     dim3 blockSize(16, 16);
     dim3 gridSize((RenderWidth / blockSize.x)+1, (RenderHeight / blockSize.y) + 1);    
     pathtracing::TraceKernel<<<gridSize, blockSize>>>(
-        (pathtracing::half4*)RenderBuffer[PingPongInx]->Data, 
+        (commonCu::half4*)RenderBuffer[PingPongInx]->Data, 
         {Framebuffer[PingPongInx]->CudaMappings[0]->TexObj, Framebuffer[PingPongInx]->CudaMappings[1]->TexObj, Framebuffer[PingPongInx]->CudaMappings[2]->TexObj, Framebuffer[PingPongInx]->CudaMappings[3]->TexObj},
         RenderWidth, RenderHeight,
         (triangle*)Scene->BVH->TrianglesBuffer->Data, (bvhNode*) Scene->BVH->BVHBuffer->Data, (uint32_t*) Scene->BVH->IndicesBuffer->Data, (indexData*) Scene->BVH->IndexDataBuffer->Data, (instance*)Scene->BVH->TLASInstancesBuffer->Data, (tlasNode*) Scene->BVH->TLASNodeBuffer->Data,
         (camera*)Scene->CamerasBuffer->Data, (tracingParameters*)TracingParamsBuffer->Data, (material*)Scene->MaterialBuffer->Data, Scene->TexArray->TexObject, Scene->TextureWidth, Scene->TextureHeight, (light*)Scene->Lights->LightsBuffer->Data, (float*)Scene->Lights->LightsCDFBuffer->Data, (int)Scene->Lights->Lights.size(), 
         (environment*)Scene->EnvironmentsBuffer->Data, (int)Scene->Environments.size(), Scene->EnvTexArray->TexObject, Scene->EnvTextureWidth, Scene->EnvTextureHeight, Time);
+#else
+
+    commonCu::kernelParams KernelParams;
+    KernelParams.Height = RenderHeight;
+    KernelParams.Width = RenderWidth;
+    KernelParams.OutputBuffer = (CUdeviceptr)RenderBuffer[PingPongInx]->Data;
+    KernelParams.Handle = Scene->BVH->OptixAS->InstanceASHandle;
+
+    KernelParams.TriangleBuffer = (triangle*)Scene->BVH->TrianglesBuffer->Data;
+    KernelParams.IndicesBuffer = (uint32_t*) Scene->BVH->IndicesBuffer->Data;
+    KernelParams.Cameras = (camera*) Scene->CamerasBuffer->Data;
+    KernelParams.Parameters = (tracingParameters*)TracingParamsBuffer->Data;
+    KernelParams.Materials = (material*)Scene->MaterialBuffer->Data;
+    KernelParams.Instances = (instance*)Scene->BVH->TLASInstancesBuffer->Data;
+    KernelParams.SceneTextures = Scene->TexArray->TexObject;
+    KernelParams.EnvTextures = Scene->EnvTexArray->TexObject;
+    KernelParams.EnvironmentsCount = Scene->Environments.size();
+    KernelParams.TexturesWidth = Scene->TextureWidth;
+    KernelParams.TexturesHeight = Scene->TextureHeight;
+    KernelParams.LightsCount = Scene->Lights->Lights.size();
+    KernelParams.Lights = (light*)Scene->Lights->LightsBuffer->Data;
+    KernelParams.LightsCDF = (float*)Scene->Lights->LightsCDFBuffer->Data;
+    KernelParams.Environments = (environment*)Scene->EnvironmentsBuffer->Data;
+    KernelParams.EnvTexturesWidth = Scene->EnvTextureWidth;
+    KernelParams.EnvTexturesHeight = Scene->EnvTextureHeight;
+    KernelParams.Time = Time;
+    KernelParams.IndexDataBuffer = (indexData*) Scene->BVH->IndexDataBuffer->Data;
+    KernelParams.ShapeASHandles = (OptixTraversableHandle*) Scene->BVH->OptixAS->ShapeASHandlesBuffer->Data;
+    KernelParams.CurrentFramebuffer = {Framebuffer[PingPongInx]->CudaMappings[0]->TexObj, Framebuffer[PingPongInx]->CudaMappings[1]->TexObj, Framebuffer[PingPongInx]->CudaMappings[2]->TexObj, Framebuffer[PingPongInx]->CudaMappings[3]->TexObj};
+
+    // cudaMemcpyToSymbol(commonCu::KernelParams, &KernelParams, sizeof(commonCu::kernelParams));
+    KernelParamsBuffer->updateData(&KernelParams, sizeof(commonCu::kernelParams));
+
+
+    OPTIX_CHECK(optixLaunch(pipeline, 0, (CUdeviceptr)KernelParamsBuffer->Data, sizeof(commonCu::kernelParams), &SBT, RenderWidth, RenderHeight, 1));
+
+
+    // cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer[0]->Data, RenderWidth * RenderHeight * sizeof(filter::half4), cudaMemcpyDeviceToDevice);
+    // CUDA_CHECK_ERROR(cudaGetLastError());
+    
+    // OutputTexture = RenderTexture->TextureID;   
+#endif
 }
 void application::TemporalFilter()
 {
@@ -292,7 +534,7 @@ void application::Render()
     Scene->CamerasBuffer->updateData(0 * sizeof(camera), Scene->Cameras.data(), Scene->Cameras.size() * sizeof(camera));
     TracingParamsBuffer->updateData(&Params, sizeof(tracingParameters));
 
-
+#if 1
     if(SVGFDebugOutput == SVGFDebugOutputEnum::FinalOutput)
     {
         CUDA_CHECK_ERROR(cudaGetLastError());
@@ -317,7 +559,7 @@ void application::Render()
     }
     else if(SVGFDebugOutput == SVGFDebugOutputEnum::RawOutput)
     {
-        Rasterize();
+        // Rasterize();
         CUDA_CHECK_ERROR(cudaGetLastError());
         Trace();
         CUDA_CHECK_ERROR(cudaGetLastError());
@@ -398,6 +640,46 @@ void application::Render()
         // OutputTexture = RenderTexture->TextureID;        
         // DebugTint = glm::vec4(0,0,1,0);
     }
+#else
+    commonCu::kernelParams KernelParams;
+    KernelParams.Height = RenderHeight;
+    KernelParams.Width = RenderWidth;
+    KernelParams.OutputBuffer = (CUdeviceptr)RenderBuffer[0]->Data;
+    KernelParams.Handle = Scene->BVH->OptixAS->InstanceASHandle;
+
+    KernelParams.TriangleBuffer = (triangle*)Scene->BVH->TrianglesBuffer->Data;
+    KernelParams.IndicesBuffer = (uint32_t*) Scene->BVH->IndicesBuffer->Data;
+    KernelParams.Cameras = (camera*) Scene->CamerasBuffer->Data;
+    KernelParams.Parameters = (tracingParameters*)TracingParamsBuffer->Data;
+    KernelParams.Materials = (material*)Scene->MaterialBuffer->Data;
+    KernelParams.Instances = (instance*)Scene->BVH->TLASInstancesBuffer->Data;
+    KernelParams.SceneTextures = Scene->TexArray->TexObject;
+    KernelParams.EnvTextures = Scene->EnvTexArray->TexObject;
+    KernelParams.EnvironmentsCount = Scene->Environments.size();
+    KernelParams.TexturesWidth = Scene->TextureWidth;
+    KernelParams.TexturesHeight = Scene->TextureHeight;
+    KernelParams.LightsCount = Scene->Lights->Lights.size();
+    KernelParams.Lights = (light*)Scene->Lights->LightsBuffer->Data;
+    KernelParams.LightsCDF = (float*)Scene->Lights->LightsCDFBuffer->Data;
+    KernelParams.Environments = (environment*)Scene->EnvironmentsBuffer->Data;
+    KernelParams.EnvTexturesWidth = Scene->EnvTextureWidth;
+    KernelParams.EnvTexturesHeight = Scene->EnvTextureHeight;
+    KernelParams.Time = Time;
+    KernelParams.IndexDataBuffer = (indexData*) Scene->BVH->IndexDataBuffer->Data;
+    KernelParams.ShapeASHandles = (OptixTraversableHandle*) Scene->BVH->OptixAS->ShapeASHandlesBuffer->Data;
+
+    // cudaMemcpyToSymbol(commonCu::KernelParams, &KernelParams, sizeof(commonCu::kernelParams));
+    KernelParamsBuffer->updateData(&KernelParams, sizeof(commonCu::kernelParams));
+
+
+    OPTIX_CHECK(optixLaunch(pipeline, 0, (CUdeviceptr)KernelParamsBuffer->Data, sizeof(commonCu::kernelParams), &SBT, RenderWidth, RenderHeight, 1));
+
+
+    cudaMemcpyToArray(RenderTextureMapping->CudaTextureArray, 0, 0, RenderBuffer[0]->Data, RenderWidth * RenderHeight * sizeof(filter::half4), cudaMemcpyDeviceToDevice);
+    CUDA_CHECK_ERROR(cudaGetLastError());
+    
+    OutputTexture = RenderTexture->TextureID;    
+#endif
 }
 
 void application::Run()

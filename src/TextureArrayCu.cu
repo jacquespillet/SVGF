@@ -1,5 +1,15 @@
 #include "TextureArrayCu.cuh"
+#include <iostream>
+#include <assert.h>
 
+#define CUDA_CHECK_ERROR(err) \
+    do { \
+        cudaError_t error = err; \
+        if (error != cudaSuccess) { \
+            std::cout << "CUDA error at " << __FILE__ << ":" << __LINE__ << " - " << cudaGetErrorString(error) << std::endl; \
+            assert(false); \
+        } \
+    } while (0)
 namespace gpupt
 {
     textureArrayCu::~textureArrayCu() {
@@ -58,6 +68,7 @@ namespace gpupt
 
 
         cudaMemcpy2D((uint8_t*)CuArray + Dest, Pitch, ImageData.data(), Width*sizeof(uchar4), Width*sizeof(uchar4), Height, cudaMemcpyHostToDevice);
+        CUDA_CHECK_ERROR(cudaGetLastError());
     }
 
     void textureArrayCu::LoadTextureLayer(int layerIndex, const std::vector<float>& ImageData, int Width, int Height) {

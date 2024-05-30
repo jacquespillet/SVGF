@@ -1,10 +1,21 @@
 #include "BVH.h"
+#include "App.h"
 
 
 #include "Buffer.h"
 #include <cuda_runtime_api.h>
 
 #define BINS 8
+
+#define OPTIX_CHECK( x ) \
+    do { \
+        OptixResult result = x; \
+        if ( result != OPTIX_SUCCESS ) { \
+            std::cerr << "OptiX call " #x " failed with code " << result << " at " << __FILE__ << ":" << __LINE__ << std::endl; \
+            assert(false); \
+            exit(1); \
+        } \
+    } while(0)  
 
 namespace gpupt
 {
@@ -329,6 +340,75 @@ void tlas::Build()
 
 }
 
+#if USE_OPTIX
+optixAS::optixAS(scene *_Scene) : Scene(_Scene){}
+
+void optixAS::Build()
+{
+    // Optix
+    CUdeviceptr DevInstances;
+    
+    std::vector<OptixTraversableHandle> ShapeASVec(Scene->Shapes.size());
+    for(int i=0; i<Scene->Shapes.size(); i++)
+    {
+        ShapeASVec[i] = Scene->Shapes[i].ASHandle;
+    }
+    ShapeASHandlesBuffer = std::make_shared<buffer>(sizeof(OptixTraversableHandle) * Scene->Shapes.size(), ShapeASVec.data());
+    
+    OptixInstances.resize(Scene->Instances.size());
+    for(int i=0; i<OptixInstances.size(); i++)
+    {
+        OptixInstance &Inst = OptixInstances[i];
+        Inst.instanceId = i;
+        Inst.traversableHandle = Scene->Shapes[Scene->Instances[i].Shape].ASHandle;
+        Inst.sbtOffset = 0;
+        Inst.visibilityMask = 255;
+        Inst.flags = OPTIX_INSTANCE_FLAG_NONE;
+        uint32_t Inx=0;
+        Inst.transform[Inx++] = Scene->Instances[i].Transform[0][0]; Inst.transform[Inx++] = Scene->Instances[i].Transform[1][0];  Inst.transform[Inx++] = Scene->Instances[i].Transform[2][0]; Inst.transform[Inx++] = Scene->Instances[i].Transform[3][0]; 
+        Inst.transform[Inx++] = Scene->Instances[i].Transform[0][1]; Inst.transform[Inx++] = Scene->Instances[i].Transform[1][1];  Inst.transform[Inx++] = Scene->Instances[i].Transform[2][1]; Inst.transform[Inx++] = Scene->Instances[i].Transform[3][1]; 
+        Inst.transform[Inx++] = Scene->Instances[i].Transform[0][2]; Inst.transform[Inx++] = Scene->Instances[i].Transform[1][2];  Inst.transform[Inx++] = Scene->Instances[i].Transform[2][2]; Inst.transform[Inx++] = Scene->Instances[i].Transform[3][2]; 
+    }
+
+    size_t InstancesSize = sizeof(OptixInstance) * OptixInstances.size();
+    cudaMalloc((void**)&DevInstances, InstancesSize);
+    cudaMemcpy((void*)DevInstances, OptixInstances.data(), InstancesSize, cudaMemcpyHostToDevice);
+
+    OptixBuildInput InstanceInput = {};
+    InstanceInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+    InstanceInput.instanceArray.instances = DevInstances;
+    InstanceInput.instanceArray.numInstances = static_cast<unsigned int>(OptixInstances.size());
+
+    OptixAccelBuildOptions AccelerationOptions = {};
+    AccelerationOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+    AccelerationOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+    OptixAccelBufferSizes InstanceBufferSize;
+    OPTIX_CHECK(optixAccelComputeMemoryUsage(application::Get()->OptixContext, &AccelerationOptions, &InstanceInput, 1, &InstanceBufferSize));
+
+    InstanceASBuffer = std::make_shared<buffer>(InstanceBufferSize.outputSizeInBytes);
+    CUdeviceptr TempBuffer;
+    cudaMalloc((void**)&TempBuffer, InstanceBufferSize.tempSizeInBytes);
+
+    OPTIX_CHECK(optixAccelBuild(
+        application::Get()->OptixContext,
+        0,
+        &AccelerationOptions,
+        &InstanceInput,
+        1,
+        TempBuffer,
+        InstanceBufferSize.tempSizeInBytes,
+        (CUdeviceptr)InstanceASBuffer->Data,
+        InstanceBufferSize.outputSizeInBytes,
+        &InstanceASHandle,
+        nullptr,
+        0
+    ));
+
+    cudaFree((void*)TempBuffer);
+    cudaFree((void*)DevInstances);    
+}
+#endif
 
 std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
 {
@@ -392,6 +472,9 @@ std::shared_ptr<sceneBVH> CreateBVH(scene* Scene)
     Result->TLASNodeBuffer =std::make_shared<buffer>(Result->TLAS.Nodes.size() * sizeof(tlasNode), Result->TLAS.Nodes.data());
 
     Result->Scene = Scene;
+
+    Result->OptixAS = std::make_shared<optixAS>(Scene);
+    Result->OptixAS->Build();
     return Result;
 }
 
@@ -401,6 +484,7 @@ void sceneBVH::UpdateShape(uint32_t InstanceInx, uint32_t ShapeInx)
     Scene->CalculateInstanceTransform(InstanceInx);
     Scene->Instances[InstanceInx].Shape = ShapeInx;
     TLAS.Build();
+    OptixAS->Build();
     this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(instance));
     this->TLASNodeBuffer->updateData(this->TLAS.Nodes.data(), this->TLAS.Nodes.size() * sizeof(tlasNode));
 }
@@ -415,6 +499,7 @@ void sceneBVH::UpdateTLAS(uint32_t InstanceInx)
 {
     Scene->CalculateInstanceTransform(InstanceInx);
     TLAS.Build();
+    OptixAS->Build();
     this->TLASInstancesBuffer->updateData(this->TLAS.BLAS->data(), this->TLAS.BLAS->size() * sizeof(instance));
     this->TLASNodeBuffer->updateData(this->TLAS.Nodes.data(), this->TLAS.Nodes.size() * sizeof(tlasNode));
 }
@@ -427,6 +512,7 @@ void sceneBVH::AddInstance(uint32_t InstanceInx)
         Scene->Instances[i].Index = i;   
     }
     TLAS.Build();
+    OptixAS->Build();
     this->TLASInstancesBuffer =std::make_shared<buffer>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<buffer>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 }
@@ -439,6 +525,7 @@ void sceneBVH::RemoveInstance(uint32_t InstanceInx)
         Scene->Instances[i].Index = i;
     }
     TLAS.Build();   
+    OptixAS->Build();
     this->TLASInstancesBuffer =std::make_shared<buffer>(this->TLAS.BLAS->size() * sizeof(instance), this->TLAS.BLAS->data());
     this->TLASNodeBuffer =std::make_shared<buffer>(this->TLAS.Nodes.size() * sizeof(tlasNode), this->TLAS.Nodes.data());
 }

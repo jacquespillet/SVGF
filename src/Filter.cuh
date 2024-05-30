@@ -1,10 +1,8 @@
 #pragma once
 
 #include "App.h"
-#define GLM_FORCE_CUDA
-#include <glm/glm.hpp>
 #include <cuda_fp16.h>
-
+#include "Common.cuh"
 
 namespace filter
 {
@@ -16,6 +14,7 @@ __device__ int Height;
 
 struct half4 {half x, y, z, w;};
 struct half2 {half x, y;};
+
 FN_DECL half4 Vec4ToHalf4(INOUT(vec4) Input)
 {
     return {
@@ -349,7 +348,7 @@ __global__ void TAAFilterKernel(half4 *InputFiltered, half4 *Output, int _Width,
         antialiased = decodePalYuv(antialiased);
             
         vec4 fragColor = vec4(antialiased, 1);    
-        if(!pathtracing::IsFinite(fragColor)) fragColor = vec4(0,0,0,0);
+        if(!commonCu::IsFinite(fragColor)) fragColor = vec4(0,0,0,0);
 
         imageStore(Output , FragCoord , fragColor);
     }

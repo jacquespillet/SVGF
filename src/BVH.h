@@ -10,15 +10,6 @@ namespace gpupt
 class buffer;
 
 
-struct ray
-{
-    glm::vec3 Origin;
-    glm::vec3 Direction;
-    glm::vec3 InverseDirection;
-    ray(glm::vec3 O, glm::vec3 D, glm::vec3 ID) : Origin(O), Direction(D), InverseDirection(ID){}
-    ray() = default;
-};
-
 
 
 struct bvhNode
@@ -35,18 +26,6 @@ struct bin
 {
     aabb Bounds;
     uint32_t TrianglesCount=0;
-};
-
-struct rayPayload
-{
-    float Distance;
-    float U, V;
-    glm::vec3 Emission;
-    uint32_t InstanceIndex;
-    uint32_t MaterialIndex;
-    uint32_t PrimitiveIndex;
-    uint32_t RandomState;
-    uint8_t Depth;
 };
 
 
@@ -114,9 +93,23 @@ struct indexData
     uint32_t TriangleCount;
 };
 
+struct optixAS
+{
+    std::vector<OptixInstance> OptixInstances;
+    OptixTraversableHandle InstanceASHandle;
+    std::shared_ptr<buffer> InstanceASBuffer;
+    std::shared_ptr<buffer> ShapeASHandlesBuffer;
+    optixAS(scene *Scene);
+    scene *Scene;
+    void Build();
+};
+
 struct sceneBVH
 {
     tlas TLAS;
+#if USE_OPTIX
+    std::shared_ptr<optixAS> OptixAS;
+#endif
 
     std::vector<indexData> IndexData;
     std::vector<triangle> AllTriangles;
