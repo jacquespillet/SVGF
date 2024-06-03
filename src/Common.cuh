@@ -19,7 +19,7 @@
     Obj->Attr
 
 #define MAX_LENGTH 1e30f
-#define PI_F 3.141592653589
+#define PI_F 3.14159f
 #define INVALID_ID -1
 #define MIN_ROUGHNESS (0.03f * 0.03f)
 
@@ -191,6 +191,16 @@ FN_DECL float ToLinear(float SRGB) {
                            : pow((SRGB + 0.055f) / (1.0f + 0.055f), 2.4f);
 }
 
+FN_DECL float Cos(float T)
+{
+    return __cosf(T);
+}
+
+FN_DECL float Sin(float T)
+{
+    return __sinf(T);
+}
+
 FN_DECL vec4 ToLinear(vec4 SRGB)
 {
     return vec4(
@@ -294,7 +304,7 @@ FN_DECL vec3 TransformPoint(mat4 A, vec3 B)
 
 FN_DECL vec3 TransformDirection(mat4 A, vec3 B)
 {
-    vec4 Res = A * vec4(B, 0); 
+    vec4 Res = A * vec4(B, 0.0f); 
     return normalize(vec3(Res));
 }
 
@@ -391,7 +401,7 @@ FN_DECL vec3 SampleSphere(vec2 UV)
   float Z   = 2 * UV.y - 1;
   float R   = sqrt(clamp(1 - Z * Z, 0.0f, 1.0f));
   float Phi = 2 * PI_F * UV.x;
-  return vec3(R * cos(Phi), R * sin(Phi), Z);
+  return vec3(R * Cos(Phi), R * Sin(Phi), Z);
 }
 
 FN_DECL float SampleDiscretePDF(int CDFStart, int CDFCount, int Inx) {
@@ -431,15 +441,16 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
         environment Env = Environments[Lights[LightID].Environment];
         if (Env.EmissionTexture != INVALID_ID) {
             // auto& emission_tex = scene.textures[environment.emission_tex];
+
             int SampleInx = SampleDiscrete(LightID, RandEl);
             vec2 UV = vec2(((SampleInx % EnvTexturesWidth) + 0.5f) / EnvTexturesWidth,
                 ((SampleInx / EnvTexturesWidth) + 0.5f) / EnvTexturesHeight);
-            
-            return TransformDirection(Env.Transform, vec3(cos(UV.x * 2 * PI_F) * sin(UV.y * PI_F), 
-                        cos(UV.y * PI_F),
-                        sin(UV.x * 2 * PI_F) * sin(UV.y * PI_F)));
+            return TransformDirection(Env.Transform, vec3(Cos(float(UV.x * 2.0f * PI_F)) * Sin(float(UV.y * PI_F)), 
+                        Cos(float(UV.y * PI_F)),
+                        Sin(float(UV.x * 2.0f * PI_F)) * Sin(float(UV.y * PI_F))));
         } else {
-            return SampleSphere(RandUV);
+  
+            return SampleSphere(RandUV); 
         }      
     }
     else
@@ -451,12 +462,16 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
 #if USE_OPTIX
 FN_DECL void IntersectInstance(ray Ray, INOUT(sceneIntersection) Isect, uint InstanceIndex)
 {
+    mat4 InverseTransform = TLASInstancesBuffer[InstanceIndex].InverseTransform;
+    Ray.Origin = vec3((InverseTransform * vec4(Ray.Origin, 1)));
+    Ray.Direction = normalize(vec3((InverseTransform * vec4(Ray.Direction, 0))));
+    Ray.InverseDirection = 1.0f / Ray.Direction;
+
     int ShapeInx = TLASInstancesBuffer[InstanceIndex].Shape;
     OptixTraversableHandle Handle = ShapeASHandles[ShapeInx];
     rayPayload Payload = {};
     optixTrace(
-        // Handle,
-        IASHandle,
+        Handle,
         make_float3(Ray.Origin.x, Ray.Origin.y, Ray.Origin.z),
         make_float3(Ray.Direction.x, Ray.Direction.y, Ray.Direction.z),
         0.01f,  // tmin
@@ -475,22 +490,18 @@ FN_DECL void IntersectInstance(ray Ray, INOUT(sceneIntersection) Isect, uint Ins
     );
 
     Isect = {};
-    Isect.Distance = MAX_LENGTH;
-    if(Payload.InstanceIndex == InstanceIndex)
-    {
-        // Isect.InstanceIndex = InstanceIndex;
-        Isect.PrimitiveIndex = Payload.PrimitiveIndex;
 
-        int MeshIndex = TLASInstancesBuffer[Isect.InstanceIndex].Shape;
-        indexData IndexData = IndexDataBuffer[MeshIndex];
-        uint TriangleStartInx = IndexData.triangleDataStartInx;
-        Isect.PrimitiveIndex = Payload.PrimitiveIndex + TriangleStartInx;
-            
-        Isect.U = uint_as_float(Payload.U);
-        Isect.V = uint_as_float(Payload.V);
-        Isect.Distance = uint_as_float(Payload.Distance);
-        Isect.MaterialIndex = TLASInstancesBuffer[Isect.InstanceIndex].Material;
-    }
+    Isect.InstanceIndex = InstanceIndex;
+    Isect.PrimitiveIndex = Payload.PrimitiveIndex;
+    int MeshIndex = TLASInstancesBuffer[Isect.InstanceIndex].Shape;
+    indexData IndexData = IndexDataBuffer[MeshIndex];
+    uint TriangleStartInx = IndexData.triangleDataStartInx;
+    Isect.PrimitiveIndex = Payload.PrimitiveIndex + TriangleStartInx;
+        
+    Isect.U = uint_as_float(Payload.U);
+    Isect.V = uint_as_float(Payload.V);
+    Isect.Distance = uint_as_float(Payload.Distance);
+    Isect.MaterialIndex = TLASInstancesBuffer[Isect.InstanceIndex].Material;
 }
 #else
 
@@ -675,7 +686,7 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
             if (Env.EmissionTexture != INVALID_ID) {
                 vec3 WorldDir = TransformDirection(inverse(Env.Transform), Direction);
 
-                vec2 TexCoord = vec2(atan2(WorldDir.z, WorldDir.x) / (2 * PI_F),
+                vec2 TexCoord = vec2(atan2(WorldDir.z, WorldDir.x) / (2.0f * PI_F),
                                      acos(clamp(WorldDir.y, -1.0f, 1.0f)) / PI_F);
                 if (TexCoord.x < 0) TexCoord.x += 1;
                 
@@ -685,12 +696,12 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
                     EnvTexturesHeight - 1);
                 float Probability = SampleDiscretePDF(
                                 Lights[i].CDFStart, Lights[i].CDFCount, v * EnvTexturesWidth + u);
-                float Angle = (2 * PI_F / EnvTexturesWidth) *
+                float Angle = (2.0f * PI_F / EnvTexturesWidth) *
                             (PI_F / EnvTexturesHeight) *
-                            sin(PI_F * (v + 0.5f) / EnvTexturesHeight);
+                            Sin(PI_F * (v + 0.5f) / EnvTexturesHeight);
                 PDF += Probability / Angle;
             } else {
-                PDF += 1 / (4 * PI_F);
+                PDF += 1.0f / (4.0f * PI_F);
             }            
         }
     }
@@ -710,14 +721,14 @@ FN_DECL vec3 SampleHemisphereCosine(vec3 Normal, vec2 UV)
     float Z = sqrt(UV.y);
     float R = sqrt(1 - Z * Z);
     float Phi = 2 * PI_F * UV.x;
-    vec3 LocalDirection = vec3(R * cos(Phi), R * sin(Phi), Z);    
+    vec3 LocalDirection = vec3(R * Cos(Phi), R * Sin(Phi), Z);    
     return TransformDirection(BasisFromZ(Normal), LocalDirection);
 }
 
 FN_DECL float SampleHemisphereCosinePDF(INOUT(vec3) Normal, INOUT(vec3) Direction)
 {
-    // The probability of generating a direction v is proportional to cos(θ) (as in the cosine-weighted hemisphere).
-    // The total probability over the hemisphere should be 1. So, to normalize, we divide by the integral of cos⁡cos(θ) over the hemisphere, which is π.
+    // The probability of generating a direction v is proportional to Cos(θ) (as in the cosine-weighted hemisphere).
+    // The total probability over the hemisphere should be 1. So, to normalize, we divide by the integral of cos⁡Cos(θ) over the hemisphere, which is π.
 
     float CosW = dot(Normal, Direction);
     return (CosW <= 0) ? 0 : CosW / PI_F;
@@ -766,12 +777,12 @@ FN_DECL vec3 SampleMicrofacet(float Roughness, vec3 Normal, vec2 RN)
     float CosTheta = 0.0f;
 
     float Theta = atan(Roughness * sqrt(RN.y / (1 - RN.y)));
-    SinTheta = sin(Theta);
-    CosTheta = cos(Theta);
+    SinTheta = Sin(Theta);
+    CosTheta = Cos(Theta);
 
     vec3 LocalHalfVector = vec3(
-        cos(Phi) * SinTheta,
-        sin(Phi) * SinTheta,
+        Cos(Phi) * SinTheta,
+        Sin(Phi) * SinTheta,
         CosTheta
     );
 
@@ -1144,7 +1155,7 @@ FN_DECL vec3 SamplePhase(INOUT(materialPoint) Material, vec3 Outgoing, float RNL
 
     float SinTheta = sqrt(max(0.0f, 1- CosTheta * CosTheta));
     float Phi = 2 * PI_F * RN.x;
-    vec3 LocalIncoming = vec3(SinTheta * cos(Phi), SinTheta * sin(Phi), CosTheta);
+    vec3 LocalIncoming = vec3(SinTheta * Cos(Phi), SinTheta * Sin(Phi), CosTheta);
     return BasisFromZ(-Outgoing) * LocalIncoming;
 }
 
@@ -1516,6 +1527,15 @@ FN_DECL vec4 SampleCuTextureHalf4(cudaTextureObject_t Texture, ivec2 Coord)
 }
 
 
+FN_DECL ray MakeRay(vec3 Origin, vec3 Direction)
+{
+    ray Ray = {};
+    Ray.Origin = Origin;
+    Ray.Direction = Direction;
+    return Ray;
+}
+
+
 FN_DECL sceneIntersection MakeFirstIsect(int Sample)
 {
     uvec2 Coord = GLOBAL_ID();
@@ -1542,6 +1562,12 @@ FN_DECL sceneIntersection MakeFirstIsect(int Sample)
     
 
     return Isect;
+}
+
+// // MIS
+FN_DECL float PowerHeuristic(float PDF0, float PDF1)
+{
+    return (PDF0 * PDF0) / (PDF0 * PDF0 + PDF1 * PDF1);
 }
 
 

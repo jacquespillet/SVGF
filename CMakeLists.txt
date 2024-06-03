@@ -12,7 +12,8 @@ add_definitions(-DAPI_GL=${API_GL})
 add_definitions(-DAPI_CU=${API_CU})
 add_definitions(-DAPI=${API})
 
-add_definitions(-DUSE_OPTIX=1)
+set(USE_OPTIX 1)
+add_definitions(-DUSE_OPTIX=${USE_OPTIX})
 
 set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_BINARY_DIR}/install)
 
@@ -115,6 +116,7 @@ set(optixSource
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Closesthit.cu
 )
 
+if(${USE_OPTIX} EQUAL 1)
 foreach(source_file ${optixSource})
     get_filename_component(source_file_we ${source_file} NAME_WE)
     set(ptx_file "${CMAKE_CURRENT_SOURCE_DIR}/resources/ptx/${source_file_we}.ptx")
@@ -126,6 +128,9 @@ foreach(source_file ${optixSource})
     )
     list(APPEND PTX_FILES ${ptx_file})
 endforeach()
+endif()
+
+
 
 cuda_add_executable(PathTracer ${sourceFiles})
 

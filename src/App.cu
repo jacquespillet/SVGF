@@ -182,7 +182,7 @@ void application::CreateSBT()
     OptixModuleCompileOptions module_compile_options = {};
     module_compile_options.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
     module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-    module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;    
+    module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MODERATE;
     
     // Create and configure pipeline and program groups
     OptixPipelineCompileOptions PipelineCompileOptions = {};
@@ -193,7 +193,7 @@ void application::CreateSBT()
     PipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
     PipelineCompileOptions.pipelineLaunchParamsVariableName = "KernelParams";
 
-    char log[4096];
+    char log[8192];
     size_t sizeof_log = sizeof(log);
 
 
@@ -313,6 +313,7 @@ void application::Init()
     Options.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
 
     OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &Options, &OptixContext));    
+    OPTIX_CHECK(optixDeviceContextSetCacheEnabled(OptixContext, 0));
 
     CreateSBT();
 #endif

@@ -11,6 +11,7 @@
 .address_size 64
 
 	// .globl	__closesthit__ch
+.global .align 8 .b8 _ZN8commonCu18CurrentFramebufferE[32];
 .global .align 4 .u32 _ZN8commonCu5WidthE;
 .global .align 8 .u64 _ZN8commonCu15IndexDataBufferE;
 .global .align 4 .u32 _ZN8commonCu6HeightE;
@@ -32,8 +33,8 @@
 .global .align 4 .u32 _ZN8commonCu16EnvTexturesWidthE;
 .global .align 4 .u32 _ZN8commonCu17EnvTexturesHeightE;
 .global .align 4 .f32 _ZN8commonCu4TimeE;
-.global .align 8 .u64 _ZN8commonCu14ShapeASHandlesE;
-.global .align 8 .u64 _ZN8commonCu9IASHandleE;
+.global .align 8 .u64 _ZN8commonCu9BVHBufferE;
+.global .align 8 .u64 _ZN8commonCu9TLASNodesE;
 
 .visible .entry __closesthit__ch()
 {

@@ -20,9 +20,9 @@ extern "C" __global__ void __miss__ms() {
 
     float Distance = MAX_LENGTH;
     optixSetPayload_0(float_as_uint(Distance));
-    optixSetPayload_1(0);
-    optixSetPayload_2(0);
-    optixSetPayload_3(0);
-    optixSetPayload_4(0);    
+    optixSetPayload_1((uint32_t)-1);
+    optixSetPayload_2((uint32_t)0);
+    optixSetPayload_3((uint32_t)-1);
+    optixSetPayload_4((uint32_t)-1);    
 }
 }

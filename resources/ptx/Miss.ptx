@@ -11,7 +11,9 @@
 .address_size 64
 
 	// .globl	__miss__ms
+.global .align 8 .b8 _ZN8commonCu18CurrentFramebufferE[32];
 .global .align 4 .u32 _ZN8commonCu5WidthE;
+.global .align 8 .u64 _ZN8commonCu15IndexDataBufferE;
 .global .align 4 .u32 _ZN8commonCu6HeightE;
 .global .align 8 .u64 _ZN8commonCu14TriangleBufferE;
 .global .align 8 .u64 _ZN8commonCu13IndicesBufferE;
@@ -31,6 +33,8 @@
 .global .align 4 .u32 _ZN8commonCu16EnvTexturesWidthE;
 .global .align 4 .u32 _ZN8commonCu17EnvTexturesHeightE;
 .global .align 4 .f32 _ZN8commonCu4TimeE;
+.global .align 8 .u64 _ZN8commonCu9BVHBufferE;
+.global .align 8 .u64 _ZN8commonCu9TLASNodesE;
 
 .visible .entry __miss__ms()
 {
@@ -40,14 +44,15 @@
 
 	.loc	1 22 5
 	.loc	2 854 5, function_name $L__info_string0, inlined_at 1 22 5
-	mov.u32 	%r10, 0;
+	mov.u32 	%r6, 0;
 	mov.u32 	%r2, 1900671690;
 	// begin inline asm
-	call _optix_set_payload, (%r10, %r2);
+	call _optix_set_payload, (%r6, %r2);
 	// end inline asm
 	.loc	1 23 5
 	.loc	2 859 5, function_name $L__info_string1, inlined_at 1 23 5
 	mov.u32 	%r3, 1;
+	mov.u32 	%r10, -1;
 	// begin inline asm
 	call _optix_set_payload, (%r3, %r10);
 	// end inline asm
@@ -55,7 +60,7 @@
 	.loc	2 864 5, function_name $L__info_string2, inlined_at 1 24 5
 	mov.u32 	%r5, 2;
 	// begin inline asm
-	call _optix_set_payload, (%r5, %r10);
+	call _optix_set_payload, (%r5, %r6);
 	// end inline asm
 	.loc	1 25 5
 	.loc	2 869 5, function_name $L__info_string3, inlined_at 1 25 5
