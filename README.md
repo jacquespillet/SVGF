@@ -15,7 +15,7 @@ It's not a complete implementation, for example it's not doing albedo demodulati
 
 It's also not really optimized, although the filtering part is quite fast, the path tracing part could be faster, but my focus was more on implementing the filter rather than speeding up the path tracer. 
 
-#Build
+# Build
 ## Requirements : 
     Visual Studio (Tested only on Visual Studio 2019)
     Cuda installed on the system
@@ -203,9 +203,13 @@ we will take a 5x5 neighbourhood around the pixel, but remember the step size in
 For the first iteration, the step size is 1, so we really do take the 5x5 neighbourhood : 
 
 x x x x x 
+
 x x x x x
+
 x x o x x
+
 x x x x x
+
 x x x x x
 
 Here, "o" is the current pixel, and "x" are all the samples that we're checking in the surroundings of o. "_" are other pixels that we're not checking.
@@ -214,13 +218,21 @@ Here, "o" is the current pixel, and "x" are all the samples that we're checking 
 But for the second iteration, where stepSize is 2, we go further in the neighbourhood :
 
 x _ x _ x _ x _ x
+
 x _ x _ _ _ x _ x
+
 x _ x _ x _ x _ x
+
 x _ x _ _ _ x _ x
+
 x _ x _ o _ x _ x
+
 x _ x _ _ _ x _ x
+
 x _ x _ x _ x _ x
+
 x _ x _ _ _ x _ x
+
 x _ x _ x _ x _ x
 
 
@@ -316,7 +328,7 @@ An important thing to do as well is filtering the variance before running the A-
 
 This is done in a similar way as filtering the colour, so I won't go into those details.
 
-## 5. Temporal Anti Aliasing
+## 5. Temporal Anti Aliasing & Tonemapping
 
 We now have a denoised output, we can then run temporal anti aliasing and tonemapping on it, and it's then ready to display on the screen!
 
