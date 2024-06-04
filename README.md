@@ -8,8 +8,8 @@ It denoises 1 sample per pixel path tracing outputs in real time (~6ms)
 
 It's using openGL for rasterizing the scene and cuda for ray tracing. The raytracing backend can either use a custom BVH implementation, or NVidia optiX.
 
-![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/ComparisonBaseScene.PNG?raw=true)
-![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/ConfRoomDenoised.PNG?raw=true)
+![Result](https://github.com/jacquespillet/SVGF/blob/Part_13/resources/Gallery/ComparisonBaseScene.PNG?raw=true)
+![Result](https://github.com/jacquespillet/SVGF/blob/Part_13/resources/Gallery/ConfRoomDenoised.PNG?raw=true)
 
 It's not a complete implementation, for example it's not doing albedo demodulation as described in the paper, so it doesn't really work with textured meshes. 
 
@@ -99,7 +99,7 @@ Note that using the geometry buffer is not necessary, and SVGF can also work wit
 
 The output of this step is a noisy image like that : 
 
-![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/ConfRoomRaw.PNG?raw=true)
+![Result](https://github.com/jacquespillet/SVGF/blob/Part_13/resources/Gallery/ConfRoomRaw.PNG?raw=true)
 
 Here again, we use double buffers, meaning we can keep track of the previous frame output.
 
@@ -322,5 +322,5 @@ We now have a denoised output, we can then run temporal anti aliasing and tonema
 
 The temporal Anti aliasing is based on [this presentation](https://de45xmedrsdbp.cloudfront.net/Resources/files/TemporalAA_small-59732822.pdf) and I've taken the implementation from [this shader toy](https://www.shadertoy.com/view/ldKBzG).
 
-![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/BaseSceneDenoised.png?raw=true)
+![Result](https://github.com/jacquespillet/SVGF/blob/Part_13/resources/Gallery/BaseSceneDenoised.png?raw=true)
 
