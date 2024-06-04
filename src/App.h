@@ -5,6 +5,7 @@
 #include "Timer.h"
 #include "SVGF.h"
 
+// #define USE_OPTIX 1
 #if USE_OPTIX
 #include <optix.h>
 #endif

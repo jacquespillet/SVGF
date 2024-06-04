@@ -79,7 +79,7 @@ include_directories(${OPTIX_DIR})
 find_package(CUDA REQUIRED)
 enable_language(CUDA)
 
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -lineinfo -std=c++11)
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -lineinfo -std=c++11 --generate-line-info)
 
 
 set(CUDA_LIB_DIR "$ENV{CUDA_PATH}/lib/x64")
@@ -123,7 +123,8 @@ foreach(source_file ${optixSource})
     add_custom_command(
         OUTPUT ${ptx_file}
         COMMAND ${CUDA_NVCC_EXECUTABLE}
-        ARGS ${CUDA_NVCC_FLAGS} -ptx ${source_file} -o ${ptx_file} -I ${OPTIX_DIR} -I ${GLM_INC_DIR} -lineinfo
+        ARGS ${CUDA_NVCC_FLAGS} -ptx ${source_file} -o ${ptx_file} -I ${OPTIX_DIR} -I ${GLM_INC_DIR}
+        # ARGS ${CUDA_NVCC_FLAGS} -ptx ${source_file} -o ${ptx_file} -I ${OPTIX_DIR} -I ${GLM_INC_DIR}
         DEPENDS ${source_file}
     )
     list(APPEND PTX_FILES ${ptx_file})

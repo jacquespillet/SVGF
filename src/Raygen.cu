@@ -268,13 +268,11 @@ FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV)
     bool HasVolumeMaterial=false;
 
     bool UseMisIntersection = false;
-    sceneIntersection MisIntersection= {};
+    sceneIntersection MisIntersection= MakeFirstIsect(Sample);
 
     for(int Bounce=0; Bounce < GET_ATTR(Parameters, Bounces); Bounce++)
     {
-        sceneIntersection Isect = {};
-        if(Bounce==0) Isect = MakeFirstIsect(Sample);
-        else Isect = UseMisIntersection ?  MisIntersection : IntersectTLAS(Ray, Sample, Bounce);
+        sceneIntersection Isect =  UseMisIntersection ?  MisIntersection : IntersectTLAS(Ray, Sample, Bounce);
 
         if(Isect.Distance == MAX_LENGTH)
         {
@@ -339,23 +337,24 @@ FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV)
             if(!IsDelta(Material))
             {
                 {
-                    Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState));
+                    int SampledLightInstance = 0;
+                    Incoming = SampleLights(Position, RandomUnilateral(Isect.RandomState), RandomUnilateral(Isect.RandomState), Random2F(Isect.RandomState), &SampledLightInstance);
                     vec3 ShiftedPosition = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
-                    if (Incoming == vec3(0, 0, 0)) break;
+                    if (Incoming == vec3(0, 0, 0)) break; 
                     vec3 BSDFCos   = EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
-                    float LightPDF = SampleLightsPDF(ShiftedPosition, Incoming); 
+                    sceneIntersection LightIsect = {};
+                    float LightPDF = SampleLightsPDF(ShiftedPosition, Incoming, &LightIsect); 
                     float BSDFPDF = SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
                     float MisWeight = PowerHeuristic(LightPDF, BSDFPDF) / LightPDF;
                     if (BSDFCos != vec3(0, 0, 0) && MisWeight != 0) 
-                    {
-                        sceneIntersection Isect = IntersectTLAS(MakeRay(ShiftedPosition, Incoming), Sample, 0); 
+                    { 
                         vec3 Emission = vec3(0, 0, 0);
                         if (Isect.Distance == MAX_LENGTH) {
                             Emission = EvalEnvironment(Incoming);
                         } else {
-                            materialPoint Material = EvalMaterial(Isect);
+                            materialPoint Material = EvalMaterial(LightIsect);
                             vec3 Outgoing = -Incoming;
-                            vec3 ShadingNormal = EvalShadingNormal(Outgoing, Isect);
+                            vec3 ShadingNormal = EvalShadingNormal(Outgoing, LightIsect);
                             Emission      = EvalEmission(Material, ShadingNormal, Outgoing);
                         }
                         Radiance += Weight * BSDFCos * Emission * MisWeight;
@@ -366,11 +365,12 @@ FN_DECL vec3 PathTraceMIS(int Sample, vec2 UV)
                     vec3 ShiftedPosition = Position + (dot(Normal, Incoming) > 0 ? Normal : -Normal) * 0.001f;
                     if (Incoming == vec3(0, 0, 0)) break;
                     vec3 BSDFCos   = EvalBSDFCos(Material, Normal, OutgoingDir, Incoming);
-                    float LightPDF = SampleLightsPDF(ShiftedPosition, Incoming);
+                    sceneIntersection LightIsect = {};
+                    float LightPDF = SampleLightsPDF(ShiftedPosition, Incoming, &LightIsect);
                     float BSDFPDF = SampleBSDFCosPDF(Material, Normal, OutgoingDir, Incoming);
                     float MisWeight = PowerHeuristic(BSDFPDF, LightPDF) / BSDFPDF;
                     if (BSDFCos != vec3(0, 0, 0) && MisWeight != 0) {
-                        MisIntersection = IntersectTLAS(MakeRay(ShiftedPosition, Incoming), Sample, 0); 
+                        MisIntersection = LightIsect;
                         vec3 Emission = vec3(0, 0, 0);
                         if (MisIntersection.Distance == MAX_LENGTH) { 
                             Emission = EvalEnvironment(Incoming);

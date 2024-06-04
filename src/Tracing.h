@@ -33,6 +33,7 @@ inline tracingParameters GetTracingParameters()
     Params.Clamp = 10;
     Params.CurrentCamera=0;
     Params.SamplingMode = SAMPLING_MODE_LIGHT;
+    Params.SamplingMode = SAMPLING_MODE_MIS;
     return Params;
 }
 

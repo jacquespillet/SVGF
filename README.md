@@ -1,3 +1,16 @@
+#SVGF
+
+This is a simple implementation of [Spatiotemporal Variance-Guided Filtering](https://research.nvidia.com/publication/2017-07_spatiotemporal-variance-guided-filtering-real-time-reconstruction-path-traced). 
+
+I extended a [cuda path tracer](https://github.com/jacquespillet/gpupt_blog) to build it. 
+
+It denoises 1 sample per pixel path tracing outputs in real time (~6ms)
+
+It's using openGL for rasterizing the scene and cuda for ray tracing. The raytracing backend can either use a custom BVH implementation, or NVidia optiX.
+
+![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/ComparisonBaseScene.PNG?raw=true))
+![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/ConfRoomDenoised.PNG?raw=true))
+
 #Build
 ## Requirements : 
     Visual Studio (Tested only on Visual Studio 2019)
@@ -8,7 +21,7 @@
 ## Commands : 
 ```
 ### Clone the repo and checkout to the latest branch
-git clone --recursive https://github.com/jacquespillet/gpupt_blog.git
+git clone --recursive https://github.com/jacquespillet/svgf.git
 cd gpupt_blog
 git checkout origin/Part_13
 
@@ -25,150 +38,283 @@ First build may take a while because it's going to build all the dependencies wi
 
 ```
 
-# GPU Path Tracer
+# SVGF
 
-This is the repository accompanying the blog post series "Simple GPU Path Tracing". It contains all the code that we write throughout the series. Each branch in this repo corresponds to a blog post.
+There are 6 main steps in the algorithm that I will detail here : 
 
-Here's a summary of all the episodes in the series :
-[Simple GPU Path Tracing : Introduction ](https://jacquespillet.blogspot.com/2024/03/blog-post.html)
+## 1. Rasterization
 
-[Simple GPU Path Tracing, Part. 1 : Project Setup](https://jacquespillet.blogspot.com/2024/03/simple-gpu-path-tracing-part-1-project.html)
+In this part, we simply rasterize the scene in a framebuffer that contains multiple render targets : 
 
-[Simple GPU Path Tracing, Part. 1.1 : Adding a cuda backend to the project](https://jacquespillet.blogspot.com/2024/03/simple-gpu-path-tracing-part-11-adding.html)
+* Render Target #1 : This contains the 3d position of the fragment, and the triangle index in the alpha channel
 
-[Simple GPU Path Tracing, Part. 2.0 : Scene Representation](https://jacquespillet.blogspot.com/2024/03/simple-gpu-path-tracing-part-20-scene.html)
+* Render Target #2 : This contains the world normal of the fragment, and the material index in the alpha channel
 
-[Simple GPU Path Tracing, Part. 2.1 : Acceleration structure](https://jacquespillet.blogspot.com/2024/03/simple-gpu-path-tracing-part-21.html)
+* Render Target #3 : This contains the triangle barycentric coordinate of the fragment, and the instance index in the alpha channel
 
-[Simple GPU Path Tracing, Part. 3.0 : Path Tracing Basics](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-21-path.html)
+* Render Target #4 : This contains the triangle 2d motion vector of the fragment in the rg channels, and the linear depth and depth derivative in the ba channels.
 
-[Simple GPU Path Tracing, Part. 3.1 : Matte Material](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-31-matte.html)
+Motion vectors are calculated by taking the previous camera view matrix, calculating where this fragment was in the previous frame, and taking the difference between the current and previous pixel positions.
 
-[Simple GPU Path Tracing, Part. 3.2 : Physically Based Material](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-32-more.html)
+The depth is simply the distance between the camera and the fragment world position, and the depth derivative is calculated using dFdX/Y functions in glsl.
 
-[Simple GPU Path Tracing, Part. 3.4 : Small Improvements, Camera and wrap up](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-34-small.html)
+Note that we're using a double framebuffer approach here, like in most of the subsequent steps too.
 
-[Simple GPU Path Tracing, Part. 4.0 : Mesh Loading](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-40-mesh.html)
+This means that we actually have 2 openGL framebuffers, and every frame we swap the framebuffer to which we render. This allows to keep track of the previous frame output at all times, which will be handy for the calculations that we need to do later on.
 
-[Simple GPU Path Tracing, Part. 4.1 : Textures](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-41-textures.html)
-
-[Simple GPU Path Tracing, Part. 4.2 : Normal Mapping & GLTF Textures](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-42-normal.html)
-
-[Simple GPU Path Tracing, Part. 5.0 : Sampling lights](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-50.html)
-
-[Simple GPU Path Tracing, Part 6 : GUI](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-6-gui.html)
-
-[Simple GPU Path Tracing, Part 7.0 : Transparency](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-70.html)
-
-[Simple GPU Path Tracing, Part 7.1 : Volumetric materials](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-71.html)
-
-[Simple GPU Path Tracing, Part 7.1 : Refractive material](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-71_9.html)
-
-[Simple GPU Path Tracing, Part 8 : Denoising](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-8-denoising.html)
-
-[Simple GPU Path Tracing, Part 9 : Environment Lighting](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-9.html)
-
-[Simple GPU Path Tracing, Part 10 : Little Optimizations](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-10-little.html)
-
-[Simple GPU Path Tracing, Part 11 : Multiple Importance Sampling](https://jacquespillet.blogspot.com/2024/04/simple-gpu-path-tracing-part-11.html)
-
-
----
-  
-
-[Here](https://github.com/jacquespillet/gpupt_blog/tree/Part_13/resources/Gallery) are some renders done with the path tracer resulting from the tutorials :
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Teapot.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Bottle.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/AnimeClassRoom.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/BaseScene.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Cathedral_0.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Robot.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Sponza.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Vokselia_2.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Sculpture_All.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Bathroom.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Cathedral.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Breakfast_Room_2.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Coffee.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/ConferenceRoom.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Lost_Empire_1.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Rhetorician.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Rhetorician_Glass.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Rhetorician_Volume.png?raw=true)
-
-![Image](https://github.com/jacquespillet/gpupt_blog/blob/Part_13/resources/Gallery/Sponza_1.png?raw=true)
-
---- 
-[Here](https://github.com/jacquespillet/gpupt_blog/releases/download/Vendor/Scenes.zip) are the scenes that were used for those renders.
-
----
-
-[Here](https://raw.githubusercontent.com/jacquespillet/gpupt_blog/Part_13/resources/Gallery/Credits.txt?token=GHSAT0AAAAAACQGK7WP7XR5AOFYFSPGP44AZRKLF3A) are the credits for each scene :
-
-```
-[Anime Class Room by AnixMoonLight](https://sketchfab.com/3d-models/anime-class-room-4faa1d57304d446995bc3a01af763239)
-
-[Salle de bain from McGuire Computer Graphics Archive, Model by Nacimus Ait Cherif](https://casual-effects.com/data)
-
-[Bedroom from McGuire Computer Graphics Archive, Model by fhernand](https://casual-effects.com/data)
-
-[Ship in a bottle by Loïc Norgeot](https://sketchfab.com/3d-models/ship-in-a-bottle-9ddbc5b32da94bafbfdb56e1f6be9a38)
-
-[Breakfast Room from McGuire Computer Graphics Archive, Model by Wig42](https://casual-effects.com/data)
-
-[Breakfast Room from McGuire Computer Graphics Archive, Model by Wig42](https://casual-effects.com/data)
-
-[Cathedral by patrix](https://sketchfab.com/3d-models/cathedral-faed84a829114e378be255414a7826ca)
-
-[Coffee Maker from cekuhnen](www.blendswap.com/user/cekuhnen)
-
-[Conference Room from McGuire Computer Graphics Archive, Model by Anat Grynberg and Greg Ward](https://casual-effects.com/data)
-
-[Fireplace Room from McGuire Computer Graphics Archive, Model by Wig42](https://casual-effects.com/data)
-
-[List Empire from McGuire Computer Graphics Archive, Model by Morgan McGuire](https://casual-effects.com/data)
-
-[Rhetorician Maker from engine9](https://sketchfab.com/3d-models/rhetorician-a89f035291d843069d73988cc0e25399)
-
-[Robo Maker from Artem Shupa-Dubrova](https://sketchfab.com/3d-models/robo-obj-pose4-uaeYu2fwakD1e1bWp5Cxu3XAqrt)
-
-[Loie Fuller from Minneapolis Institute of Art, by Joseph Kratina](https://sketchfab.com/3d-models/loie-fuller-sculpture-by-joseph-kratina-05ba00cefb5b4a7e8cecda2a91d6a568)
-
-[Sea Keep "Lonely Watcher" by Artjoms Horosilovs](https://sketchfab.com/3d-models/sea-keep-lonely-watcher-09a15a0c14cb4accaf060a92bc70413d)
-
-[Sea House by Alyona Shek](https://sketchfab.com/3d-models/sea-house-bc4782005e9646fb9e6e18df61bfd28d)
-
-[Sponza from McGuire Computer Graphics Archive, by Frank Meinl, Crytek](https://casual-effects.com/data/)
-
-[Renderman's Teapot by Dylan Sisson and Leif Pedersen](https://renderman.pixar.com/official-swatch)
-
-[Vokselia Spawn from McGuire Computere Graphics Archive, Model by Vokselia](https://casual-effects.com/data/)
-
-
+Here's how we create those framebuffers : 
+```cpp
+    std::vector<framebufferDescriptor> Desc = 
+    {
+        {GL_RGBA32F, GL_RGBA, GL_FLOAT, sizeof(glm::vec4)}, //Position
+        {GL_RGBA16UI, GL_RGBA_INTEGER, GL_UNSIGNED_SHORT, 4 * sizeof(uint16_t)}, //Normal
+        {GL_RGBA16UI, GL_RGBA_INTEGER, GL_UNSIGNED_SHORT, 4 * sizeof(uint16_t)}, //Barycentric coordinates
+        {GL_RGBA32F, GL_RGBA, GL_FLOAT, sizeof(glm::vec4)}, //Motion Vectors and depth
+    };
+    Framebuffer[0] = std::make_shared<framebuffer>(RenderWidth, RenderHeight, Desc);
+    Framebuffer[1] = std::make_shared<framebuffer>(RenderWidth, RenderHeight, Desc);
 ```
 
---- 
-Helpful resources that helped creating the tutorials
+and how we bind them : 
 
-[Physically Based Rendering online edition](https://pbr-book.org/)
-[Jacco Bikker Blog](https://jacco.ompf2.com/), especially the posts about BVH that we're using in our code
-[A Graphics Guy's Note](https://agraphicsguynotes.com/posts/)
-[Scratchapixel](https://www.scratchapixel.com/)
-[Crash Course in BRDF Implementation](https://boksajak.github.io/blog/BRDF)
+```cpp
+Framebuffer[PingPongInx]->Bind();
+...
+PingPongInx = 1 - PingPongInx;
+```
+
+Here, PingPongInx always contains the index of the current frame framebuffer, and 1 - PingPongInx contains the previous frame's framebuffer.
+At the end of the current frame, we do PingPongInx = 1 - PingPongInx to swap.
+
+
+## 2. Path Tracing
+
+In this step, we use output the geometry buffer that's output by the rasterization step as a baseline for operating a 1 sample per pixel path tracing.
+
+Note that using the geometry buffer is not necessary, and SVGF can also work with fully path traced pipelines, but I wanted to test this "hybrid" approach and see how it performs.
+
+The output of this step is a noisy image like that : 
+
+![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/ConfRoomRaw.PNG?raw=true)
+
+Here again, we use double buffers, meaning we can keep track of the previous frame output.
+
+## 3. Temporal filtering
+
+In this step, we will be accumulating the results from previous frames using an Exponential moving average, which will already remove some noise
+
+To do that, for each pixel in the rendered image, we check if we can retrieve it in the previous frame. If the camera hasn't moved, it's easy, that pixel will be at the same position.
+
+If the camera has moved, we need to use the motion vectors to retrieve it in the previous frame, and we need to check that the value that we read from the previous frame is correct.
+
+Indeed, if the pixel was disoccluded, we won't find its previous value in the previous frame.
+
+the exponential moving average is implemented using a "History Buffer", which for each pixel stores how many frames are accumulated for that specific pixel.
+
+Here's how it works :
+```cpp
+    bool CouldLoad = LoadPreviousData();
+    if(CouldLoad)
+    {
+        HistoryLength = min(HistoryBaseLength, HistoryLength + 1 );
+        Alpha = 1.0 / HistoryLength;
+    }
+    else
+    {
+        Alpha = 1;
+        HistoryLength=1;
+    }
+    vec3 NewCol = mix(PrevCol, CurrentColour, Alpha);    
+```
+
+For each pixel, we try and load its previous data. If we can load, then we increment the history length, and set the interpolation factor to be the inverse of that.
+
+If we can't load, then alpha is naturally 1 as we don't want to interpolate with the previous frame, and we reset the history length to 1.
+
+
+That's all for colour temporal accumulation. 
+
+But in this step, we can also compute some values that will be needed for later steps, namely the "variance" and the "moments"
+
+The "First Moment" represents the average brightness of the pixel, so it's like an average of the luminance of that pixel. 
+
+The luminance can be calculated as follows : 
+
+```cpp
+float CalculateLuminance(vec3 Colour)
+{
+    return 0.2126f * Colour.r + 0.7152f * Colour.g + 0.0722f * Colour.b;
+}
+```
+
+The "Second Moment" involves squaring the luminance values before averaging them. It captures more information about the distribution, particularly how spread out the values are.
+
+Here's how we calculate the 2 moments : 
+
+```cpp
+Moments.x = CalculateLuminance(CurrentColour);
+Moments.y = Moments.r * Moments.r;
+Moments = mix(PreviousMoments, Moments, Alpha);
+``
+
+Finally, the variance is calculated by substracting the square of the first moment to the second moment :
+
+```cpp
+float Variance = max(0.f, Moments.g - Moments.r * Moments.r);
+```
+
+Here, a high variance will indicate that there's some noise on that pixel, which will be handy when filtering the noisy output (Hence the "Variance Guided" part in the title)
+
+In the paper, they also demodulate the albedo from the image, so that the later steps only work on white surfaces. This is because if there are textured surfaces, we don't want the filter to blur those colours.
+
+I haven't done that but it shouldn't be too difficult to add.
+
+## 4. A-Trous Filter
+
+In this step, we'll be filtering the noisy output using an "A-trous wavelet filter".
+
+This filter is ran multiple iterations, each time with an increasing radius or "step size" (1, 2, 4, 8, 16...) :
+
+```cpp
+    int PingPong=0;
+    for(int i=0; i<SpatialFilterSteps; i++)
+    {
+        filter::half4 *Input = (filter::half4 *)FilterBuffer[PingPong]->Data;
+        filter::half4 *Output = (filter::half4 *)FilterBuffer[1 - PingPong]->Data;
+
+        int StepSize = 1 << i;
+
+        filter::FilterKernel<<<gridSize, blockSize>>>(Input, Framebuffer[PingPongInx]->CudaMappings[(int)rasterizeOutputs::Motion]->TexObj, Framebuffer[PingPongInx]->CudaMappings[(int)rasterizeOutputs::Normal]->TexObj,
+            (uint8_t*)HistoryLengthBuffer->Data, Output, (filter::half4*) RenderBuffer[PingPongInx]->Data, RenderWidth, RenderHeight, StepSize, PhiColour, PhiNormal, i);
+
+        PingPong = 1 - PingPong;
+    }
+```
+
+This is the most complicated part of SVGF, but I'll still try to explain what happens.
+
+For each pixel, we will iterate through its neighbouring pixels, like we would do for blurring an image for example.
+
+we will take a 5x5 neighbourhood around the pixel, but remember the step size increases ! 
+For the first iteration, the step size is 1, so we really do take the 5x5 neighbourhood : 
+
+x x x x x 
+x x x x x
+x x o x x
+x x x x x
+x x x x x
+
+Here, "o" is the current pixel, and "x" are all the samples that we're checking in the surroundings of o. "_" are other pixels that we're not checking.
+
+
+But for the second iteration, where stepSize is 2, we go further in the neighbourhood :
+
+x _ x _ x _ x _ x
+x _ x _ _ _ x _ x
+x _ x _ x _ x _ x
+x _ x _ _ _ x _ x
+x _ x _ o _ x _ x
+x _ x _ _ _ x _ x
+x _ x _ x _ x _ x
+x _ x _ _ _ x _ x
+x _ x _ x _ x _ x
+
+
+Here's the code that does that : 
+
+```cpp
+   for (int yy = -2; yy <= 2; yy++)
+    {
+        for (int xx = -2; xx <= 2; xx++)
+        {
+            vec2 CurrentCoord = FragCoord + ivec2(xx, yy) * Step;
+            ...
+        }
+    }
+```
+
+Great, so what do we do with those neighbouring pixel values now ?
+
+well, we use them to filter the central pixel, and to do that, we will use an "edge stopping function". 
+
+This will allow us to not filter edges, because we obviously don't want to blur out edges in our noisy image.
+
+The filter is described in equation (1) of the paper, and here's a pseudo code implementation of that equation : 
+
+```cpp
+SumColour
+for each pixel q around pixel p  : 
+    kernelWeight = kernelWeights[q] //Those are [3/8, 1/4, 1/16]
+    edgeStoppingWeight = CalculateEdgeStoppingWeight() //This is the complicated function !
+    pixelWeight = kernelWeight * edgeStoppingWeight 
+
+    SumColour += pixelWeight * Colour[q]
+    SumWeight += pixelWeight
+
+FilterOutput = SumColour / SumWeight
+```
+
+So now, what does this CalculateEdgeStoppingWeight() function looks like ? 
+
+Well, it uses geometrical (world normals and depth) and luminance information to calculate a weight.
+
+That weight is defined as a product of 3 weights : Depth, Normal and luminance.
+
+
+* Normal : This is described in equation (4) of the paper, and here's the code : 
+
+```cpp
+const float weightNormal = pow(max(dot(normalCenter, normalP), 0), phiNormal);
+```
+
+* Depth : This is described in equation (3) of the paper, and here's the code : 
+```cpp
+float Numerator = abs((zCenter.x - zPixel.x));
+float Denominator = max(abs(zCenter.y), 1e-8f) * Step; //Here, sigma_z is 1, and step represends (p-q) : the distance between the 2 pixels.
+float weightZ = exp(-(Numerator / Denominator));
+```
+#
+
+* Illumination : This is described in equation (5) in the paper, and here's the code : 
+```cpp
+float Denominator = SigmaLuminance * sqrt(max(0, 1e-10 + Variance)); //Here, this is the prefiltered variance
+float weightLillum = abs(luminanceIllumCenter - luminanceIllumP) / Denominator;
+
+```
+
+Note that for the illumination and depth weights, we didn't put them in the exp(-) as described in the equations. 
+
+Instead, we do that all in one go when computer the final weight, as an optimization : 
+
+```cpp
+
+const float weightIllum = exp(0.0 - max(weightLillum, 0.0) - max(weightZ, 0.0)) * weightNormal;
+```
+
+This will result in a weight that will preserve the edges in the output images, and blur otherwise, which is exactly what we want.
+
+
+Note that the variance is also being filtered in this process. It's filtered using almost the same equation, except the weights are squared.
+
+This will steer the behaviour of the next iteration of the filter using an updated varianace.
+
+
+
+As described in the paper, we use the result of the first iteration of this filter as the input for the next frame's temporal accumulation :
+```cpp
+if(Iteration==0)
+{
+    RenderOutput[Inx] = Vec4ToHalf4(filteredIllumination);
+}
+```
+
+An important thing to do as well is filtering the variance before running the A-trous wavelet filter to get better results.
+
+This is done in a similar way as filtering the colour, so I won't go into those details.
+
+## 5. Temporal Anti Aliasing
+
+We now have a denoised output, we can then run temporal anti aliasing and tonemapping on it, and it's then ready to display on the screen!
+
+
+![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/BaseSceneDenoised.png?raw=true)

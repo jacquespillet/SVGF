@@ -4,6 +4,11 @@
 
 #include "Buffer.h"
 #include <cuda_runtime_api.h>
+#include <glm/glm.hpp>
+
+#if USE_OPTIX
+#include <optix_stubs.h>
+#endif
 
 #define BINS 8
 
@@ -28,8 +33,8 @@ float aabb::Area()
 
 void aabb::Grow(glm::vec3 Position)
 {
-    Min = glm::min(Min, Position);
-    Max = glm::max(Max, Position);
+    Min = (glm::min)(Min, Position);
+    Max = (glm::max)(Max, Position);
 }
 
 void aabb::Grow(aabb &AABB)
@@ -118,8 +123,8 @@ float blas::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
         for(uint32_t i=0; i<Node.TriangleCount; i++)
         {
             triangle &Triangle = Shape->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
-            BoundsMin = std::min(BoundsMin, Triangle.Centroid[CurrentAxis]);
-            BoundsMax = std::max(BoundsMax, Triangle.Centroid[CurrentAxis]);
+            BoundsMin = (std::min)(BoundsMin, Triangle.Centroid[CurrentAxis]);
+            BoundsMax = (std::max)(BoundsMax, Triangle.Centroid[CurrentAxis]);
         }
         if(BoundsMin == BoundsMax) continue;
         
@@ -129,7 +134,7 @@ float blas::FindBestSplitPlane(bvhNode &Node, int &Axis, float &SplitPosition)
         for(uint32_t i=0; i<Node.TriangleCount; i++)
         {
             triangle &Triangle = Shape->Triangles[TriangleIndices[Node.LeftChildOrFirst + i]];
-            int BinIndex = std::min(BINS - 1, (int)((Triangle.Centroid[CurrentAxis] - BoundsMin) * Scale));
+            int BinIndex = (std::min)(BINS - 1, (int)((Triangle.Centroid[CurrentAxis] - BoundsMin) * Scale));
             Bins[BinIndex].TrianglesCount++;
             Bins[BinIndex].Bounds.Grow(glm::vec3(Triangle.PositionUvX0));
             Bins[BinIndex].Bounds.Grow(glm::vec3(Triangle.PositionUvX1));
@@ -242,12 +247,12 @@ void blas::UpdateNodeBounds(uint32_t NodeIndex)
     {
         uint32_t TriangleIndex = TriangleIndices[First + i];
         triangle &Triangle = Shape->Triangles[TriangleIndex];
-        Node.AABBMin = glm::min(Node.AABBMin, glm::vec3(Triangle.PositionUvX0));
-        Node.AABBMin = glm::min(Node.AABBMin, glm::vec3(Triangle.PositionUvX1));
-        Node.AABBMin = glm::min(Node.AABBMin, glm::vec3(Triangle.PositionUvX2));
-        Node.AABBMax = glm::max(Node.AABBMax, glm::vec3(Triangle.PositionUvX0));
-        Node.AABBMax = glm::max(Node.AABBMax, glm::vec3(Triangle.PositionUvX1));
-        Node.AABBMax = glm::max(Node.AABBMax, glm::vec3(Triangle.PositionUvX2));
+        Node.AABBMin = (glm::min)(Node.AABBMin, glm::vec3(Triangle.PositionUvX0));
+        Node.AABBMin = (glm::min)(Node.AABBMin, glm::vec3(Triangle.PositionUvX1));
+        Node.AABBMin = (glm::min)(Node.AABBMin, glm::vec3(Triangle.PositionUvX2));
+        Node.AABBMax = (glm::max)(Node.AABBMax, glm::vec3(Triangle.PositionUvX0));
+        Node.AABBMax = (glm::max)(Node.AABBMax, glm::vec3(Triangle.PositionUvX1));
+        Node.AABBMax = (glm::max)(Node.AABBMax, glm::vec3(Triangle.PositionUvX2));
     }
 }
 
@@ -270,8 +275,8 @@ int tlas::FindBestMatch(std::vector<int>& List, int N, int A)
     {
         if(B != A)
         {
-            glm::vec3 BMax = glm::max(Nodes[List[A]].AABBMax, Nodes[List[B]].AABBMax);
-            glm::vec3 BMin = glm::min(Nodes[List[A]].AABBMin, Nodes[List[B]].AABBMin);
+            glm::vec3 BMax = (glm::max)(Nodes[List[A]].AABBMax, Nodes[List[B]].AABBMax);
+            glm::vec3 BMin = (glm::min)(Nodes[List[A]].AABBMin, Nodes[List[B]].AABBMin);
             glm::vec3 Diff = BMax - BMin;
             float Area = Diff.x * Diff.y + Diff.y * Diff.z + Diff.x * Diff.z;
             if(Area < Smallest) 
@@ -319,8 +324,8 @@ void tlas::Build()
             
             tlasNode &NewNode = Nodes[NodesUsed];
             NewNode.LeftRight = NodeIndexA + (NodeIndexB << 16);
-            NewNode.AABBMin = glm::min(NodeA.AABBMin, NodeB.AABBMin);
-            NewNode.AABBMax = glm::max(NodeA.AABBMax, NodeB.AABBMax);
+            NewNode.AABBMin = (glm::min)(NodeA.AABBMin, NodeB.AABBMin);
+            NewNode.AABBMax = (glm::max)(NodeA.AABBMax, NodeB.AABBMax);
             
             NodeIndex[A] = NodesUsed++;
             NodeIndex[B] = NodeIndex[NodeIndices-1];
@@ -380,7 +385,8 @@ void optixAS::Build()
     InstanceInput.instanceArray.numInstances = static_cast<unsigned int>(OptixInstances.size());
 
     OptixAccelBuildOptions AccelerationOptions = {};
-    AccelerationOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+    // AccelerationOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+    AccelerationOptions.buildFlags = OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_RANDOM_INSTANCE_ACCESS;
     AccelerationOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
 
     OptixAccelBufferSizes InstanceBufferSize;
@@ -402,7 +408,7 @@ void optixAS::Build()
         InstanceBufferSize.outputSizeInBytes,
         &InstanceASHandle,
         nullptr,
-        0
+        0  
     ));
 
     cudaFree((void*)TempBuffer);

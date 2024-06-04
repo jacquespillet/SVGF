@@ -410,7 +410,7 @@ FN_DECL float SampleDiscretePDF(int CDFStart, int CDFCount, int Inx) {
          LightsCDF[CDFStart + CDFCount -1];
 }
 
-FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 RandUV)
+FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 RandUV, int *SampledLightInstance=nullptr)
 {
     // Take a random light index
     int LightID = SampleUniform(int(LightsCount), RandL);
@@ -418,6 +418,7 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
     if(Lights[LightID].Instance != INVALID_ID)
     {
         instance Instance = TLASInstancesBuffer[Lights[LightID].Instance];
+        if(SampledLightInstance) *SampledLightInstance = Lights[LightID].Instance;
         indexData IndexData = IndexDataBuffer[Instance.Shape];
         uint TriangleStartInx = IndexData.triangleDataStartInx;
         uint TriangleCount = IndexData.TriangleCount;
@@ -440,8 +441,6 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
     {
         environment Env = Environments[Lights[LightID].Environment];
         if (Env.EmissionTexture != INVALID_ID) {
-            // auto& emission_tex = scene.textures[environment.emission_tex];
-
             int SampleInx = SampleDiscrete(LightID, RandEl);
             vec2 UV = vec2(((SampleInx % EnvTexturesWidth) + 0.5f) / EnvTexturesWidth,
                 ((SampleInx / EnvTexturesWidth) + 0.5f) / EnvTexturesHeight);
@@ -460,18 +459,19 @@ FN_DECL vec3 SampleLights(INOUT(vec3) Position, float RandL, float RandEl, vec2 
 }
 
 #if USE_OPTIX
-FN_DECL void IntersectInstance(ray Ray, INOUT(sceneIntersection) Isect, uint InstanceIndex)
+FN_DECL void IntersectInstance(ray Ray, INOUT(sceneIntersection) Isect)
 {
-    mat4 InverseTransform = TLASInstancesBuffer[InstanceIndex].InverseTransform;
-    Ray.Origin = vec3((InverseTransform * vec4(Ray.Origin, 1)));
-    Ray.Direction = normalize(vec3((InverseTransform * vec4(Ray.Direction, 0))));
-    Ray.InverseDirection = 1.0f / Ray.Direction;
+    // OptixTraversableHandle Handle = optixGetInstanceTraversableFromIAS(IASHandle, InstanceIndex);
+    // mat4 InverseTransform = TLASInstancesBuffer[InstanceIndex].InverseTransform;
+    // Ray.Origin = vec3((InverseTransform * vec4(Ray.Origin, 1)));
+    // Ray.Direction = normalize(vec3((InverseTransform * vec4(Ray.Direction, 0))));
+    // Ray.InverseDirection = 1.0f / Ray.Direction;
 
-    int ShapeInx = TLASInstancesBuffer[InstanceIndex].Shape;
-    OptixTraversableHandle Handle = ShapeASHandles[ShapeInx];
+    // int ShapeInx = TLASInstancesBuffer[InstanceIndex].Shape;
+    // OptixTraversableHandle Handle = ShapeASHandles[ShapeInx];
     rayPayload Payload = {};
     optixTrace(
-        Handle,
+        IASHandle,
         make_float3(Ray.Origin.x, Ray.Origin.y, Ray.Origin.z),
         make_float3(Ray.Direction.x, Ray.Direction.y, Ray.Direction.z),
         0.01f,  // tmin
@@ -483,21 +483,22 @@ FN_DECL void IntersectInstance(ray Ray, INOUT(sceneIntersection) Isect, uint Ins
         1,  // SBT stride for ray type
         0,  // missSBTIndex
         Payload.Distance,
-        Payload.PrimitiveIndex,
+        Payload.PrimitiveIndex, 
         Payload.InstanceIndex,
         Payload.U,
         Payload.V
     );
 
     Isect = {};
+    float t = Time * float(GLOBAL_ID().x) * 1973.0f;
+    Isect.RandomState = CreateRNG(uint(uint(t) + uint(GLOBAL_ID().y) * uint(9277)  +  uint(1) * uint(117191)) | uint(1)); 
+    Isect.InstanceIndex = Payload.InstanceIndex;
 
-    Isect.InstanceIndex = InstanceIndex;
-    Isect.PrimitiveIndex = Payload.PrimitiveIndex;
     int MeshIndex = TLASInstancesBuffer[Isect.InstanceIndex].Shape;
     indexData IndexData = IndexDataBuffer[MeshIndex];
     uint TriangleStartInx = IndexData.triangleDataStartInx;
     Isect.PrimitiveIndex = Payload.PrimitiveIndex + TriangleStartInx;
-        
+
     Isect.U = uint_as_float(Payload.U);
     Isect.V = uint_as_float(Payload.V);
     Isect.Distance = uint_as_float(Payload.Distance);
@@ -631,7 +632,7 @@ FN_DECL void IntersectInstance(ray Ray, INOUT(sceneIntersection) Isect, uint Ins
 #endif
 
 // Returns the probability of choosing a position on the light
-FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
+FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction, sceneIntersection *OutIsect = nullptr)
 {
     // Initialize the pdf to 0
     float PDF = 0;
@@ -651,9 +652,11 @@ FN_DECL float SampleLightsPDF(INOUT(vec3) Position, INOUT(vec3) Direction)
                 
                 sceneIntersection Isect;
                 Isect.Distance = MAX_LENGTH;
-                IntersectInstance(Ray, Isect, Lights[i].Instance);
+                IntersectInstance(Ray, Isect);
+                if(OutIsect != nullptr && Bounce==0)
+                    *OutIsect = Isect;
 
-                if(Isect.Distance == MAX_LENGTH) break;
+                if(Isect.Distance == MAX_LENGTH || Isect.InstanceIndex != Lights[i].Instance) break;
 
                 mat4 InstanceTransform = TLASInstancesBuffer[Lights[i].Instance].Transform;
 

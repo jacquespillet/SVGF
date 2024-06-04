@@ -350,6 +350,8 @@ __global__ void TAAFilterKernel(half4 *InputFiltered, half4 *Output, int _Width,
         vec4 fragColor = vec4(antialiased, 1);    
         if(!commonCu::IsFinite(fragColor)) fragColor = vec4(0,0,0,0);
 
+        fragColor = vec4(ToSRGB(fragColor), 1);
+
         imageStore(Output , FragCoord , fragColor);
     }
 }
@@ -371,6 +373,7 @@ __global__ void TemporalFilter(half4 *PreviousImage, half4 *CurrentImage, cudaFr
         float Alpha = 0;
         vec2 PreviousMoments(0);
         
+        // Load previous data if it exists
         bool CouldLoad = LoadPreviousData(PreviousImage, CurrentFramebuffer, PreviousFramebuffer, HistoryLengths, PreviousMomentsBuffer, FragCoord, CurrentColour, PrevCol, HistoryLength, PreviousMoments, DepthThreshold, NormalThreshold);
         if(CouldLoad)
         {
@@ -415,6 +418,7 @@ FN_DECL float computeWeight(
 {
     const float weightNormal = pow(saturate(dot(normalCenter, normalP)), phiNormal);
     const float weightZ = (phiDepth == 0) ? 0.0f : abs(depthCenter - depthP) / phiDepth;
+    
     const float weightLillum = abs(luminanceIllumCenter - luminanceIllumP) / phiIllum;
 
     const float weightIllum = exp(0.0 - max(weightLillum, 0.0) - max(weightZ, 0.0)) * weightNormal;
@@ -444,7 +448,7 @@ __global__ void FilterMoments(half4 *CurrentImage, half4 *Output, half2 *Moments
             vec2 sumMoments = vec2(0.0, 0.0);
 
             vec4 illuminationCenter =  Half4ToVec4(CurrentImage[Inx]);
-            const float lIlluminationCenter = CalculateLuminance(illuminationCenter);
+            const float LuminanceCenter = CalculateLuminance(illuminationCenter);
 
             const vec2 zCenter = GetDepth(Motions, FragCoord);
             if (zCenter.x < 0)
@@ -485,7 +489,7 @@ __global__ void FilterMoments(half4 *CurrentImage, half4 *Output, half2 *Moments
                             nCenter,
                             nP,
                             PhiNormal,
-                            lIlluminationCenter,
+                            LuminanceCenter,
                             lIlluminationP,
                             phiLIllumination
                         );
@@ -532,80 +536,83 @@ __global__ void FilterKernel(half4 *Input, cudaTextureObject_t Motions, cudaText
     uint32_t Inx = FragCoord.y * Width + FragCoord.x;
 
     if (FragCoord.x < Width && FragCoord.y < Height) {
-        float epsVariance = 1e-10;
-        float kernelWeights[3] = { 1.0, 2.0 / 3.0, 1.0 / 6.0 };
+        float EpsilonVariance = 1e-10;
+        float KernelWeights[3] = { 1.0, 2.0 / 3.0, 1.0 / 6.0 };
 
-        // nt samplers to prevent the compiler from generating code which
-        // fetches the sampler descriptor from memory for each texture access
+        // Get the luminance of the current pixel
         vec4 IlluminationCenter = imageLoad(Input, FragCoord);
-        float lIlluminationCenter = CalculateLuminance(IlluminationCenter);
+        float LuminanceCenter = CalculateLuminance(IlluminationCenter);
 
-        // variance, filtered using 3x3 gaussin blur
+        // variance
         float Variance = IlluminationCenter.w;
 
         // number of temporally integrated pixels
         float historyLength = float(HistoryLengths[Inx]);
 
-        // float zCenter = SampleCuTexture(Motions, FragCoord).z;
         vec2 zCenter = GetDepth(Motions, FragCoord);
+        // Not a valid depth
         if (zCenter.x == 1e30f)
         {
-            // not a valid depth => must be envmap => do not filter
             Output[Inx] = Vec4ToHalf4(IlluminationCenter);
             return;
         }
-        vec3 nCenter = SampleCuTextureHalf4(Normals, FragCoord);
 
-        float phiLIllumination = PhiColour * sqrt(max(0.0, epsVariance + Variance));
+        vec3 NormalCenter = SampleCuTextureHalf4(Normals, FragCoord);
+
+        float PhiIllumination = PhiColour * sqrt(max(0.0, EpsilonVariance + Variance));
         float PhiDepth = max(zCenter.y, 1e-6f) * Step;
 
         // explicitly store/accumulate center pixel with weight 1 to prevent issues
         // with the edge-stopping functions
-        float sumWIllumination = 1.0;
+        float SumWeightIllum = 1.0;
         vec4 sumIllumination = IlluminationCenter;
+
+        // Do the filtering
         for (int yy = -2; yy <= 2; yy++)
         {
             for (int xx = -2; xx <= 2; xx++)
             {
+
                 vec2 CurrentCoord = FragCoord + ivec2(xx, yy) * Step;
                 int FilterInx = CurrentCoord.y * Width + CurrentCoord.x;
 
                 bool inside = (CurrentCoord.x < Width && CurrentCoord.y < Height && CurrentCoord.x >=0 && CurrentCoord.y >=0);
 
-                float kernel = kernelWeights[abs(xx)] * kernelWeights[abs(yy)];
+                // Weight of the kernel for this pixel (goes decreasing with distance from center)
+                float kernel = KernelWeights[abs(xx)] * KernelWeights[abs(yy)];
 
                 if (inside && (xx != 0 || yy != 0)) // skip center pixel, it is already accumulated
                 {
-                    vec4 IlluminationP = imageLoad(Input, CurrentCoord);
-                    float lIlluminationP = CalculateLuminance(IlluminationP);
-                    float zP = GetDepth(Motions, CurrentCoord).x;
-                    vec3 nP = SampleCuTextureHalf4(Normals, CurrentCoord);
+                    vec4 PixelColour = imageLoad(Input, CurrentCoord);
+                    float PixelIllumination = CalculateLuminance(PixelColour);
+                    float PixelDepth = GetDepth(Motions, CurrentCoord).x;
+                    vec3 PixelNormal = SampleCuTextureHalf4(Normals, CurrentCoord);
 
                     // compute the edge-stopping functions
                     float w = computeWeight(
                         zCenter.x,
-                        zP,
+                        PixelDepth,
                         PhiDepth * length(vec2(xx, yy)),
-                        nCenter,
-                        nP,
+                        NormalCenter,
+                        PixelNormal,
                         PhiNormal,
-                        lIlluminationCenter,
-                        lIlluminationP,
-                        phiLIllumination
+                        LuminanceCenter,
+                        PixelIllumination,
+                        PhiIllumination
                     );
 
-                    float wIllumination = w * kernel;
+                    float IlluminationWeight = w * kernel;
 
                     // alpha channel contains the variance, therefore the weights need to be squared, see paper for the formula
-                    sumWIllumination += wIllumination;
-                    sumIllumination += vec4(wIllumination,wIllumination,wIllumination, wIllumination * wIllumination) * IlluminationP;
+                    SumWeightIllum += IlluminationWeight;
+                    sumIllumination += vec4(IlluminationWeight,IlluminationWeight,IlluminationWeight, IlluminationWeight * IlluminationWeight) * PixelColour;
                     // sumIllumination += vec4(wIllumination) * IlluminationP;
                 }
             }
         }
 
         // renormalization is different for variance, check paper for the formula
-        vec4 filteredIllumination = vec4(sumIllumination / vec4(sumWIllumination,sumWIllumination,sumWIllumination, sumWIllumination * sumWIllumination));
+        vec4 filteredIllumination = vec4(sumIllumination / vec4(SumWeightIllum,SumWeightIllum,SumWeightIllum, SumWeightIllum * SumWeightIllum));
 
         // return filteredIllumination;
         Output[Inx] = Vec4ToHalf4(filteredIllumination);

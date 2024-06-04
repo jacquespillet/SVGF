@@ -255,7 +255,7 @@ void shape::PreProcess()
     
 
     OptixAccelBuildOptions ASOptions = {};
-    ASOptions.buildFlags = OPTIX_BUILD_FLAG_NONE;
+    ASOptions.buildFlags = OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
     ASOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
 
     OptixAccelBufferSizes ASBufferSizes;

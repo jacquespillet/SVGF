@@ -181,8 +181,13 @@ void application::CreateSBT()
 
     OptixModuleCompileOptions module_compile_options = {};
     module_compile_options.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
-    module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+#if 1
+    module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_3;
+    module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+#else
+    module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
     module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_MODERATE;
+#endif
     
     // Create and configure pipeline and program groups
     OptixPipelineCompileOptions PipelineCompileOptions = {};
@@ -263,6 +268,7 @@ void application::CreateSBT()
     // OPTIX_CHECK(optixPipelineCreate(OptixContext, &PipelineCompileOptions, &pipeline_link_options, &miss_prog_group, 1, nullptr, nullptr, &pipeline));
     // OPTIX_CHECK(optixPipelineCreate(OptixContext, &PipelineCompileOptions, &pipeline_link_options, &hitgroup_prog_group, 1, nullptr, nullptr, &pipeline));
     OPTIX_CHECK(optixPipelineCreate(OptixContext, &PipelineCompileOptions, &pipeline_link_options, ProgramGroups.data(), 3, nullptr, nullptr, &pipeline));
+
 
 
     RayGenSbtRecord raygen_record;

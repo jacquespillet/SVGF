@@ -43,66 +43,66 @@
 	.loc	1 14 0
 
 
-	.loc	1 31 22
-	.loc	2 1294 5, function_name $L__info_string0, inlined_at 1 31 22
+	.loc	1 16 22
+	.loc	2 1294 5, function_name $L__info_string0, inlined_at 1 16 22
 	// begin inline asm
 	call (%f1), _optix_get_ray_tmax, ();
 	// end inline asm
-	.loc	1 32 23
-	.loc	3 142 10, function_name $L__info_string1, inlined_at 1 32 23
+	.loc	1 17 23
+	.loc	3 142 10, function_name $L__info_string1, inlined_at 1 17 23
 	mov.b32 	%r2, %f1;
-	.loc	1 32 5
-	.loc	2 854 5, function_name $L__info_string2, inlined_at 1 32 5
+	.loc	1 17 5
+	.loc	2 854 5, function_name $L__info_string2, inlined_at 1 17 5
 	mov.u32 	%r1, 0;
 	// begin inline asm
 	call _optix_set_payload, (%r1, %r2);
 	// end inline asm
-	.loc	1 34 31
-	.loc	2 1912 5, function_name $L__info_string3, inlined_at 1 34 31
+	.loc	1 19 31
+	.loc	2 1912 5, function_name $L__info_string3, inlined_at 1 19 31
 	// begin inline asm
 	call (%r3), _optix_read_primitive_idx, ();
 	// end inline asm
-	.loc	1 35 5
-	.loc	2 859 5, function_name $L__info_string4, inlined_at 1 35 5
+	.loc	1 20 5
+	.loc	2 859 5, function_name $L__info_string4, inlined_at 1 20 5
 	mov.u32 	%r4, 1;
 	// begin inline asm
 	call _optix_set_payload, (%r4, %r3);
 	// end inline asm
-	.loc	1 37 30
-	.loc	2 1926 5, function_name $L__info_string5, inlined_at 1 37 30
+	.loc	1 22 30
+	.loc	2 1926 5, function_name $L__info_string5, inlined_at 1 22 30
 	// begin inline asm
 	call (%r6), _optix_read_instance_id, ();
 	// end inline asm
-	.loc	1 38 5
-	.loc	2 864 5, function_name $L__info_string6, inlined_at 1 38 5
+	.loc	1 23 5
+	.loc	2 864 5, function_name $L__info_string6, inlined_at 1 23 5
 	mov.u32 	%r7, 2;
 	// begin inline asm
 	call _optix_set_payload, (%r7, %r6);
 	// end inline asm
-	.loc	1 40 17
-	.loc	2 2026 5, function_name $L__info_string7, inlined_at 1 40 17
+	.loc	1 25 17
+	.loc	2 2026 5, function_name $L__info_string7, inlined_at 1 25 17
 	// begin inline asm
 	call (%f2, %f3), _optix_get_triangle_barycentrics, ();
 	// end inline asm
-	.loc	1 41 23
-	.loc	3 142 10, function_name $L__info_string1, inlined_at 1 41 23
+	.loc	1 26 23
+	.loc	3 142 10, function_name $L__info_string1, inlined_at 1 26 23
 	mov.b32 	%r10, %f2;
-	.loc	1 41 5
-	.loc	2 869 5, function_name $L__info_string8, inlined_at 1 41 5
+	.loc	1 26 5
+	.loc	2 869 5, function_name $L__info_string8, inlined_at 1 26 5
 	mov.u32 	%r9, 3;
 	// begin inline asm
 	call _optix_set_payload, (%r9, %r10);
 	// end inline asm
-	.loc	1 42 23
-	.loc	3 142 10, function_name $L__info_string1, inlined_at 1 42 23
+	.loc	1 27 23
+	.loc	3 142 10, function_name $L__info_string1, inlined_at 1 27 23
 	mov.b32 	%r12, %f3;
-	.loc	1 42 5
-	.loc	2 874 5, function_name $L__info_string9, inlined_at 1 42 5
+	.loc	1 27 5
+	.loc	2 874 5, function_name $L__info_string9, inlined_at 1 27 5
 	mov.u32 	%r11, 4;
 	// begin inline asm
 	call _optix_set_payload, (%r11, %r12);
 	// end inline asm
-	.loc	1 43 1
+	.loc	1 28 1
 	ret;
 
 }
