@@ -1,8 +1,8 @@
-#SVGF
+# SVGF (Spatiotemporal Variance Guided Filtering)
 
 This is a simple implementation of [Spatiotemporal Variance-Guided Filtering](https://research.nvidia.com/publication/2017-07_spatiotemporal-variance-guided-filtering-real-time-reconstruction-path-traced). 
 
-I extended a [cuda path tracer](https://github.com/jacquespillet/gpupt_blog) to build it. 
+I extended a [cuda path tracer](https://github.com/jacquespillet/gpupt_blog) that I wrote to build it. 
 
 It denoises 1 sample per pixel path tracing outputs in real time (~6ms)
 
@@ -44,7 +44,7 @@ First build may take a while because it's going to build all the dependencies wi
 
 # SVGF
 
-There are 6 main steps in the algorithm that I will detail here : 
+There are 5 main steps in the algorithm that I will detail here : 
 
 ## 1. Rasterization
 
@@ -159,7 +159,7 @@ Here's how we calculate the 2 moments :
 Moments.x = CalculateLuminance(CurrentColour);
 Moments.y = Moments.r * Moments.r;
 Moments = mix(PreviousMoments, Moments, Alpha);
-``
+```
 
 Finally, the variance is calculated by substracting the square of the first moment to the second moment :
 
@@ -300,7 +300,7 @@ float weightLillum = abs(luminanceIllumCenter - luminanceIllumP) / Denominator;
 
 Note that for the illumination and depth weights, we didn't put them in the exp(-) as described in the equations. 
 
-Instead, we do that all in one go when computer the final weight, as an optimization : 
+Instead, we do that all in one go when computing the final weight, as an optimization : 
 
 ```cpp
 
