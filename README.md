@@ -8,8 +8,12 @@ It denoises 1 sample per pixel path tracing outputs in real time (~6ms)
 
 It's using openGL for rasterizing the scene and cuda for ray tracing. The raytracing backend can either use a custom BVH implementation, or NVidia optiX.
 
-![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/ComparisonBaseScene.PNG?raw=true))
-![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/ConfRoomDenoised.PNG?raw=true))
+![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/ComparisonBaseScene.PNG?raw=true)
+![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/ConfRoomDenoised.PNG?raw=true)
+
+It's not a complete implementation, for example it's not doing albedo demodulation as described in the paper, so it doesn't really work with textured meshes. 
+
+It's also not really optimized, although the filtering part is quite fast, the path tracing part could be faster, but my focus was more on implementing the filter rather than speeding up the path tracer. 
 
 #Build
 ## Requirements : 
