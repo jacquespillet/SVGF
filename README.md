@@ -320,5 +320,7 @@ This is done in a similar way as filtering the colour, so I won't go into those 
 
 We now have a denoised output, we can then run temporal anti aliasing and tonemapping on it, and it's then ready to display on the screen!
 
+The temporal Anti aliasing is based on [this presentation](https://de45xmedrsdbp.cloudfront.net/Resources/files/TemporalAA_small-59732822.pdf) and I've taken the implementation from [this shader toy](https://www.shadertoy.com/view/ldKBzG).
 
 ![Result](https://github.com/jacquespillet/svgf/blob/master/resources/Gallery/BaseSceneDenoised.png?raw=true)
+
