@@ -56,7 +56,7 @@ In this part, we simply rasterize the scene in a framebuffer that contains multi
 
 * Render Target #3 : This contains the triangle barycentric coordinate of the fragment, and the instance index in the alpha channel
 
-* Render Target #4 : This contains the triangle 2d motion vector of the fragment in the rg channels, and the linear depth and depth derivative in the ba channels.
+* Render Target #4 : This contains the 2d motion vector of the fragment in the rg channels, and the linear depth and depth derivative in the ba channels.
 
 Motion vectors are calculated by taking the previous camera view matrix, calculating where this fragment was in the previous frame, and taking the difference between the current and previous pixel positions.
 
