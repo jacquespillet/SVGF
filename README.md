@@ -93,7 +93,7 @@ At the end of the current frame, we do PingPongInx = 1 - PingPongInx to swap.
 
 ## 2. Path Tracing
 
-In this step, we use output the geometry buffer that's output by the rasterization step as a baseline for operating a 1 sample per pixel path tracing.
+In this step, we use the geometry buffer that's output by the rasterization step as a baseline for operating a 1 sample per pixel path tracing.
 
 Note that using the geometry buffer is not necessary, and SVGF can also work with fully path traced pipelines, but I wanted to test this "hybrid" approach and see how it performs.
 
