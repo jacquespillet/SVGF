@@ -26,8 +26,7 @@ It's also not really optimized, although the filtering part is quite fast, the p
 ```
 ### Clone the repo and checkout to the latest branch
 git clone --recursive https://github.com/jacquespillet/svgf.git
-cd gpupt_blog
-git checkout origin/Part_13
+cd SVGF
 
 ### Generate the solution
 mkdir build
